@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creator Plugin Flow — Install & Init</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-alt: #1a1a26;
+    --border: #2a2a3a;
+    --border-accent: #4f46e5;
+    --text: #e4e4ed;
+    --text-muted: #8888a0;
+    --accent: #818cf8;
+    --accent-bright: #a5b4fc;
+    --green: #34d399;
+    --green-dim: #064e3b;
+    --amber: #fbbf24;
+    --amber-dim: #78350f;
+    --rose: #fb7185;
+    --rose-dim: #4c0519;
+    --cyan: #22d3ee;
+    --cyan-dim: #083344;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  .hero {
+    position: relative;
+    padding: 80px 40px 60px;
+    text-align: center;
+    background: linear-gradient(180deg, #1a1a2e 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    background: rgba(79, 70, 229, 0.12);
+    border: 1px solid rgba(79, 70, 229, 0.3);
+    color: var(--accent-bright);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent-bright) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--text-muted);
+    max-width: 640px;
+    margin: 0 auto 24px;
+  }
+
+  .hero-link {
+    display: inline-block;
+    font-size: 14px;
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(129, 140, 248, 0.4);
+    padding-bottom: 1px;
+  }
+
+  .hero-link:hover { color: var(--accent-bright); border-color: var(--accent-bright); }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  /* Section */
+  section { padding: 60px 0; }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .section-label::before {
+    content: '';
+    display: block;
+    width: 20px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+  }
+
+  .section-desc {
+    color: var(--text-muted);
+    font-size: 16px;
+    margin-bottom: 40px;
+    max-width: 680px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0;
+  }
+
+  /* Phase Overview Table */
+  .overview-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .overview-table th {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .overview-table td {
+    padding: 12px 20px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+    color: var(--text-muted);
+  }
+
+  .overview-table tr:last-child td { border-bottom: none; }
+
+  .overview-table td:first-child {
+    font-weight: 600;
+    color: var(--accent-bright);
+    white-space: nowrap;
+  }
+
+  .overview-table td:nth-child(2) { color: #fff; font-weight: 500; }
+
+  /* Design Note Box */
+  .design-note {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(34, 211, 238, 0.05) 100%);
+    border: 1px solid rgba(79, 70, 229, 0.25);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  .design-note strong { color: #fff; }
+
+  .env-note {
+    background: var(--surface-alt);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .env-note strong { color: var(--amber); }
+
+  /* Phase Header */
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .phase-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .phase-num.p1 { background: rgba(129, 140, 248, 0.15); color: var(--accent-bright); border: 1px solid rgba(129, 140, 248, 0.3); }
+  .phase-num.p2 { background: rgba(251, 191, 36, 0.12); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+  .phase-num.p3 { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.3); }
+
+  .phase-header h2 { margin-bottom: 0; }
+  .phase-header .phase-freq {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Step Card */
+  .step-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  .step-card:hover { border-color: rgba(79, 70, 229, 0.4); }
+
+  .step-id {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .step-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .step-card .actor {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .actor.creator { background: rgba(251, 191, 36, 0.12); color: var(--amber); }
+  .actor.plugin { background: rgba(129, 140, 248, 0.12); color: var(--accent-bright); }
+  .actor.both { background: rgba(52, 211, 153, 0.1); color: var(--green); }
+
+  .step-card p, .step-card li {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  .step-card ul { list-style: none; margin-top: 8px; }
+  .step-card ul li {
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .step-card ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Inner table */
+  .inner-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+
+  .inner-table th {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .inner-table td {
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(42, 42, 58, 0.3);
+    color: var(--text-muted);
+    vertical-align: top;
+  }
+
+  .inner-table tr:last-child td { border-bottom: none; }
+
+  .inner-table code {
+    color: var(--accent);
+    background: rgba(129, 140, 248, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+  }
+
+  /* Conversation Mock */
+  .conv-mock {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .conv-mock .conv-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .conv-mock .conv-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .conv-mock .conv-header .dot.r { background: #ef4444; }
+  .conv-mock .conv-header .dot.y { background: #eab308; }
+  .conv-mock .conv-header .dot.g { background: #22c55e; }
+  .conv-mock .conv-header span { font-size: 12px; color: var(--text-muted); }
+
+  .conv-mock .conv-body { padding: 16px 20px; }
+
+  .conv-line { padding: 2px 0; }
+  .conv-line .role {
+    display: inline-block;
+    min-width: 60px;
+    font-weight: 600;
+  }
+
+  .conv-line .role.sys { color: var(--text-muted); }
+  .conv-line .role.plugin { color: var(--accent-bright); }
+  .conv-line .role.creator { color: var(--amber); }
+  .conv-line .msg { color: var(--text-muted); }
+  .conv-line .msg .ok { color: var(--green); }
+  .conv-line .msg .err { color: var(--rose); }
+  .conv-line .msg .warn { color: var(--amber); }
+  .conv-line .msg .hi { color: #fff; }
+  .conv-line.blank { height: 8px; }
+
+  /* Future Note */
+  .future-note {
+    background: rgba(34, 211, 238, 0.05);
+    border: 1px solid rgba(34, 211, 238, 0.15);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .future-note strong { color: var(--cyan); }
+
+  /* Pending Note */
+  .pending-note {
+    background: rgba(251, 191, 36, 0.05);
+    border: 1px solid rgba(251, 191, 36, 0.15);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .pending-note strong { color: var(--amber); }
+
+  /* Auth Mode Cards */
+  .auth-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .auth-card {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .auth-card.api::before { background: linear-gradient(90deg, var(--amber), var(--rose)); }
+  .auth-card.oauth::before { background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+
+  .auth-card .auth-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .auth-tag.api { background: var(--amber-dim); color: var(--amber); }
+  .auth-tag.oauth { background: rgba(129, 140, 248, 0.12); color: var(--accent-bright); }
+
+  .auth-card h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .auth-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .auth-card .auth-merit {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--green);
+  }
+
+  /* JSON Block */
+  .json-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .json-block .json-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .json-block .json-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .json-block .json-header .dot.r { background: #ef4444; }
+  .json-block .json-header .dot.y { background: #eab308; }
+  .json-block .json-header .dot.g { background: #22c55e; }
+
+  .json-block pre {
+    padding: 16px 20px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    overflow-x: auto;
+  }
+
+  .json-block pre .key { color: var(--accent-bright); }
+  .json-block pre .str { color: var(--green); }
+  .json-block pre .comment { color: #555570; font-style: italic; }
+
+  /* File Tree */
+  .file-tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .file-tree .tree-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .file-tree .tree-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .file-tree .tree-header .dot.r { background: #ef4444; }
+  .file-tree .tree-header .dot.y { background: #eab308; }
+  .file-tree .tree-header .dot.g { background: #22c55e; }
+  .file-tree .tree-header span { font-size: 12px; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; }
+
+  .file-tree .tree-body {
+    padding: 16px 20px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 2;
+  }
+
+  .file-tree .folder { color: var(--accent-bright); }
+  .file-tree .file { color: var(--text-muted); }
+  .file-tree .comment { color: #555570; font-style: italic; }
+  .file-tree .indent { padding-left: 24px; }
+  .file-tree .indent2 { padding-left: 48px; }
+
+  /* Branch Box */
+  .branch-box {
+    background: var(--surface-alt);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+
+  .branch-box p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .branch-box strong { color: #fff; }
+
+  /* Checklist */
+  .checklist {
+    list-style: none;
+    margin: 12px 0;
+  }
+
+  .checklist li {
+    padding: 6px 0;
+    padding-left: 28px;
+    position: relative;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .checklist li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  /* Subsection */
+  .subsection {
+    margin: 24px 0;
+  }
+
+  .subsection h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+
+  /* Guide Steps */
+  .guide-steps {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+
+  .guide-step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 8px 0;
+  }
+
+  .guide-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: rgba(129, 140, 248, 0.15);
+    color: var(--accent-bright);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+  }
+
+  .guide-step p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    padding-top: 3px;
+  }
+
+  .guide-step code {
+    color: var(--accent);
+    background: rgba(129, 140, 248, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+  }
+
+  /* Ready Prompt Examples */
+  .prompt-examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .prompt-ex {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .prompt-ex .prompt-state {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .prompt-ex .prompt-state.new { color: var(--cyan); }
+  .prompt-ex .prompt-state.dev { color: var(--accent); }
+  .prompt-ex .prompt-state.test { color: var(--amber); }
+  .prompt-ex .prompt-state.ready { color: var(--green); }
+
+  .prompt-ex p {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .prompt-ex p strong { color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; }
+
+  /* Why Box */
+  .why-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+
+  .why-box h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+
+  .why-box ul { list-style: none; }
+  .why-box ul li {
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .why-box ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rose);
+  }
+
+  /* Error Table */
+  .error-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .error-table th {
+    padding: 14px 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .error-table td {
+    padding: 12px 20px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+    color: var(--text-muted);
+    vertical-align: top;
+  }
+
+  .error-table tr:last-child td { border-bottom: none; }
+  .error-table td:first-child { color: #fff; font-weight: 500; white-space: nowrap; }
+
+  /* Principle Grid */
+  .principle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .principle-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .principle-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-bright);
+    margin-bottom: 8px;
+  }
+
+  .principle-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* Footer */
+  .doc-footer {
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .doc-footer p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .doc-footer .date {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Code inline */
+  code {
+    color: var(--accent);
+    background: rgba(129, 140, 248, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.9em;
+  }
+
+  /* TOC Sidebar */
+  .toc {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 220px;
+    height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px 0;
+    z-index: 100;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .toc::-webkit-scrollbar { width: 4px; }
+  .toc::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .toc-title {
+    padding: 0 20px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .toc a {
+    display: block;
+    padding: 5px 20px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-decoration: none;
+    line-height: 1.5;
+    transition: color 0.15s, background 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  .toc a:hover {
+    color: var(--text);
+    background: rgba(129, 140, 248, 0.05);
+  }
+
+  .toc a.active {
+    color: var(--accent-bright);
+    border-left-color: var(--accent);
+    background: rgba(129, 140, 248, 0.08);
+  }
+
+  .toc a.toc-phase {
+    font-weight: 600;
+    color: var(--text);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+
+  .toc a.toc-phase.active {
+    color: var(--accent-bright);
+  }
+
+  .toc a.toc-step {
+    padding-left: 32px;
+    font-size: 12px;
+  }
+
+  .toc a.toc-section {
+    font-weight: 600;
+    color: var(--text);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+
+  .toc a.toc-section.active {
+    color: var(--accent-bright);
+  }
+
+  /* Offset body for sidebar */
+  body { margin-left: 220px; }
+
+  html { scroll-behavior: smooth; }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .toc { display: none; }
+    body { margin-left: 0; }
+  }
+
+  @media (max-width: 768px) {
+    .hero { padding: 60px 24px 40px; }
+    .hero h1 { font-size: 28px; }
+    .container { padding: 0 24px; }
+    .auth-grid, .prompt-examples, .principle-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOC Sidebar -->
+<nav class="toc">
+  <div class="toc-title">目录</div>
+  <a href="javascript:void(0)" data-target="overview" class="toc-section">阶段总览</a>
+  <a href="javascript:void(0)" data-target="phase1" class="toc-phase">Phase 1 · 安装 Plugin</a>
+  <a href="javascript:void(0)" data-target="s1-1" class="toc-step">1.1 访问开发者平台</a>
+  <a href="javascript:void(0)" data-target="s1-2" class="toc-step">1.2 复制安装指令</a>
+  <a href="javascript:void(0)" data-target="s1-3" class="toc-step">1.3 粘贴到 Code 模块</a>
+  <a href="javascript:void(0)" data-target="s1-4" class="toc-step">1.4 执行安装</a>
+  <a href="javascript:void(0)" data-target="phase2" class="toc-phase">Phase 2 · 首次初始化</a>
+  <a href="javascript:void(0)" data-target="s2-0" class="toc-step">2.0 自动进入初始化</a>
+  <a href="javascript:void(0)" data-target="s2-1" class="toc-step">2.1 检查鉴权状态</a>
+  <a href="javascript:void(0)" data-target="s2-1a" class="toc-step">2.1a 登录流程</a>
+  <a href="javascript:void(0)" data-target="s2-2" class="toc-step">2.2 检查项目上下文</a>
+  <a href="javascript:void(0)" data-target="s2-3" class="toc-step">2.3 创建 Skill 项目</a>
+  <a href="javascript:void(0)" data-target="s2-4" class="toc-step">2.4 Scaffold 项目结构</a>
+  <a href="javascript:void(0)" data-target="s2-5" class="toc-step">2.5 引导打开文件夹</a>
+  <a href="javascript:void(0)" data-target="s2-6" class="toc-step">2.6 开始新 Session</a>
+  <a href="javascript:void(0)" data-target="phase3" class="toc-phase">Phase 3 · 日常进入开发</a>
+  <a href="javascript:void(0)" data-target="s3-1" class="toc-step">3.1 打开项目文件夹 → 自动激活</a>
+  <a href="javascript:void(0)" data-target="s3-2" class="toc-step">3.2 环境检查</a>
+  <a href="javascript:void(0)" data-target="s3-3" class="toc-step">3.3 生成初始页面</a>
+  <a href="javascript:void(0)" data-target="s3-4" class="toc-step">3.4 报告就绪</a>
+  <a href="javascript:void(0)" data-target="data-structures" class="toc-section">关键数据结构</a>
+  <a href="javascript:void(0)" data-target="context-guide" class="toc-section">目录上下文智能引导</a>
+  <a href="javascript:void(0)" data-target="error-handling" class="toc-section">异常场景处理</a>
+  <a href="javascript:void(0)" data-target="principles" class="toc-section">核心设计原则</a>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">MINUS CREATOR PLUGIN SPEC</div>
+  <h1>Creator Plugin Flow<br>Install &amp; Init</h1>
+  <p class="hero-sub">从安装 Plugin 到 Creator 准备好开始开发，经历的每一步。精确到可直接作为 Plugin 开发规格。</p>
+  <a class="hero-link" href="9 - Dev & Publish.html">Dev &amp; Publish 流程 &rarr;</a>
+</div>
+
+<div class="container">
+
+  <!-- Overview -->
+  <section id="overview">
+    <div class="section-label">Overview</div>
+    <h2>阶段总览</h2>
+
+    <table class="overview-table">
+      <thead>
+        <tr><th>阶段</th><th>名称</th><th>频率</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Phase 1</td>
+          <td>安装 Plugin</td>
+          <td>仅一次</td>
+          <td>从开发者平台获取安装指令，在 Claude Desktop 中安装</td>
+        </tr>
+        <tr>
+          <td>Phase 2</td>
+          <td>首次初始化</td>
+          <td>每个新 Skill 一次</td>
+          <td>登录 + 创建 Skill 项目 + 打开项目文件夹</td>
+        </tr>
+        <tr>
+          <td>Phase 3</td>
+          <td>日常进入开发</td>
+          <td>每次开发</td>
+          <td>打开项目文件夹 &rarr; Plugin 自动激活 &rarr; 就绪</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="design-note">
+      <strong>设计原则：</strong>Phase 1 和 Phase 2 的摩擦由 Phase 3 的丝滑来偿还。初始设置的每一步都是为了让日常开发体验最优——完整的 Claude Code 项目级能力（CLAUDE.md 自动加载、Memory 持久化、Git 集成）只有在 Creator 正确打开项目文件夹时才能生效。
+    </div>
+
+    <div class="env-note">
+      <strong>环境假设：</strong>流程优先基于 Claude Desktop 的 Code 模块设计，后续实现时增加对 CLI 的支持。先以 Claude Code 为基础开发，后续增加对 Codex 的支持。
+    </div>
+
+    <div class="design-note">
+      <strong>核心准则：低技术门槛，不低估用户。</strong>Plugin 的目标用户中大部分没有技术背景，但也有一部分具备开发经验。Plugin 的默认交互应做到：不需要理解底层技术原理，照着提示就能完成操作。同时避免过度解释——<strong>技术复杂度由 Plugin 吸收，但不要让懂技术的 Creator 觉得被当成小白。</strong>具体做法：用通俗语言作为默认表达，技术细节按需展示而非强制隐藏。
+    </div>
+
+    <div class="design-note">
+      <strong>双触发模式：</strong>Plugin 的所有功能同时支持斜杠命令和自然语言触发。例如 <code>/minus publish</code> 和"帮我发布"等价，<code>/minus</code> 和"打开 Minus"等价。Creator 不需要记住任何命令，用自然语言描述意图即可。斜杠命令作为快捷方式保留，供熟悉的 Creator 使用。
+    </div>
+
+    <div class="design-note">
+      <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制。每次完成一个主要任务后（如完成一个节点的开发），Plugin 自动评估当前会话的上下文使用情况。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator 不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Phase 1 -->
+  <section id="phase1">
+    <div class="phase-header">
+      <div class="phase-num p1">1</div>
+      <div>
+        <h2>安装 Plugin</h2>
+        <div class="phase-freq">仅一次 &middot; 约 1 分钟</div>
+      </div>
+    </div>
+
+    <!-- 1.1 -->
+    <div class="step-card" id="s1-1">
+      <div class="step-id">Step 1.1</div>
+      <h3>访问 Minus 开发者平台</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 通过浏览器访问 Minus 开发者平台的 Plugin 安装页面。页面需包含：</p>
+      <table class="inner-table">
+        <thead><tr><th>页面元素</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#fff;">安装指令文本</td><td>格式类似 <code>/install-plugin minus-creator https://minusai.com/plugins/creator</code></td></tr>
+          <tr><td style="color:#fff;">一键复制按钮</td><td>点击后复制到剪贴板，按钮文字变为"已复制"</td></tr>
+          <tr><td style="color:#fff;">视觉引导</td><td>3 步图示：① 复制指令 → ② 打开 Claude Desktop Code 模块 → ③ 粘贴并回车</td></tr>
+          <tr><td style="color:#fff;">前置条件提示</td><td>需已安装 Claude Desktop 且有 Code 功能访问权限</td></tr>
+        </tbody>
+      </table>
+      <div class="future-note">
+        <strong>进阶优化 — Deep Link：</strong>如果 Claude Desktop 支持 URI scheme（如 <code>claude://install-plugin/minus-creator</code>），可提供一键安装按钮。类似 VS Code 的 <code>vscode://</code> 安装体验。优先级低，初期不做。
+      </div>
+    </div>
+
+    <!-- 1.2 -->
+    <div class="step-card" id="s1-2">
+      <div class="step-id">Step 1.2</div>
+      <h3>复制安装指令</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 点击一键复制按钮。</p>
+      <div class="pending-note">
+        <strong>待确认：</strong>Plugin 的具体安装机制取决于技术方案（Claude Code 原生 plugin / cowork plugin / npm 包）。安装指令的最终格式需在技术选型后确定。本文档流程不依赖具体指令格式。
+      </div>
+    </div>
+
+    <!-- 1.3 -->
+    <div class="step-card" id="s1-3">
+      <div class="step-id">Step 1.3</div>
+      <h3>粘贴到 Claude Desktop Code 模块</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 打开 Claude Desktop，进入 Code 模块，粘贴指令并发送。此时不需要在任何特定文件夹中，安装是全局操作。</p>
+    </div>
+
+    <!-- 1.4 -->
+    <div class="step-card" id="s1-4">
+      <div class="step-id">Step 1.4</div>
+      <h3>Claude Code 执行安装</h3>
+      <div class="actor plugin">Plugin / Claude Code</div>
+      <p>Claude Code 解析指令，下载并注册 Minus Creator Plugin。安装过程中同时完成基础目录的创建（Creator 无需确认，静默完成）：</p>
+      <table class="inner-table">
+        <thead><tr><th>创建项</th><th>路径</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td style="color:#fff;">全局配置目录</td>
+            <td>Mac: <code>~/.minus/</code><br>Windows: <code>%APPDATA%\Minus\</code></td>
+            <td>存放凭证、配置等，对 Creator 不可见</td>
+          </tr>
+          <tr>
+            <td style="color:#fff;">Workspace 目录</td>
+            <td>Mac: <code>~/minus/</code><br>Windows: <code>%USERPROFILE%\minus\</code></td>
+            <td>后续 Skill 项目的默认存放位置</td>
+          </tr>
+          <tr>
+            <td style="color:#fff;">Workspace 标记</td>
+            <td><code>~/minus/.minus-workspace</code></td>
+            <td>Plugin 识别 Workspace 的标志文件</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role sys">system</span> <span class="msg">Installing Minus Creator Plugin...</span></div>
+          <div class="conv-line"><span class="role sys">system</span> <span class="msg"><span class="ok">✓</span> Minus Creator Plugin 安装成功 (v1.0.0)</span></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">Minus Creator Plugin 已就绪！接下来帮你完成初始设置...</span></div>
+        </div>
+      </div>
+      <div class="design-note" style="margin-top:16px;">
+        <strong>Phase 1 完成。</strong>安装是一次性的，Plugin 注册后全局可用，工作目录已就绪。安装完成后 Plugin 在当前 Session 中自动继续，直接进入 Phase 2。
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Phase 2 -->
+  <section id="phase2">
+    <div class="phase-header">
+      <div class="phase-num p2">2</div>
+      <div>
+        <h2>首次初始化</h2>
+        <div class="phase-freq">每个新 Skill 一次 &middot; 约 3-5 分钟</div>
+      </div>
+    </div>
+
+    <p style="color:var(--text-muted); font-size:15px; margin-bottom:32px;">Phase 2 分为两个子流程：<strong style="color:#fff;">登录（仅首次）</strong>和<strong style="color:#fff;">创建项目（每个新 Skill）</strong>。Plugin 自动判断当前状态，只执行必要的步骤。</p>
+
+    <!-- 2.0 -->
+    <div class="step-card" id="s2-0">
+      <div class="step-id">Step 2.0</div>
+      <h3>Plugin 自动进入初始化</h3>
+      <div class="actor plugin">Plugin</div>
+      <p>安装完成后（Phase 1），Plugin 在当前 Session 中直接继续，自动进入初始化流程。Creator 无需输入任何额外指令——从安装到登录是一个连贯的体验。</p>
+      <div class="design-note" style="margin-top:12px;">
+        <strong>后续创建新 Skill：</strong>首次初始化完成后，如果 Creator 想在新 Session 中创建另一个 Skill 项目，可通过 <code>/minus</code> 或自然语言（如「我想创建新 Skill」）手动触发。日常开发中打开已有项目时，Plugin 通过 SessionStart hook 自动激活。
+      </div>
+    </div>
+
+    <!-- 2.1 -->
+    <div class="step-card" id="s2-1">
+      <div class="step-id">Step 2.1</div>
+      <h3>Plugin 检查鉴权状态</h3>
+      <div class="actor plugin">Plugin</div>
+      <p>Plugin 读取平台标准配置目录下的凭证文件：</p>
+      <table class="inner-table">
+        <thead><tr><th>平台</th><th>凭证路径</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#fff;">Mac</td><td><code>~/.minus/credentials.json</code></td><td>点号开头，Finder 默认隐藏</td></tr>
+          <tr><td style="color:#fff;">Windows</td><td><code>%APPDATA%\Minus\credentials.json</code></td><td>即 <code>C:\Users\{用户}\AppData\Roaming\Minus\</code></td></tr>
+          <tr><td style="color:#fff;">Linux</td><td><code>~/.config/minus/credentials.json</code></td><td>XDG 规范</td></tr>
+        </tbody>
+      </table>
+
+      <div class="subsection">
+        <h4>判断分支</h4>
+        <div class="branch-box">
+          <p><strong>有 token 且未过期</strong> → 静默通过，Creator 无感知。直接进入 2.2。</p>
+        </div>
+        <div class="branch-box">
+          <p><strong>有 token 但过期</strong> → 自动尝试 refresh。成功则静默通过；失败则进入 2.1a。</p>
+        </div>
+        <div class="branch-box">
+          <p><strong>无 token</strong> → 进入 2.1a。</p>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h4>凭证文件内容（两种 auth_type 共用同一文件）</h4>
+        <div class="json-block">
+          <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>credentials.json — API Key 模式</span></div>
+          <pre>{
+  <span class="key">"auth_type"</span>: <span class="str">"api_key"</span>,
+  <span class="key">"api_key"</span>: <span class="str">"mk_abc123..."</span>,
+  <span class="key">"user_id"</span>: <span class="str">"usr_abc123"</span>,
+  <span class="key">"display_name"</span>: <span class="str">"Creator Name"</span>,
+  <span class="key">"email"</span>: <span class="str">"creator@example.com"</span>
+}</pre>
+        </div>
+        <div class="json-block">
+          <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>credentials.json — OAuth 模式</span></div>
+          <pre>{
+  <span class="key">"auth_type"</span>: <span class="str">"oauth"</span>,
+  <span class="key">"user_id"</span>: <span class="str">"usr_abc123"</span>,
+  <span class="key">"display_name"</span>: <span class="str">"Creator Name"</span>,
+  <span class="key">"email"</span>: <span class="str">"creator@example.com"</span>,
+  <span class="key">"access_token"</span>: <span class="str">"eyJhbG..."</span>,
+  <span class="key">"refresh_token"</span>: <span class="str">"dGhpcyB..."</span>,
+  <span class="key">"expires_at"</span>: <span class="str">"2026-06-15T00:00:00Z"</span>
+}</pre>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">文件权限设为 600（仅 owner 可读写）。</p>
+      </div>
+    </div>
+
+    <!-- 2.1a -->
+    <div class="step-card" id="s2-1a">
+      <div class="step-id">Step 2.1a</div>
+      <h3>登录流程（仅未登录时触发）</h3>
+      <div class="actor both">Creator + Plugin</div>
+      <p>Plugin 引导 Creator 完成开发者账号登录。此流程在 Creator 的整个使用生命周期中通常只发生一次。<strong style="color:#fff;">两种登录方式长期共存，对应不同阶段：</strong></p>
+
+      <div class="auth-grid">
+        <div class="auth-card api">
+          <div class="auth-tag api">Founding Creator 阶段</div>
+          <h4>方式 A：API Key 登录</h4>
+          <p>适用于早期受邀的 Founding Creator。Minus 团队为每位 Creator 分配 API Key，Creator 粘贴到对话框即可。</p>
+          <div class="auth-merit">不依赖 OAuth 基础设施，上线速度快</div>
+        </div>
+        <div class="auth-card oauth">
+          <div class="auth-tag oauth">全面开放阶段</div>
+          <h4>方式 B：网页授权登录</h4>
+          <p>适用于平台全面开放后。标准 OAuth 流程，支持自助注册，登录与注册合一，token 有过期和 refresh 机制。</p>
+          <div class="auth-merit">安全性更高，支持自助注册</div>
+        </div>
+      </div>
+
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>API Key 登录流程</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">欢迎使用 Minus Creator Plugin！请输入你的开发者 API Key。</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">（在 Minus 开发者平台的「设置 → API Key」页面获取）</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">mk_abc123...</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 验证成功！欢迎，Creator_Name。</span></div>
+        </div>
+      </div>
+
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>网页授权登录流程</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">欢迎使用 Minus Creator Plugin！首次使用需要登录你的开发者账号。</span></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在打开浏览器登录页面...</span></div>
+          <div class="conv-line"><span class="role sys">system</span> <span class="msg">[浏览器打开登录页面，Creator 完成登录/注册]</span></div>
+          <div class="conv-line"><span class="role sys">system</span> <span class="msg">[浏览器回调，Plugin 接收到 token]</span></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 登录成功！欢迎，Creator_Name。</span></div>
+        </div>
+      </div>
+
+      <table class="inner-table" style="margin-top:16px;">
+        <thead><tr><th>维度</th><th>API Key</th><th>网页授权</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#fff;">阶段</td><td>Founding Creator 阶段</td><td>全面开放阶段</td></tr>
+          <tr><td style="color:#fff;">分发方式</td><td>Minus 团队定向发放</td><td>Creator 自助注册获取</td></tr>
+          <tr><td style="color:#fff;">凭证存储</td><td><code>auth_type: "api_key"</code></td><td><code>auth_type: "oauth"</code></td></tr>
+          <tr><td style="color:#fff;">过期机制</td><td>由平台控制，可设为长期有效</td><td>access_token 短期有效，refresh_token 自动续期</td></tr>
+          <tr><td style="color:#fff;">后续迁移</td><td>全面开放后仍可用；也可切换为网页授权</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">Plugin 根据 <code>credentials.json</code> 中的 <code>auth_type</code> 字段自动选择对应的验证方式，Creator 无需关心底层差异。</p>
+    </div>
+
+    <!-- 2.2 -->
+    <div class="step-card" id="s2-2">
+      <div class="step-id">Step 2.2</div>
+      <h3>Plugin 检查项目上下文</h3>
+      <div class="actor plugin">Plugin</div>
+      <p>鉴权通过后，Plugin 检查<strong style="color:#fff;">当前工作目录</strong>的内容。<strong style="color:#fff;">目录内容是权威判断依据，<code>projects.json</code> 仅为便利缓存。</strong></p>
+
+      <div class="subsection">
+        <h4>判断分支</h4>
+        <div class="branch-box">
+          <p><strong>当前目录存在 <code>.minus.json</code></strong> → 有效 Skill 项目。如不在 <code>projects.json</code> 中则静默追加注册。直接跳到 Phase 3。</p>
+        </div>
+        <div class="branch-box">
+          <p><strong>当前目录存在 <code>.minus-workspace</code> 但无 <code>.minus.json</code></strong> → Workspace 上层目录。扫描子目录中含 <code>.minus.json</code> 的项目：若有，列出供选择并引导打开；若无（首次使用），直接进入 2.3。</p>
+        </div>
+        <div class="branch-box">
+          <p><strong>当前目录与 Minus 无关</strong> → 进入 2.3。同时读取 <code>projects.json</code>，如有已注册项目则在选项中展示。</p>
+        </div>
+      </div>
+
+      <table class="inner-table">
+        <thead><tr><th>检测标志</th><th>位置</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>.minus.json</code></td><td>Skill 项目根目录</td><td>标识有效 Minus Skill 项目（权威判据）</td></tr>
+          <tr><td><code>.minus-workspace</code></td><td>Workspace 目录</td><td>标识 Minus 项目集合目录</td></tr>
+          <tr><td><code>projects.json</code></td><td>全局配置目录</td><td>便利缓存，记录已知项目路径，非权威</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2.3 -->
+    <div class="step-card" id="s2-3">
+      <div class="step-id">Step 2.3</div>
+      <h3>引导创建 Skill 项目</h3>
+      <div class="actor both">Creator + Plugin</div>
+      <p>Plugin 根据 <code>projects.json</code> 中是否有已注册项目，展示不同的对话：</p>
+
+      <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">无已有项目（首次使用）：直接进入命名流程</p>
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>首次创建项目</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">给你的 Skill 项目起个名字？（这会作为项目文件夹名）</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">关键词调研</span></div>
+        </div>
+      </div>
+
+      <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">有已有项目：提供选择</p>
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>创建新项目（非首次）</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">你想做什么？</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">1.</span> 创建新的 Skill 项目</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">2.</span> 打开已有的 Skill 项目 (你有 2 个已创建的项目)</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">1</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">给你的 Skill 项目起个名字？（这会作为项目文件夹名）</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">关键词调研</span></div>
+        </div>
+      </div>
+
+      <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">如果选 2，Plugin 列出 <code>projects.json</code> 中的项目列表及路径，引导 Creator 在 Desktop 中打开对应文件夹。</p>
+      <p style="margin-top:12px;"><strong style="color:#fff;">命名约束：</strong>仅过滤文件系统非法字符（<code>/ \ : * ? " &lt; &gt; |</code>），中英文均可，长度 1-50 字符。Plugin 即时校验。</p>
+    </div>
+
+    <!-- 2.4 -->
+    <div class="step-card" id="s2-4">
+      <div class="step-id">Step 2.4</div>
+      <h3>Scaffold 项目结构</h3>
+      <div class="actor plugin">Plugin</div>
+
+      <div class="subsection">
+        <h4>平台注册与凭证获取</h4>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">在创建文件之前，Plugin 先调用 Minus 平台 API 注册新 Skill：</p>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="guide-step-num">1</div>
+            <p>Plugin 调用 <code>POST /api/v1/skills</code> 接口，传入 Creator 信息（<code>user_id</code>、<code>display_name</code>）</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">2</div>
+            <p>平台返回两个关键字段：<br><strong style="color:#fff;">Skill ID</strong>（如 <code>sk_8f3a2b</code>）：Skill 的唯一标识<br><strong style="color:#fff;">Skill API Key</strong>（如 <code>sk_key_xxx...</code>）：Skill 运行时调用平台数据 API 的凭证</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">3</div>
+            <p>Plugin 将 Skill ID 和 Skill API Key 写入项目根目录的 <code>.minus.json</code></p>
+          </div>
+        </div>
+
+        <table class="inner-table" style="margin-top:16px;">
+          <thead><tr><th>凭证</th><th>归属</th><th>用途</th><th>存储位置</th></tr></thead>
+          <tbody>
+            <tr>
+              <td style="color:#fff;">Creator 登录凭证</td>
+              <td>Creator 个人</td>
+              <td>开发时操作：创建项目、发布、管理 Skill</td>
+              <td><code>~/.minus/credentials.json</code></td>
+            </tr>
+            <tr>
+              <td style="color:#fff;">Skill API Key</td>
+              <td>单个 Skill</td>
+              <td>运行时操作：用户使用 Skill 时调用平台数据 API</td>
+              <td>项目目录 <code>.minus.json</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">分离的原因：避免 Creator 个人凭证暴露在 Skill 运行环境中，且每个 Skill 可独立控制数据 API 的访问权限和用量。</p>
+
+        <div class="pending-note" style="margin-top:16px;">
+          <strong>离线场景：</strong>如果此时网络不可用，<code>.minus.json</code> 中 <code>skill_id</code> 和 <code>api_key</code> 字段均标记为 <code>"pending"</code>。下次 Creator 在该项目中执行 <code>/minus</code> 且网络可用时，Plugin 自动完成注册并回写。在注册完成之前，本地开发不受影响，仅发布功能和需要调用平台数据 API 的步骤测试被阻塞。
+        </div>
+      </div>
+
+      <p style="margin-top:20px;">Plugin 在 Workspace 目录下创建 Skill 项目子文件夹：</p>
+      <table class="inner-table">
+        <thead><tr><th>平台</th><th>Workspace 路径</th><th>项目完整路径</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#fff;">Mac</td><td><code>~/minus/</code></td><td><code>~/minus/关键词调研/</code></td></tr>
+          <tr><td style="color:#fff;">Windows</td><td><code>%USERPROFILE%\minus\</code></td><td><code>%USERPROFILE%\minus\关键词调研\</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="file-tree">
+        <div class="tree-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>~/minus/关键词调研/</span></div>
+        <div class="tree-body">
+          <div><span class="file">.minus.json</span> <span class="comment"># 项目标识（Skill ID、API Key、预览端口）</span></div>
+          <div><span class="file">CLAUDE.md</span> <span class="comment"># Claude Code 项目指令（自动加载）</span></div>
+          <div><span class="file">package.json</span> <span class="comment"># 依赖声明（如需要）</span></div>
+          <div><span class="file">.gitignore</span> <span class="comment"># Git 忽略规则</span></div>
+          <div><span class="folder">assets/</span> <span class="comment"># 资源文件（图标、模板等）</span></div>
+          <div class="indent"><span class="file">.gitkeep</span></div>
+          <div><span class="folder">tests/</span> <span class="comment"># 测试用例</span></div>
+          <div class="indent"><span class="file">.gitkeep</span></div>
+        </div>
+      </div>
+
+      <table class="inner-table">
+        <thead><tr><th>文件</th><th>初始内容</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>.minus.json</code></td>
+            <td>包含平台分配的 <code>skill_id</code>、<code>api_key</code> 和默认 <code>preview_port</code>（见「关键数据结构」章节）。Skill 的业务信息存储在后端，通过平台 API 管理。</td>
+          </tr>
+          <tr>
+            <td><code>CLAUDE.md</code></td>
+            <td>项目类型标识、可用 Plugin 命令列表（<code>/minus</code>、<code>/minus help</code>、<code>/minus publish</code>）、开发规范概要。</td>
+          </tr>
+          <tr>
+            <td><code>package.json</code></td>
+            <td>仅在需要 npm 依赖时生成，含基本信息和空 dependencies。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:16px;">
+        <strong style="color:#fff;">Scaffold 同时执行：</strong>
+        <ul class="checklist">
+          <li>将项目路径注册到 <code>projects.json</code></li>
+          <li>在项目目录中执行 <code>git init</code></li>
+        </ul>
+      </div>
+
+      <div class="design-note" style="margin-top:16px;">
+        <strong>依赖不在此时安装。</strong>Scaffold 只负责创建文件结构，保持轻快。依赖安装在 Creator 打开项目文件夹时由 Phase 3 的 SessionStart hook 自动触发完成——那才是 Creator 真正准备开始工作的时刻。
+      </div>
+    </div>
+
+    <!-- 2.5 -->
+    <div class="step-card" id="s2-5">
+      <div class="step-id">Step 2.5</div>
+      <h3>引导 Creator 打开项目文件夹</h3>
+      <div class="actor both">Creator + Plugin</div>
+      <p>这是初始化流程中<strong style="color:#fff;">唯一需要 Creator 手动操作的关键步骤</strong>，也是 Creator 第一次感知到 Workspace 目录位置的时刻。</p>
+
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>引导打开项目文件夹</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 项目已创建！</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">Skill：<span class="hi">关键词调研</span> (sk_8f3a2b)</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">位置：<span class="hi">~/minus/关键词调研/</span></span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">接下来请完成三步：</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">1.</span> 在 Claude 的 Code 模块新开一个 session</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">2.</span> 选择 ~/minus/关键词调研/ 文件夹作为工作目录</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">3.</span> Plugin 会自动激活，你直接开始工作即可</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">如果你想把项目放在其他位置，告诉我路径，我帮你重新创建。</span></div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h4>自定义路径分支</h4>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">如果 Creator 回复了一个自定义路径，Plugin 执行：</p>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="guide-step-num">1</div>
+            <p><strong style="color:#fff;">路径规范化：</strong>检查路径末尾是否已经是 <code>minus</code>（不区分大小写）。如果不是，自动追加 <code>minus/</code>；如果已经是，直接使用。<br>例：<code>D:\projects</code> → <code>D:\projects\minus\关键词调研\</code><br>例：<code>D:\projects\Minus</code> → <code>D:\projects\Minus\关键词调研\</code></p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">2</div>
+            <p>在新 Workspace 下重新 scaffold 项目</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">3</div>
+            <p>更新 <code>config.json</code> 中的 <code>workspace_dir</code> 为新 Workspace 路径</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">4</div>
+            <p>更新 <code>projects.json</code> 中该项目的路径</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">5</div>
+            <p>原默认路径下的空项目文件夹不做处理，留着无影响</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">6</div>
+            <p>重新输出引导消息，指向新路径（不再提供"放在其他位置"选项，避免循环）</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="why-box">
+        <h4>为什么必须手动打开文件夹</h4>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:8px;">Claude Desktop 的 Code 模块只有在正确设置工作目录时，才能激活项目级功能：</p>
+        <ul>
+          <li><code>CLAUDE.md</code> 只有在工作目录下才会被自动加载</li>
+          <li>Memory 的项目级持久化依赖工作目录</li>
+          <li>Git 操作需在项目目录下执行</li>
+          <li>文件读写路径以工作目录为基准</li>
+        </ul>
+        <p style="font-size:13px; color:var(--rose); margin-top:12px;">跳过这一步，Creator 会失去 Claude Code 最有价值的项目级能力，长期开发体验大幅下降。</p>
+      </div>
+
+      <div class="subsection">
+        <h4>降低摩擦的辅助手段</h4>
+        <ul class="checklist" style="margin-top:4px;">
+          <li>方案 A：消息中包含可点击路径链接（如 Desktop 支持）</li>
+          <li>方案 B：自动将路径复制到剪贴板</li>
+          <li>方案 C：未来如 Desktop 支持 API 切换工作目录，可直接自动切换</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 2.6 -->
+    <div class="step-card" id="s2-6">
+      <div class="step-id">Step 2.6</div>
+      <h3>Creator 打开项目文件夹，开始新 Session</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 在 Claude Desktop 中打开项目文件夹，Claude Code 自动加载 <code>CLAUDE.md</code>。SessionStart hook 检测到 Skill 项目后自动激活 Plugin，进入 Phase 3。</p>
+      <div class="design-note" style="margin-top:16px;">
+        <strong>Phase 2 完成。</strong>Creator 现在拥有完整的 Skill 项目目录、全局登录状态和正确的工作目录设置。
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Phase 3 -->
+  <section id="phase3">
+    <div class="phase-header">
+      <div class="phase-num p3">3</div>
+      <div>
+        <h2>日常进入开发</h2>
+        <div class="phase-freq">每次开发 &middot; 目标 3-5 秒就绪</div>
+      </div>
+    </div>
+
+    <p style="color:var(--text-muted); font-size:15px; margin-bottom:32px;">Phase 3 是 Creator <strong style="color:#fff;">最频繁经历的流程</strong>。设计目标：从打开项目到进入开发状态 3-5 秒。</p>
+
+    <!-- 3.1 -->
+    <div class="step-card" id="s3-1">
+      <div class="step-id">Step 3.1</div>
+      <h3>Creator 打开项目文件夹 → Plugin 自动激活</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 启动 Claude Desktop，将 Skill 项目文件夹设为工作目录。Claude Code 自动：</p>
+      <ul>
+        <li>加载 <code>CLAUDE.md</code></li>
+        <li>加载项目级 Memory</li>
+        <li>SessionStart hook 检测到 <code>.minus.json</code>，自动激活 Plugin</li>
+      </ul>
+      <div class="design-note" style="margin-top:12px;">
+        <strong>无需手动输入 <code>/minus</code>。</strong>Plugin 通过 SessionStart hook 检测到当前目录是 Minus Skill 项目后，自动进入开发模式。<code>/minus</code> 作为手动备用入口保留，供 Creator 在非项目目录中主动触发。
+      </div>
+    </div>
+
+    <!-- 3.2 -->
+    <div class="step-card" id="s3-2">
+      <div class="step-id">Step 3.2</div>
+      <h3>Plugin 执行环境检查</h3>
+      <div class="actor plugin">Plugin</div>
+      <p>Plugin 依次执行四项检查。前两项静默完成；第三、四项视情况告知 Creator。</p>
+
+      <div class="subsection">
+        <h4>① 鉴权检查（静默）</h4>
+        <p style="font-size:14px; color:var(--text-muted);">读取凭证文件，校验 token 有效性。过期则自动 refresh。refresh 失败则触发重新登录流程。</p>
+      </div>
+
+      <div class="subsection">
+        <h4>② 项目识别（静默）</h4>
+        <p style="font-size:14px; color:var(--text-muted);">检查当前目录是否存在 <code>.minus.json</code>。存在但不在 <code>projects.json</code> 中则静默追加注册。不存在则提示可能打开了错误文件夹。</p>
+      </div>
+
+      <div class="subsection">
+        <h4>③ 开发环境初始化（首次）/ 依赖检查（后续）</h4>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">这一步对 Creator 可见，需要明确说明和执行反馈。</p>
+
+        <p style="font-size:14px; color:#fff; font-weight:600; margin-bottom:8px;">首次进入项目（未检测到 node_modules/）：</p>
+        <div class="conv-mock">
+          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>首次安装依赖 — 成功</span></div>
+          <div class="conv-body">
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">项目首次打开，需要初始化开发环境，正在安装依赖...</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role sys">system</span> <span class="msg">npm install</span></div>
+            <div class="conv-line"><span class="role sys"> </span> <span class="msg">added 42 packages in 8s</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 开发环境就绪！依赖安装完成。</span></div>
+          </div>
+        </div>
+
+        <div class="conv-mock">
+          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>首次安装依赖 — 失败</span></div>
+          <div class="conv-body">
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">项目首次打开，需要初始化开发环境，正在安装依赖...</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role sys">system</span> <span class="msg">npm install</span></div>
+            <div class="conv-line"><span class="role sys"> </span> <span class="msg"><span class="err">npm ERR! code ERESOLVE</span></span></div>
+            <div class="conv-line"><span class="role sys"> </span> <span class="msg"><span class="err">npm ERR! ERESOLVE unable to resolve dependency tree</span></span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="warn">⚠</span> 依赖安装失败。</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">错误原因：依赖版本冲突（ERESOLVE）</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">建议排查：</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">· 检查 Node.js 版本是否 >= 18</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">· 尝试输入 <span class="hi">/minus retry</span> 重新安装</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">· 如果问题持续，可以把错误信息发给我，我帮你排查</span></div>
+          </div>
+        </div>
+
+        <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">后续进入项目（已有依赖目录）：</p>
+        <p style="font-size:14px; color:var(--text-muted);">静默对比 lock file 与已安装依赖。一致则跳过（Creator 无感知），不一致则提示并自动更新。</p>
+      </div>
+
+      <div class="subsection">
+        <h4>④ Plugin 版本检查（SessionStart 自动执行）</h4>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">SessionStart hook 同时检查 Plugin 自身版本是否为最新。本地缓存上次检查时间，<strong style="color:#fff;">每天最多检查一次</strong>，避免每次 session 都请求网络。网络不可用时静默跳过。</p>
+
+        <p style="font-size:14px; color:#fff; font-weight:600; margin-bottom:8px;">小版本 / 补丁更新（自动静默更新）：</p>
+        <div class="conv-mock">
+          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>自动更新 — patch/minor</span></div>
+          <div class="conv-body">
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> Minus 已就绪 — 关键词调研 v0.1.0</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg" style="color:var(--text-muted);">Plugin 已自动更新至 v1.2.1（修复了发布校验的一个问题）</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">上次你完成了「数据采集」步骤的开发，</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">下一个待开发的步骤是「竞争度分析」。</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">直接告诉我要做什么，或输入 /minus help 查看所有命令。</span></div>
+          </div>
+        </div>
+
+        <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">大版本更新（提示确认）：</p>
+        <div class="conv-mock">
+          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>大版本更新 — major</span></div>
+          <div class="conv-body">
+            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> Minus 已就绪 — 关键词调研 v0.1.0</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="warn">⚠</span> Plugin 有新的大版本可用：v1.x → <span class="hi">v2.0.0</span></span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">更新内容：支持多步骤并行执行、新增 Skill 模板库</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">输入 <span class="hi">/minus update</span> 立即更新，或继续当前版本工作。</span></div>
+            <div class="conv-line blank"></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">上次你完成了「数据采集」步骤的开发，</span></div>
+            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">下一个待开发的步骤是「竞争度分析」。</span></div>
+          </div>
+        </div>
+
+        <div class="design-note" style="margin-top:12px;">
+          <strong>设计原则：不阻塞开发。</strong>无论哪种更新，Creator 都可以直接开始工作。小版本自动完成，大版本由 Creator 自行决定更新时机。版本检查结果缓存在 <code>~/.minus/update-check.json</code>，记录上次检查时间和最新版本号。
+        </div>
+      </div>
+    </div>
+
+    <!-- 3.3 -->
+    <div class="step-card" id="s3-3">
+      <div class="step-id">Step 3.3</div>
+      <h3>生成 Skill 初始页面（首次进入）</h3>
+      <div class="actor plugin">Plugin</div>
+      <p><strong style="color:#fff;">仅在首次进入项目时执行</strong>（检测到后端步骤定义为空且初始页面文件不存在）。后续进入跳过此步骤，直接到 3.4。</p>
+      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">依赖安装完成后，Plugin 不询问 Creator，直接用后端存储的 Skill 基础信息自动生成 Skill 的初始页面代码，并自动打开预览：</p>
+
+      <div class="conv-mock">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>自动生成初始页面</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 开发环境就绪！依赖安装完成。</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">正在生成 Skill 初始页面...</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 初始页面已生成并打开。</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">你现在看到的是 Skill 的初始框架，包含：</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">· 名称、描述、适用客户、标签、版本等基本信息</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">· 这些都是默认值，随时告诉我修改</span></div>
+          <div class="conv-line blank"></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg">接下来建议先聊聊这个 Skill 要做什么，我来帮你设计步骤结构。</span></div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h4>生成逻辑</h4>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="guide-step-num">1</div>
+            <p>通过平台 API 读取后端存储的 Skill 信息（名称、描述、版本、标签等）</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">2</div>
+            <p>基于 Minus Skill 页面模板，生成初始页面文件（具体格式取决于 Skill 运行时规范）</p>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">3</div>
+            <p>自动在浏览器或预览面板中打开，让 Creator 看到可视化的 Skill 框架</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="design-note" style="margin-top:12px;">
+        <strong>不提前询问的原因：</strong>Creator 还没看到框架长什么样，无法做出有效决策。先展示再修改的模式认知负担最低，与后端预填默认值的设计思路一致。
+      </div>
+    </div>
+
+    <!-- 3.4 -->
+    <div class="step-card" id="s3-4">
+      <div class="step-id">Step 3.4</div>
+      <h3>报告就绪，进入开发模式</h3>
+      <div class="actor plugin">Plugin</div>
+      <p>Plugin 根据项目实际状态给出<strong style="color:#fff;">有针对性的就绪提示</strong>，而不是泛泛的"你可以做什么"。</p>
+      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">Plugin 通过两个来源判断当前状态：① 后端数据（通过平台 API 读取 Skill 信息和步骤数据）；② Claude Code 项目级 Memory（上次 session 记录的开发进度）。</p>
+
+      <div class="prompt-examples">
+        <div class="prompt-ex">
+          <div class="prompt-state dev">开发中</div>
+          <p><strong>当前项目：关键词调研 v0.1.0</strong><br><br>上次你完成了「数据采集」步骤的开发，<br>下一个待开发的步骤是「竞争度分析」。<br>要继续吗？</p>
+        </div>
+        <div class="prompt-ex">
+          <div class="prompt-state test">待测试</div>
+          <p><strong>当前项目：关键词调研 v0.1.0</strong><br><br>3 个步骤全部开发完成，但还没有运行过测试。<br>建议先跑一遍端到端测试，确认流程通畅。</p>
+        </div>
+        <div class="prompt-ex">
+          <div class="prompt-state ready">可发布</div>
+          <p><strong>当前项目：关键词调研 v0.1.0</strong><br><br>所有步骤已开发，测试已通过。<br>可以考虑发布了。输入 /minus publish 开始校验和打包。</p>
+        </div>
+      </div>
+
+      <div class="future-note">
+        <strong>实现机制：</strong>Plugin 在每次 session 结束前，通过 Claude Code 的 Memory 系统记录当前开发阶段和关键上下文。这是 Claude Code 的原生能力，Plugin 只需要在指令中定义"session 结束时保存进度到 Memory"即可。
+      </div>
+
+      <div class="design-note" style="margin-top:16px;">
+        <strong>Phase 3 完成。</strong>Creator 可立即开始开发。进入 <a class="hero-link" href="9 - Dev & Publish.html">Dev &amp; Publish 流程</a>。
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Data Structures -->
+  <section id="data-structures">
+    <div class="section-label">Data Structures</div>
+    <h2>关键数据结构</h2>
+    <p class="section-desc">Plugin 运行依赖的所有文件结构定义。Dev &amp; Publish 流程中的校验、打包、发布均基于这些结构。</p>
+
+    <div class="subsection">
+      <h4>全局配置目录（<code>~/.minus/</code> 或 <code>%APPDATA%\Minus\</code>）</h4>
+      <table class="inner-table">
+        <thead><tr><th>文件</th><th>创建时机</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>credentials.json</code></td><td>首次登录</td><td>OAuth token 和用户基本信息</td></tr>
+          <tr><td><code>projects.json</code></td><td>首次创建项目</td><td>已知项目路径的便利缓存（非权威）</td></tr>
+          <tr><td><code>config.json</code></td><td>安装时</td><td>Plugin 全局配置（Workspace 路径、API 地址等）</td></tr>
+        </tbody>
+      </table>
+
+      <div class="json-block">
+        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>projects.json</span></div>
+        <pre>{
+  <span class="key">"projects"</span>: [
+    {
+      <span class="key">"name"</span>: <span class="str">"amazon-review-analyzer"</span>,
+      <span class="key">"path"</span>: <span class="str">"~/minus/amazon-review-analyzer"</span>,
+      <span class="key">"created_at"</span>: <span class="str">"2026-05-15T10:00:00Z"</span>,
+      <span class="key">"last_opened"</span>: <span class="str">"2026-05-15T14:30:00Z"</span>
+    }
+  ]
+}</pre>
+      </div>
+
+      <div class="json-block">
+        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>config.json</span></div>
+        <pre>{
+  <span class="key">"workspace_dir"</span>: <span class="str">"~/minus"</span>,
+  <span class="key">"auto_install_deps"</span>: true,
+  <span class="key">"api_base_url"</span>: <span class="str">"https://api.minusai.com/v1"</span>
+}</pre>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Workspace 目录（<code>~/minus/</code>）</h4>
+      <table class="inner-table">
+        <thead><tr><th>文件/目录</th><th>创建时机</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>.minus-workspace</code></td><td>安装时</td><td>Workspace 标记文件</td></tr>
+          <tr><td><code>{skill-name}/</code></td><td>每次新建 Skill</td><td>独立的 Skill 项目目录</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>项目目录（<code>~/minus/{skill-name}/</code>）</h4>
+      <table class="inner-table">
+        <thead><tr><th>文件/目录</th><th>创建时机</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>.minus.json</code></td><td>Scaffold</td><td>项目标识和本地配置（Skill ID、API Key、预览端口）</td></tr>
+          <tr><td><code>CLAUDE.md</code></td><td>Scaffold</td><td>Claude Code 项目级指令</td></tr>
+          <tr><td><code>package.json</code></td><td>Scaffold（可选）</td><td>npm 依赖声明</td></tr>
+          <tr><td><code>.gitignore</code></td><td>Scaffold</td><td>Git 忽略规则</td></tr>
+          <tr><td><code>assets/</code></td><td>Scaffold</td><td>图标、模板等资源</td></tr>
+          <tr><td><code>tests/</code></td><td>Scaffold</td><td>测试用例</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>.minus.json 初始内容</h4>
+      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;"><code>.minus.json</code> 是轻量级的本地项目标识文件，仅包含三个字段。Skill 的所有业务信息（名称、描述、版本、步骤、输入输出、标签、作者等）存储在后端，通过平台 API 读写，<strong style="color:#fff;">后端是唯一数据源</strong>。</p>
+      <div class="json-block">
+        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>.minus.json</span></div>
+        <pre>{
+  <span class="key">"skill_id"</span>: <span class="str">"sk_8f3a2b"</span>,
+  <span class="key">"api_key"</span>: <span class="str">"sk_key_xxx..."</span>,
+  <span class="key">"preview_port"</span>: <span class="num">9100</span>
+}</pre>
+      </div>
+      <table class="inner-table" style="margin-top:12px;">
+        <thead><tr><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>skill_id</code></td><td>平台分配的 Skill 唯一标识，不可改</td></tr>
+          <tr><td><code>api_key</code></td><td>平台分配的运行时凭证，Skill 调用数据 API 时使用</td></tr>
+          <tr><td><code>preview_port</code></td><td>本地预览端口，首次启动时自动检测可用端口并写入</td></tr>
+        </tbody>
+      </table>
+      <div class="design-note" style="margin-top:12px;">
+        <strong>设计意图：</strong>本地只保留与项目绑定和本地开发必需的信息，避免本地与后端的数据不一致。Creator 通过对话修改的 Skill 信息（名称、描述、步骤等）直接写入后端，前端展示和运行时均从后端拉取。
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>CLAUDE.md 初始内容</h4>
+      <div class="json-block">
+        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>CLAUDE.md</span></div>
+        <pre><span class="comment"># Minus Skill Project</span>
+
+This is a Minus platform Skill project.
+Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
+
+<span class="comment">## Project Info</span>
+- Skill: amazon-review-analyzer
+- Type: Minus Platform Skill
+
+<span class="comment">## Available Commands</span>
+- <span class="str">`/minus`</span> — 手动进入开发模式（打开项目目录时自动激活）
+- <span class="str">`/minus help`</span> — 查看所有命令
+- <span class="str">`/minus publish`</span> — 校验、打包、发布
+
+<span class="comment">## Dev Guidelines</span>
+- 项目标识见 .minus.json（Skill ID、API Key）
+- Skill 业务信息和步骤定义存储在后端，通过 Plugin 管理
+- 测试用例放在 tests/ 目录</pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Context Guide -->
+  <section id="context-guide">
+    <div class="section-label">Context Guide</div>
+    <h2>目录上下文智能引导</h2>
+
+    <p style="color:var(--text-muted); font-size:15px; margin-bottom:24px;">Creator 大多没有技术背景，不会按"目录 → Session → 项目"的技术逻辑来思考。他们会在任何上下文中提出任何请求。<strong style="color:#fff;">Plugin 需要处理所有"意图合理但上下文不对"的请求。</strong></p>
+
+    <table class="inner-table" style="margin-bottom:32px;">
+      <thead><tr><th>原则</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td style="color:#fff;">不拒绝</td><td>Creator 的意图永远合理，Plugin 负责解决"位置不对"的问题</td></tr>
+        <tr><td style="color:#fff;">不说教</td><td>不解释技术原因（"每个 Skill 需要独立目录"），直接给行动方案</td></tr>
+        <tr><td style="color:#fff;">能做就做</td><td>能在当前 Session 完成的就完成（调 API、scaffold 文件），只在必须切 Session 时才引导</td></tr>
+        <tr><td style="color:#fff;">降低成本</td><td>引导切目录时给出完整路径，未来支持自动复制到剪贴板或点击跳转</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Scenario 1 -->
+    <div class="step-card">
+      <div class="step-id" style="color:var(--accent);">场景 1</div>
+      <h3>在 Skill A 中请求创建新 Skill</h3>
+      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>"帮我创建一个新的 Skill"、"我想做一个新工具"等</p>
+      <p>Plugin <strong>在当前 Session 中完成创建</strong>（调 API 注册 + 在 Workspace 下 scaffold），然后引导切目录：</p>
+      <div class="conv-mock" style="margin-top:12px;">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">没问题！先给新 Skill 起个名字？</span></div>
+          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">竞品监控</span></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 新项目已创建！<br>Skill：竞品监控 (sk_9d4c1f)<br>位置：~/minus/竞品监控/<br><br>接下来请在 Claude Desktop 中新开一个 session，<br>选择 ~/minus/竞品监控/ 作为工作目录。<br>当前项目「关键词调研」的进度不受影响。</span></div>
+        </div>
+      </div>
+      <div class="design-note" style="margin-top:12px;"><strong>关键：</strong>不问"你确定要离开当前项目吗？"——Creator 说了就是想做，直接帮忙。</div>
+    </div>
+
+    <!-- Scenario 2 -->
+    <div class="step-card">
+      <div class="step-id" style="color:var(--accent);">场景 2</div>
+      <h3>在 Skill A 中请求打开/切换到 Skill B</h3>
+      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>"打开竞品监控"、"切换到我的另一个项目"、"我想去看看另一个 Skill"等</p>
+      <div class="conv-mock" style="margin-top:12px;">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">你有这些 Skill 项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/ &nbsp;&larr; 当前<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请在 Claude Desktop 中新开一个 session，<br>选择 ~/minus/竞品监控/ 作为工作目录即可。</span></div>
+        </div>
+      </div>
+      <p style="margin-top:12px; color:var(--text-muted);">如果 Creator 说的项目名不在列表中，确认是否要创建新项目。</p>
+    </div>
+
+    <!-- Scenario 3 -->
+    <div class="step-card">
+      <div class="step-id" style="color:var(--accent);">场景 3</div>
+      <h3>在 Workspace 目录中请求"开始开发"</h3>
+      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 打开了 <code>~/minus/</code> 而非具体 Skill 目录</p>
+      <div class="conv-mock" style="margin-top:12px;">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">你当前在 Minus 工作区，这里有 2 个 Skill 项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请选择要打开的项目，在 Claude Desktop 中<br>以该文件夹为工作目录开一个新 session。<br>或者告诉我你想创建新的 Skill。</span></div>
+        </div>
+      </div>
+      <p style="margin-top:12px; color:var(--text-muted);">Workspace 为空时：直接提示"你还没有创建过 Skill。要现在创建第一个吗？"</p>
+    </div>
+
+    <!-- Scenario 4 -->
+    <div class="step-card">
+      <div class="step-id" style="color:var(--accent);">场景 4</div>
+      <h3>在 Skill 子目录中触发</h3>
+      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 把工作目录设在了 <code>~/minus/关键词调研/src/</code> 等子目录</p>
+      <p>Plugin 向上遍历查找 <code>.minus.json</code>，找到则识别项目，但提示修正：</p>
+      <div class="conv-mock" style="margin-top:12px;">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">项目已识别：关键词调研 (sk_8f3a2b)<br><br>提示：当前在项目子目录中（.../src/），<br>建议下次直接以 ~/minus/关键词调研/ 作为工作目录，<br>这样 CLAUDE.md 和 Memory 才能正常加载。<br><br>本次 session 可以继续工作，但部分功能可能受限。</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenario 5 -->
+    <div class="step-card">
+      <div class="step-id" style="color:var(--accent);">场景 5</div>
+      <h3>在非 Minus 目录中通过 /minus 触发</h3>
+      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 在任意目录输入 <code>/minus</code></p>
+      <div class="conv-mock" style="margin-top:12px;">
+        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
+        <div class="conv-body">
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">当前目录不是 Minus 项目。你有 2 个已创建的项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请在 Claude Desktop 中打开对应文件夹开始工作。<br>或者告诉我你想创建新的 Skill。</span></div>
+        </div>
+      </div>
+      <p style="margin-top:12px; color:var(--text-muted);">无任何项目时：直接提示"你还没有创建过 Skill，要现在创建第一个吗？"</p>
+    </div>
+
+    <div class="design-note" style="margin-top:24px;">
+      <strong>实现说明：</strong>以上所有场景的项目列表来自 <code>projects.json</code>（便利缓存）。Plugin 在列出时按 <code>last_opened</code> 倒序排列，最近使用的项目排在最前面。
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Error Handling -->
+  <section id="error-handling">
+    <div class="section-label">Error Handling</div>
+    <h2>异常场景处理</h2>
+
+    <table class="error-table">
+      <thead><tr><th>场景</th><th>Plugin 行为</th><th>Creator 体验</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>网络不可用</td>
+          <td>使用本地缓存凭证继续。仅联网操作（发布、同步）时提示。</td>
+          <td>本地开发不受影响</td>
+        </tr>
+        <tr>
+          <td>Token 过期且<br>refresh 失败</td>
+          <td>清除凭证，触发重新登录。项目数据不变。</td>
+          <td>重新登录一次</td>
+        </tr>
+        <tr>
+          <td>项目文件夹被<br>移动/删除</td>
+          <td><code>projects.json</code> 路径失效。提示路径不存在，建议更新或重建。</td>
+          <td>看到错误和修复建议</td>
+        </tr>
+        <tr>
+          <td>.minus.json 格式损坏</td>
+          <td>JSON 解析失败，显示错误信息，建议修复或 Git 恢复。</td>
+          <td>看到具体错误</td>
+        </tr>
+        <tr>
+          <td>依赖安装失败</td>
+          <td>显示错误日志，不阻塞进入开发模式。</td>
+          <td>看到警告但可开发</td>
+        </tr>
+        <tr>
+          <td>Skill 名称重名</td>
+          <td>创建时即时 API 校验，冲突时提示替代名称。</td>
+          <td>立即得到反馈</td>
+        </tr>
+        <tr>
+          <td>Plugin 版本过低<br>（patch/minor）</td>
+          <td>SessionStart 时自动静默更新，就绪消息中附带一行更新说明。每天最多检查一次。</td>
+          <td>无感知或看到一行提示，不阻塞</td>
+        </tr>
+        <tr>
+          <td>Plugin 版本过低<br>（major）</td>
+          <td>就绪消息中提示新版本及更新内容，提供 <code>/minus update</code> 命令。不强制更新。</td>
+          <td>看到提示，自行决定更新时机</td>
+        </tr>
+        <tr>
+          <td>Creator 手动在新位置<br>创建项目并打开</td>
+          <td>检测到 <code>.minus.json</code> 即视为有效项目，静默追加到 <code>projects.json</code>。</td>
+          <td>无感知，直接工作</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="design-note" style="margin-top:16px;">
+      <strong>注意：</strong>目录相关的异常（打开错误文件夹、在 Workspace 目录打开、在子目录打开等）已在上方「目录上下文智能引导」中详细说明。
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Design Principles -->
+  <section id="principles">
+    <div class="section-label">Principles</div>
+    <h2>核心设计原则</h2>
+
+    <div class="principle-grid">
+      <div class="principle-card">
+        <h4>凭证与项目分离</h4>
+        <p>凭证在平台配置目录（隐藏），项目在 Workspace 目录（可见）</p>
+      </div>
+      <div class="principle-card">
+        <h4>目录检测为权威</h4>
+        <p><code>.minus.json</code> 存在即有效，<code>projects.json</code> 仅是便利缓存</p>
+      </div>
+      <div class="principle-card">
+        <h4>登录一次性</h4>
+        <p>Token 持久化 + 自动 refresh，Creator 通常只登录一次</p>
+      </div>
+      <div class="principle-card">
+        <h4>Workspace 路径不问</h4>
+        <p>安装时默认创建，创建首个项目时可在对话中自定义，旧路径不处理</p>
+      </div>
+      <div class="principle-card">
+        <h4>最少手动操作</h4>
+        <p>唯一手动步骤：在 Desktop 打开项目文件夹。安装后自动进入初始化，日常开发通过 SessionStart hook 自动激活，全程无需手动输入 <code>/minus</code></p>
+      </div>
+      <div class="principle-card">
+        <h4>上下文智能引导</h4>
+        <p>Creator 在任何位置提出任何请求，Plugin 都不拒绝、不说教，能做就做，做不了的引导到正确位置</p>
+      </div>
+      <div class="principle-card">
+        <h4>Desktop Code 模块优先</h4>
+        <p>不依赖 cd、终端操作等 CLI 思维</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Footer -->
+<div class="container">
+  <div class="doc-footer">
+    <p>Minus Creator Plugin Spec &middot; Install &amp; Init &middot; <span class="date">2026-05</span></p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const links = document.querySelectorAll('.toc a');
+  const ids = Array.from(links).map(a => a.dataset.target);
+  const sections = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+  links.forEach(a => {
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      const target = document.getElementById(this.dataset.target);
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+
+  function onScroll(){
+    const scrollY = window.scrollY + 120;
+    let current = '';
+    for(let i = sections.length - 1; i >= 0; i--){
+      if(sections[i].offsetTop <= scrollY){
+        current = sections[i].id;
+        break;
+      }
+    }
+    links.forEach(a => {
+      a.classList.toggle('active', a.dataset.target === current);
+    });
+  }
+
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+</body>
+</html>
