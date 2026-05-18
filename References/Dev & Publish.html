@@ -729,7 +729,7 @@
   </div>
 
   <div class="design-note">
-    <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制。每次完成一个主要任务后（如完成一个节点的开发），Plugin 自动评估当前会话的上下文使用情况。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator 不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
+    <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制，贯穿整个开发过程持续检查，不限于节点边界。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator 不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
   </div>
 </section>
 
@@ -877,7 +877,7 @@
 
   <div id="context-mgmt" style="margin-top:40px">
     <h3>上下文窗口管理</h3>
-    <p>Creator 不会主动管理会话上下文。Plugin 内置容量检查机制，在每次完成主要任务后（如完成一个节点开发、完成结果呈现设计）自动检查当前会话的上下文容量。正常状态下不打断 Creator；当接近上限时执行以下流程。</p>
+    <p>Creator 不会主动管理会话上下文。Plugin 内置容量检查机制，<strong>贯穿整个开发过程持续检查</strong>，不限于节点边界——单个节点也可能耗尽一个 Session。正常状态下不打断 Creator；当接近上限时执行以下流程。</p>
 
   <div class="subsection">
     <h4>保存进度</h4>
@@ -1140,37 +1140,12 @@
 
     <p style="margin-top:16px">确认后，Plugin 将 <code>requires_confirmation: false</code> 写入该步骤定义。</p>
 
-    <!-- Dev = Test -->
-    <div class="subsection" style="margin-top:28px">
-      <h4>开发即测试</h4>
-      <p>每个节点开发完成后，Plugin 提示 Creator <strong>自己在浏览器中体验</strong>——Creator 必须以用户视角亲自操作，才能感受到交付物的真实效果。</p>
-    </div>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>自测体验</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">步骤 1 开发完成。建议你自己跑一遍看看效果：</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">打开浏览器访问：<span class="ok">http://localhost:9100/preview</span></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">输入一个关键词试试，比如 "wireless earbuds"</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">你亲自感受一下输出结果是否符合预期。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">有问题随时告诉我，我来调整。</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">试了，搜索量的数字格式不太好看，能加千分位吗？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好的，加上千分位格式化。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">[修改代码]</span></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">已更新，刷新页面看看。</span></div>
-      </div>
+    <div class="branch-box" style="margin-top:28px">
+      <p><strong>代码编写、调试与测试：</strong>贯穿节点开发全程。Plugin 在每个维度确认后即时编写和调试代码，Creator 随时可在浏览器中体验效果并提出修改意见。测试不是独立环节，而是持续进行的。</p>
     </div>
 
     <div class="branch-box">
       <p><strong>统一预览地址：</strong>Creator 只需要记住一个地址来测试 Skill。Plugin 在首次启动预览时自动检测可用端口，写入 <code>.minus.json</code> 的 <code>preview_port</code> 字段，后续每次复用。如果该端口被占用，Plugin 自动切换到新端口并通知 Creator。无论底层有多少服务，Creator 看到的始终是一个入口：<code>http://localhost:{port}/preview</code>。</p>
-    </div>
-
-    <div class="branch-box">
-      <p><strong>为什么不由 Plugin 代跑？</strong> Creator 自己在浏览器中测试，才能体验到用户真正看到的界面、交互和数据呈现。Plugin 代跑只能看到数据对不对，看不到体验好不好。</p>
     </div>
 
     <p>Creator 确认后，Plugin 通过平台 API 更新后端该步骤的状态，保存进度到 Memory，进入下一个节点的开发。</p>
@@ -1421,6 +1396,7 @@
         <div class="conv-line"><span class="role"></span> <span class="msg">审核结果会通过邮件通知你。</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg">你也可以在开发者平台查看审核状态：</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">https://developers.minusai.com/skills/sk_8f3a2b</span></span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">也可以随时在 Session 中问我审核进度。</span></div>
       </div>
     </div>
   </div>
@@ -1445,8 +1421,8 @@
     <div class="subsection" style="margin-top:20px">
       <h4>审核结果通知</h4>
       <ul>
-        <li><strong style="color:var(--green)">通过</strong> → Creator 收到邮件，Skill 自动进入预览版</li>
-        <li><strong style="color:var(--rose)">需修改</strong> → Creator 收到邮件附带修改意见，回到 Phase 4 修改后重新 <code>/minus publish</code></li>
+        <li><strong style="color:var(--green)">通过</strong> → 页面出现「预览」和「发布」两个按钮</li>
+        <li><strong style="color:var(--rose)">未通过</strong> → 列出失败原因和整改意见，无任何按钮，修改后重新 <code>/minus publish</code></li>
       </ul>
     </div>
   </div>

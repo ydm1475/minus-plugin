@@ -532,7 +532,7 @@
       <div class="decision">
         <div class="node-dot"></div>
         <div class="decision-card">
-          <div class="decision-label">检查鉴权状态</div>
+          <div class="decision-label">自动检查鉴权状态</div>
           <div class="decision-branches">
             <div class="branch"><strong>无 API Key / 无效</strong> &rarr; 进入登录</div>
             <div class="branch"><strong>有 API Key 且有效</strong> &rarr; 静默通过</div>
@@ -581,7 +581,7 @@
       <div class="decision">
         <div class="node-dot"></div>
         <div class="decision-card">
-          <div class="decision-label">检查项目上下文</div>
+          <div class="decision-label">自动检查项目上下文</div>
           <div class="decision-branches">
             <div class="branch"><strong>无关目录</strong> &rarr; 创建新项目</div>
             <div class="branch"><strong>在 Workspace 但无项目</strong> &rarr; 创建新项目</div>
@@ -615,7 +615,7 @@
       <div class="node">
         <div class="node-dot creator"></div>
         <div class="node-card creator">
-          <div class="node-label">在 Claude Desktop 中打开项目文件夹</div>
+          <div class="node-label">提示在 Claude Desktop 中打开项目文件夹</div>
           <div class="node-desc">
             新开一个 session &rarr; 选择项目文件夹作为工作目录。<br>
             这是初始化中<strong>唯一的关键手动步骤</strong>，确保 CLAUDE.md 自动加载、Memory 持久化、Git 集成生效
@@ -656,7 +656,7 @@
         <div class="node-card plugin">
           <div class="node-label">环境检查（三项）</div>
           <div class="sub-flow">
-            <div class="sub-step"><div class="sub-step-num">1</div><span><strong>鉴权检查</strong> &mdash; 校验 API Key 是否有效（静默）</span></div>
+            <div class="sub-step"><div class="sub-step-num">1</div><span><strong>鉴权检查</strong> &mdash; 校验是否已登录 Minus Plugin、API Key 是否有效（静默）</span></div>
             <div class="sub-step"><div class="sub-step-num">2</div><span><strong>项目识别</strong> &mdash; 确认 .minus.json 存在，静默追加到 projects.json（静默）</span></div>
             <div class="sub-step"><div class="sub-step-num">3</div><span><strong>依赖检查</strong> &mdash; 首次安装依赖 / 后续静默对比 lock file（可见）</span></div>
           </div>
@@ -667,7 +667,7 @@
       <div class="node">
         <div class="node-dot plugin"></div>
         <div class="node-card plugin">
-          <div class="node-label">生成 Skill 初始页面（首次进入）</div>
+          <div class="node-label">自动生成 Skill 初始页面（首次进入）</div>
           <div class="node-desc">读取后端 Skill 信息 &rarr; 生成初始页面文件 &rarr; 自动打开预览。后续进入跳过此步</div>
           <span class="node-tag auto">首次自动</span>
         </div>
@@ -734,7 +734,7 @@
           <div class="node-dot plugin"></div>
           <div class="node-card plugin">
             <div class="node-label">5.2a 数据需求发现</div>
-            <div class="node-desc">通过 MCP 查询数据服务商可用 API 列表，向 Creator 推荐匹配当前节点的接口</div>
+            <div class="node-desc">通过 MCP 查询数据服务商可用 API 列表，向 Creator 推荐匹配当前节点的接口<br>代码编写、调试与确认（贯穿节点开发全程）</div>
             <span class="node-tag mcp-tag">MCP 发现</span>
           </div>
         </div>
@@ -743,41 +743,31 @@
           <div class="node-dot creator"></div>
           <div class="node-card creator">
             <div class="node-label">5.2b 确认数据需求 &amp; 处理逻辑</div>
-            <div class="node-desc">Creator 选择需要的 API &rarr; 确认处理方式（直接透传 / 聚合 / LLM 分析）</div>
+            <div class="node-desc">Creator 选择需要的 API &rarr; 确认处理方式（直接透传 / 聚合 / LLM 分析）<br>代码编写、调试与确认（贯穿节点开发全程）</div>
           </div>
         </div>
 
         <div class="node">
           <div class="node-dot plugin"></div>
           <div class="node-card plugin">
-            <div class="node-label">5.2c 生成节点代码</div>
+            <div class="node-label">5.2c 确认输出定义 &amp; 用户确认行为</div>
             <div class="node-desc">
-              三层分离：数据获取（HTTP 直调）&rarr; 数据处理（纯代码或 LLM）&rarr; 输出渲染（minus.output.*）<br>
-              同时定义该节点的输出和用户确认行为
+              确认该节点传给下一步的数据和展示给用户的内容<br>
+              确认运行时是否需要暂停让用户确认再继续<br>
+              代码编写、调试与确认（贯穿节点开发全程）
             </div>
-            <span class="node-tag auto">自动生成</span>
+            <span class="node-tag manual">手动</span>
           </div>
         </div>
 
-        <div class="node">
-          <div class="node-dot creator"></div>
-          <div class="node-card creator">
-            <div class="node-label">5.2d 开发即测试</div>
-            <div class="node-desc">Creator 在浏览器访问 <code>localhost:{port}/preview</code> 亲自体验效果，提出修改意见，Plugin 即时调整</div>
-            <span class="node-tag manual">手动体验</span>
-          </div>
-        </div>
       </div>
 
-      <!-- Decision: Context Window -->
-      <div class="decision">
-        <div class="node-dot"></div>
-        <div class="decision-card">
-          <div class="decision-label">上下文容量检查</div>
-          <div class="decision-branches">
-            <div class="branch"><strong>容量充足</strong> &rarr; 继续开发下一节点</div>
-            <div class="branch"><strong>接近上限</strong> &rarr; 保存进度到 Memory，引导开新 Session</div>
-          </div>
+      <div class="node">
+        <div class="node-dot plugin"></div>
+        <div class="node-card plugin" style="border-color: var(--amber-dim); border-style: dashed;">
+          <div class="node-label">上下文容量检查（持续）</div>
+          <div class="node-desc">贯穿整个开发过程，不限于节点边界。单个节点也可能耗尽一个 Session。<br>接近上限时自动保存进度到 Memory，引导开新 Session 继续。</div>
+          <span class="node-tag auto">自动</span>
         </div>
       </div>
 
@@ -880,7 +870,7 @@
         <div class="node-dot plugin"></div>
         <div class="node-card plugin">
           <div class="node-label">6.3 上传至 Minus 平台</div>
-          <div class="node-desc">使用 Creator 凭证调用平台 API，上传发布包。状态变为"待审核"</div>
+          <div class="node-desc">使用 Creator 凭证调用平台 API，上传发布包。状态变为"待审核"<br>提供审核页面地址供 Creator 查看审核状态，也可在 Session 中直接询问</div>
           <span class="node-tag auto">自动</span>
           <span class="node-tag mcp-tag">MCP</span>
         </div>
@@ -901,8 +891,8 @@
         <div class="decision-card">
           <div class="decision-label">审核结果</div>
           <div class="decision-branches">
-            <div class="branch"><strong>通过</strong> &rarr; 进入预览版</div>
-            <div class="branch"><strong>需修改</strong> &rarr; 收到修改意见，返回 Phase 5 修改后重新发布</div>
+            <div class="branch"><strong>通过</strong> &rarr; 页面出现「预览」和「发布」两个按钮</div>
+            <div class="branch"><strong>未通过</strong> &rarr; 列出失败原因和整改意见，无任何按钮，修改后重新发布</div>
           </div>
         </div>
       </div>
