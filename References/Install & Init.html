@@ -924,9 +924,9 @@
   <a href="javascript:void(0)" data-target="s1-4" class="toc-step">1.4 执行安装</a>
   <a href="javascript:void(0)" data-target="phase2" class="toc-phase">Phase 2 · 首次初始化</a>
   <a href="javascript:void(0)" data-target="s2-0" class="toc-step">2.0 自动进入初始化</a>
-  <a href="javascript:void(0)" data-target="s2-1" class="toc-step">2.1 检查鉴权状态</a>
+  <a href="javascript:void(0)" data-target="s2-1" class="toc-step">2.1 自动检查鉴权状态</a>
   <a href="javascript:void(0)" data-target="s2-1a" class="toc-step">2.1a 登录流程</a>
-  <a href="javascript:void(0)" data-target="s2-2" class="toc-step">2.2 检查项目上下文</a>
+  <a href="javascript:void(0)" data-target="s2-2" class="toc-step">2.2 自动检查项目上下文</a>
   <a href="javascript:void(0)" data-target="s2-3" class="toc-step">2.3 创建 Skill 项目</a>
   <a href="javascript:void(0)" data-target="s2-4" class="toc-step">2.4 Scaffold 项目结构</a>
   <a href="javascript:void(0)" data-target="s2-5" class="toc-step">2.5 引导打开文件夹</a>
@@ -1123,7 +1123,7 @@
     <!-- 2.1 -->
     <div class="step-card" id="s2-1">
       <div class="step-id">Step 2.1</div>
-      <h3>Plugin 检查鉴权状态</h3>
+      <h3>Plugin 自动检查鉴权状态</h3>
       <div class="actor plugin">Plugin</div>
       <p>Plugin 读取平台标准配置目录下的凭证文件：</p>
       <table class="inner-table">
@@ -1237,7 +1237,7 @@
     <!-- 2.2 -->
     <div class="step-card" id="s2-2">
       <div class="step-id">Step 2.2</div>
-      <h3>Plugin 检查项目上下文</h3>
+      <h3>Plugin 自动检查项目上下文</h3>
       <div class="actor plugin">Plugin</div>
       <p>鉴权通过后，Plugin 检查<strong style="color:#fff;">当前工作目录</strong>的内容。<strong style="color:#fff;">目录内容是权威判断依据，<code>projects.json</code> 仅为便利缓存。</strong></p>
 
@@ -1530,7 +1530,7 @@
 
       <div class="subsection">
         <h4>① 鉴权检查（静默）</h4>
-        <p style="font-size:14px; color:var(--text-muted);">读取凭证文件，校验 token 有效性。过期则自动 refresh。refresh 失败则触发重新登录流程。</p>
+        <p style="font-size:14px; color:var(--text-muted);">读取凭证文件，校验是否已登录 Minus Plugin、API Key 是否有效。过期则自动 refresh。refresh 失败则触发重新登录流程。</p>
       </div>
 
       <div class="subsection">
@@ -1618,7 +1618,7 @@
     <!-- 3.3 -->
     <div class="step-card" id="s3-3">
       <div class="step-id">Step 3.3</div>
-      <h3>生成 Skill 初始页面（首次进入）</h3>
+      <h3>自动生成 Skill 初始页面（首次进入）</h3>
       <div class="actor plugin">Plugin</div>
       <p><strong style="color:#fff;">仅在首次进入项目时执行</strong>（检测到后端步骤定义为空且初始页面文件不存在）。后续进入跳过此步骤，直接到 3.4。</p>
       <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">依赖安装完成后，Plugin 不询问 Creator，直接用后端存储的 Skill 基础信息自动生成 Skill 的初始页面代码，并自动打开预览：</p>
