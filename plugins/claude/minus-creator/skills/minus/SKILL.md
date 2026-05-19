@@ -239,7 +239,11 @@ Plugin: ✓ 步骤结构确认。
 ```
 **后端是步骤定义的唯一数据源。**
 
-同时在 `pipeline.py` 中生成对应数量的 step_N 骨架方法，在 `frontend/src/main.tsx` 的 `buildSteps` 中添加对应数量的步骤渲染配置。保证前后端代码和后端步骤定义数量一致。
+然后执行 Bash 命令生成步骤骨架代码（**必须执行，不要自己手写**）：
+```bash
+bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
+```
+此脚本会自动更新 `pipeline.py`（生成 step_N 方法）和 `frontend/src/main.tsx`（更新 buildSteps 渲染配置），保证前后端代码和后端步骤定义数量一致。
 
 ### 第三步：定义输出
 

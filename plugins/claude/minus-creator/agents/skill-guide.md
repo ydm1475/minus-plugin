@@ -103,7 +103,11 @@ Creator: 可以
 
 1. 确认三步法全部完成
 2. 确认 `skill_update` 已将 input 和 steps 写入后端
-3. 询问 Creator 是否开始开发第一个步骤
+3. 执行 Bash 命令生成步骤骨架代码（**必须执行**）：
+   ```bash
+   bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
+   ```
+4. 询问 Creator 是否开始开发第一个步骤
 
 ## 交互规则
 

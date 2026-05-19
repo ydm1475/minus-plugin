@@ -473,6 +473,117 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ generate-steps.sh ═══"
+# ══════════════════════════════════════════════════════
+
+GS="$LIB_DIR/generate-steps.sh"
+
+# Test: fails without arguments
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  OUTPUT=$(bash "$GS" 2>&1 || true)
+  if assert_contains "$OUTPUT" "用法"; then
+    pass "generate-steps: fails without arguments"
+  else
+    fail "generate-steps: fails without arguments" "got: $OUTPUT"
+  fi
+)
+
+# Test: fails without skill.json
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  OUTPUT=$(bash "$GS" "步骤1" 2>&1 || true)
+  if assert_contains "$OUTPUT" "不是 Minus Skill 项目"; then
+    pass "generate-steps: fails without skill.json"
+  else
+    fail "generate-steps: fails without skill.json" "got: $OUTPUT"
+  fi
+)
+
+# Test: generates correct number of steps in pipeline.py
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus frontend/src
+  echo '{"skillId":"sk_test"}' > .minus/skill.json
+  cat > pipeline.py << 'PYEOF'
+from minus_ai_sdk import Pipeline, PipelineContext, StepOutcome
+
+class TestPipeline(Pipeline):
+    version = "1.0.0"
+
+    async def step_1(self, ctx: PipelineContext) -> StepOutcome:
+        return StepOutcome.complete(payload={"text": "done"})
+PYEOF
+  # 创建最小 main.tsx
+  cat > frontend/src/main.tsx << 'TSXEOF'
+function buildSteps(t: (k: string, fb?: string) => string): StepConfig[] {
+  return [
+    {
+      render: ({ data }) => (<div>{data.text}</div>),
+    },
+  ];
+}
+TSXEOF
+
+  OUTPUT=$(bash "$GS" "搜索量查询" "竞争度分析" "长尾词推荐" 2>&1)
+
+  # 验证 pipeline.py 有 3 个 step 方法
+  STEP_COUNT=$(grep -c "async def step_" pipeline.py)
+  if assert_eq "$STEP_COUNT" "3"; then
+    pass "generate-steps: generates 3 steps in pipeline.py"
+  else
+    fail "generate-steps: generates 3 steps" "expected 3, got $STEP_COUNT"
+  fi
+)
+
+# Test: pipeline.py contains step names
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_test"}' > .minus/skill.json
+  echo 'class TestPipeline(Pipeline):' > pipeline.py
+  echo '    version = "1.0.0"' >> pipeline.py
+
+  bash "$GS" "数据采集" "分析处理" 2>&1 >/dev/null
+
+  if assert_contains "$(cat pipeline.py)" "数据采集" && assert_contains "$(cat pipeline.py)" "分析处理"; then
+    pass "generate-steps: pipeline.py contains step names"
+  else
+    fail "generate-steps: pipeline.py contains step names" ""
+  fi
+)
+
+# Test: preserves class name
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_test"}' > .minus/skill.json
+  cat > pipeline.py << 'PYEOF'
+from minus_ai_sdk import Pipeline, PipelineContext, StepOutcome
+
+class MyCustomPipeline(Pipeline):
+    version = "1.0.0"
+
+    async def step_1(self, ctx: PipelineContext) -> StepOutcome:
+        return StepOutcome.complete(payload={"text": "done"})
+PYEOF
+
+  bash "$GS" "步骤A" 2>&1 >/dev/null
+
+  if assert_contains "$(cat pipeline.py)" "MyCustomPipeline"; then
+    pass "generate-steps: preserves class name"
+  else
+    fail "generate-steps: preserves class name" ""
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ agent files ═══"
 # ══════════════════════════════════════════════════════
 
