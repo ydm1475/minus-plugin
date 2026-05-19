@@ -45,11 +45,11 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 }
 ```
 
-**b) 根据输入类型更新前端 `frontend/src/main.tsx`：**
-- 关键词 → 用 `validateKeywords`，更新 placeholder
-- ASIN → 用 `validateAsins`
-- 文件 → 切换为 `FilePicker`
-- 参考 CLAUDE.md 中的模板能力说明
+**b) 根据输入类型更新前端 `frontend/src/main.tsx`，必须改以下内容：**
+1. **输入组件**：关键词→`validateKeywords`，ASIN→`validateAsins`，文件→`FilePicker`
+2. **placeholder**：找到 `<input>` 的 `placeholder` 属性，改为 Creator 指定的提示语
+3. **输入模式**：根据 Creator 说的"支持一个/多个"调整校验逻辑
+4. 参考 CLAUDE.md 中的模板能力说明
 ⛔ 禁止：只改后端不改前端
 
 ## 第二步：拆解步骤

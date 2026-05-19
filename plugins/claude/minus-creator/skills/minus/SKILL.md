@@ -207,12 +207,13 @@ Plugin: ✓ 输入定义确认。
 input: { type: "keyword", label: "主关键词", placeholder: "如：wireless earbuds", required: true }
 ```
 
-**b) 根据输入类型更新前端代码 `frontend/src/main.tsx`：**
-- 如果 Creator 说输入是关键词 → 确保用 `validateKeywords`，输入框 placeholder 改为 Creator 指定的提示语
-- 如果 Creator 说输入是 ASIN → 确保用 `validateAsins`
-- 如果 Creator 说输入是文件 → 切换为 `FilePicker` 组件
-- 参考 CLAUDE.md 中的模板能力说明，修改对应的组件和校验逻辑
-⛔ 禁止：只改后端不改前端。输入类型变更必须前后端同步。
+**b) 根据输入类型更新前端代码 `frontend/src/main.tsx`，必须改以下内容：**
+1. **输入组件**：关键词→`validateKeywords`，ASIN→`validateAsins`，文件→`FilePicker`
+2. **placeholder**：找到 `<input>` 的 `placeholder` 属性，改为 Creator 指定的提示语（如"输入主关键词，如 wireless earbuds"）
+3. **输入模式**：如果 Creator 说"只支持多个"，去掉单个输入的逻辑；如果"只支持一个"，去掉批量输入逻辑
+4. 参考 CLAUDE.md 中的模板能力说明
+
+⛔ 禁止：只改后端不改前端。输入类型、placeholder、输入模式变更必须前后端同步。
 
 ### 第二步：拆解步骤
 
