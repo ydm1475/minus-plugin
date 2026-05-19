@@ -224,7 +224,22 @@ Creator: 差不多就这样
 Plugin: ✓ 步骤结构确认。
 ```
 
-确认后用 `skill_update` 将步骤结构写入后端。**后端是步骤定义的唯一数据源。**
+确认后用 `skill_update` 将步骤结构写入后端（**字段必须是 stepNumber + stepName，不要用其他字段名**）：
+```json
+{
+  "skillId": "从 .minus/skill.json 读取",
+  "updates": {
+    "steps": [
+      { "stepNumber": 1, "stepName": "关键词数据采集" },
+      { "stepNumber": 2, "stepName": "竞争度分析" },
+      { "stepNumber": 3, "stepName": "长尾词推荐" }
+    ]
+  }
+}
+```
+**后端是步骤定义的唯一数据源。**
+
+同时在 `pipeline.py` 中生成对应数量的 step_N 骨架方法，在 `frontend/src/main.tsx` 的 `buildSteps` 中添加对应数量的步骤渲染配置。保证前后端代码和后端步骤定义数量一致。
 
 ### 第三步：定义输出
 
