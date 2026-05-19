@@ -28,7 +28,9 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 你：✓ 输入定义确认。
 ```
 
-确认后立即用 `skill_update` 将输入定义写入后端：
+确认后做两件事：
+
+**a) 用 `skill_update` 将输入定义写入后端（只传 input 字段，不要改其他字段）：**
 ```json
 {
   "skillId": "当前项目的 skillId",
@@ -42,6 +44,13 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
   }
 }
 ```
+
+**b) 根据输入类型更新前端 `frontend/src/main.tsx`：**
+- 关键词 → 用 `validateKeywords`，更新 placeholder
+- ASIN → 用 `validateAsins`
+- 文件 → 切换为 `FilePicker`
+- 参考 CLAUDE.md 中的模板能力说明
+⛔ 禁止：只改后端不改前端
 
 ## 第二步：拆解步骤
 

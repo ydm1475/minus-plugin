@@ -200,10 +200,19 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 Plugin: ✓ 输入定义确认。
 ```
 
-确认后用 `skill_update` 将输入定义写入后端：
+确认后做两件事：
+
+**a) 用 `skill_update` 将输入定义写入后端（只传 input 字段，不要改 description 等其他字段）：**
 ```
 input: { type: "keyword", label: "主关键词", placeholder: "如：wireless earbuds", required: true }
 ```
+
+**b) 根据输入类型更新前端代码 `frontend/src/main.tsx`：**
+- 如果 Creator 说输入是关键词 → 确保用 `validateKeywords`，输入框 placeholder 改为 Creator 指定的提示语
+- 如果 Creator 说输入是 ASIN → 确保用 `validateAsins`
+- 如果 Creator 说输入是文件 → 切换为 `FilePicker` 组件
+- 参考 CLAUDE.md 中的模板能力说明，修改对应的组件和校验逻辑
+⛔ 禁止：只改后端不改前端。输入类型变更必须前后端同步。
 
 ### 第二步：拆解步骤
 
@@ -238,6 +247,8 @@ Plugin: ✓ 步骤结构确认。
 }
 ```
 **后端是步骤定义的唯一数据源。** 所有平台 API 的字段格式参照 `.claude/api/openapi-bundled.yaml`。
+
+⛔ 禁止：在更新 steps 时顺带修改 description、displayName 等其他字段。每次 `skill_update` 只传 Creator 明确确认的字段。
 
 然后执行 Bash 命令生成步骤骨架代码（**必须执行，不要自己手写**）：
 ```bash
