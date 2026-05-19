@@ -1,0 +1,791 @@
+openapi: 3.1.0
+info:
+  title: 平台给Skill端提供的 Rest API
+  version: 1.0.0
+  description: |
+    ## 认证
+
+    每个请求须同时携带两个凭证，网关进行双重验证。
+
+    | 凭证 | 传递方式 | 说明 |
+    |------|---------|------|
+    | `X-Skill-Api-Key` | Request Header | Skill 身份凭证，由平台颁发，网关 `SkillApiKeyFilter` 反查 skill_id 注 `X-Skill-Id` |
+    | `MINUS_AI_SID` | Cookie | 用户 session cookie（Spring Session opaque token），网关 `SessionAuthFilter` 解出 user_id / currentTeamId 注 `X-User-Id` / `X-Team-Id` 给 platform |
+servers:
+  - url: /
+    description: 本地联调（自动跟随当前 docs 页面的 host，浏览器访问哪个就调哪个）
+  - url: https://dev.sif.com
+    description: 开发环境
+  - url: https://www.sif.com
+    description: 生产环境
+security:
+  - skillApiKey: []
+    minusAiSid: []
+tags:
+  - name: Session
+    description: Session 消息读写
+  - name: File
+    description: 文件上传（Skill 产出）
+  - name: Errors
+    description: |
+      ## 错误响应格式
+
+      所有错误响应均使用统一结构：
+
+      ```json
+      {
+        "code": "NOT_FOUND",
+        "message": "Resource not found",
+        "details": {}
+      }
+      ```
+
+      | 字段 | 类型 | 必填 | 说明 |
+      |------|------|------|------|
+      | `code` | string | ✓ | 错误码，全大写下划线格式 |
+      | `message` | string | ✓ | 人类可读的错误描述 |
+      | `details` | object | — | 附加上下文，结构因错误类型而异 |
+
+      ---
+
+      ## 错误码
+
+      > HTTP 状态码 → `code` 是一对多；`code` → HTTP 状态码 是一对一。
+      >
+      > **调用方处理逻辑**：优先看 `code` 做精细处理（`QUOTA_EXCEEDED` → 返回提示告知用户额度已用完；`FORBIDDEN` → 输出日志并检查 scope 声明；`RATE_LIMITED` → 指数退避重试）；`code` 不可用时（网络超时、Nginx 502/504 等基础设施层错误导致响应体非 JSON）降级看 HTTP 状态码兜底（`401` → 检查 `X-Skill-Api-Key` 与 `MINUS_AI_SID` cookie 有效性；`403` → 检查 scope 配置；`5xx` → 上报日志并重试）。
+
+      | HTTP 状态码 | `code` | 说明 |
+      |------------|--------|------|
+      | 401 | `UNAUTHORIZED` | `X-Skill-Api-Key` 无效或 `MINUS_AI_SID` session 过期 / 失效 |
+      | 403 | `FORBIDDEN` | Skill 未声明调用该接口的权限（scope 不足），需联系平台配置 |
+      | 404 | `NOT_FOUND` | Session / 消息不存在，或 ID 有误 |
+      | 409 | `STATE_ALREADY_EXISTS` | 状态消息违反 `(session_id, message_type, payload.stepNumber)` 唯一约束（同一 session 同一状态点已存在），多见于多节点 / 多 tab 同时跑同一 step 的并发场景；`details.existingMessageId` 返回已存在的 message ID |
+      | 429 | `QUOTA_EXCEEDED` | 用户套餐 LLM token、数据 API 调用次数等超出上限，应停止操作并通知用户 |
+      | 429 | `RATE_LIMITED` | Skill 单位时间内调用平台 API 次数超出限制，应按退避策略重试 |
+      | 500 | `INTERNAL_ERROR` | 服务器内部错误，建议记录日志并上报平台 |
+paths:
+  /skill-api/sessions/{sessionId}:
+    get:
+      tags:
+        - Session
+      summary: 读取 session 元数据
+      description: '`GET /skill-api/sessions/{sessionId}`'
+      operationId: getSkillSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 目标 session ID
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_6
+                  - id
+                  - userId
+                  - skillId
+                  - skillVersionId
+                  - entryParams
+                  - pipelineStatus
+                  - createdAt
+                properties: &ref_7
+                  id:
+                    type: string
+                    description: session ID
+                    example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+                  userId:
+                    type: string
+                    description: session 归属用户 ID
+                    example: usr_5k8Zt7QhZ3kR9mVx2yNpEw
+                  skillId:
+                    type: string
+                    description: 当前 skill ID（由 API Key 反查）
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  skillVersionId:
+                    type: string
+                    description: 创建 session 时锁定的 skill 版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  entryParams:
+                    type: object
+                    additionalProperties: true
+                    description: session 创建时传入的入参（JSONB），透传给 skill
+                  pipelineStatus:
+                    type: string
+                    enum:
+                      - pending
+                      - running
+                      - complete
+                      - error
+                    description: pipeline 运行状态
+                    example: running
+                  createdAt:
+                    type: integer
+                    format: int64
+                    description: session 创建时间戳（毫秒）
+                    example: 1745000000000
+        '401':
+          description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+          content: &ref_2
+            application/json:
+              schema:
+                type: object
+                required: &ref_0
+                  - code
+                  - message
+                properties: &ref_1
+                  code:
+                    type: string
+                    description: 错误码，全大写下划线格式
+                    example: NOT_FOUND
+                  message:
+                    type: string
+                    description: 人类可读的错误描述
+                  details:
+                    type:
+                      - object
+                      - 'null'
+                    description: 附加上下文，结构因错误类型而异；无附加上下文时为 null
+              example:
+                code: UNAUTHORIZED
+                message: API key is invalid or session is expired
+        '403':
+          description: Skill 无权调用该接口（scope 不足）
+          content: &ref_3
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: FORBIDDEN
+                message: Skill does not have required scope
+        '404':
+          description: 资源不存在
+          content: &ref_4
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: NOT_FOUND
+                message: Resource not found
+  /skill-api/sessions/{sessionId}/messages:
+    get:
+      tags:
+        - Session
+      summary: 读取历史消息
+      description: '`GET /skill-api/sessions/{sessionId}/messages`'
+      operationId: listSkillSessionMessages
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 目标 session ID
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: string
+          description: message ID（msg_xxx），返回 sequence 严格大于该消息的后续记录；不传则从 session 起点全量返回
+          example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1000
+          description: 单次返回上限，默认 1000
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_8
+                  - messages
+                properties: &ref_9
+                  messages:
+                    type: array
+                    description: 持久化消息数组，按 sequence 升序；瞬时消息不入库不出现在 history
+                    items:
+                      type: object
+                      required: &ref_10
+                        - id
+                        - sequence
+                        - messageType
+                        - role
+                        - payload
+                        - createdAt
+                      properties: &ref_11
+                        id:
+                          type: string
+                          description: message ID
+                          example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+                        sequence:
+                          type: integer
+                          description: 消息在 session 内的顺序号，从 1 开始
+                          example: 1
+                        messageType:
+                          type: string
+                          enum:
+                            - skill_entered
+                            - step_input_submitted
+                            - user_text
+                            - assistant_text
+                            - pipeline_start
+                            - step_start
+                            - step_complete
+                            - step_input_required
+                            - pipeline_complete
+                            - pipeline_error
+                          description: 仅含持久化状态消息；瞬时消息 step_progress / step_partial_detail 不入库不出现在 history
+                          example: step_complete
+                        role:
+                          type: string
+                          enum:
+                            - user
+                            - assistant
+                            - system
+                          description: 消息角色
+                          example: system
+                        payload:
+                          type: object
+                          additionalProperties: true
+                          description: 消息内容，结构由 messageType 决定
+                        content:
+                          type: string
+                          description: 文本内容，user_text / assistant_text 时有值
+                        createdAt:
+                          type: integer
+                          format: int64
+                          description: 消息创建时间戳（毫秒）
+                          example: 1745000000100
+        '401':
+          description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+          content: *ref_2
+        '403':
+          description: Skill 无权调用该接口（scope 不足）
+          content: *ref_3
+        '404':
+          description: 资源不存在
+          content: *ref_4
+    post:
+      tags:
+        - Session
+      summary: 上报 pipeline 消息
+      description: '`POST /skill-api/sessions/{sessionId}/messages`'
+      operationId: reportMessage
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 目标 session ID
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_12
+                - messageType
+                - role
+              properties: &ref_13
+                messageType:
+                  type: string
+                  enum:
+                    - skill_entered
+                    - step_input_submitted
+                    - step_progress
+                    - step_partial_detail
+                    - user_text
+                    - assistant_text
+                    - pipeline_start
+                    - step_start
+                    - step_complete
+                    - step_input_required
+                    - pipeline_complete
+                    - pipeline_error
+                  description: |
+                    消息类型，前端据此选择渲染组件。分为持久化状态消息与瞬时消息。
+                    持久化状态消息：`pipeline_start` / `step_start` / `step_complete` / `step_input_required` / `step_input_submitted` / `pipeline_complete` / `pipeline_error` / `skill_entered`，平台 INSERT `session_messages`，响应 `id` 为 `msg_xxx`。
+                    瞬时消息：`step_progress` / `step_partial_detail`，平台 skip INSERT，响应 `id` 为 `null`，用于步骤内进度 / 分批结果实时推送，断线重连不重传。
+                    平台根据 messageType 联动更新 skill_runs 状态：`pipeline_start` → status=running；`pipeline_complete` → status=complete，pipeline_output=payload.data；`pipeline_error` → status=error。
+                    - `skill_entered` — 进入/切换 skill（role=user）
+                    - `step_input_submitted` — 用户提交 pipeline step 确认面板（role=user）
+                    - `step_progress` — 步骤内实时进度（role=system，瞬时消息）
+                    - `step_partial_detail` — 步骤内部分结果实时流入（role=system，瞬时消息）
+                    - `user_text` — 用户对话文本，v1.0 不生效（role=user）
+                    - `assistant_text` — AI 文字回复，v1.0 不生效（role=assistant）
+                    - `pipeline_start` — pipeline 开始（role=system）
+                    - `step_start` — 步骤开始（role=system）
+                    - `step_complete` — 步骤完成（role=system）
+                    - `step_input_required` — 等待用户输入（role=system）
+                    - `pipeline_complete` — 全部步骤完成（role=system）
+                    - `pipeline_error` — pipeline 执行出错（role=system）
+                  example: step_complete
+                role:
+                  type: string
+                  enum:
+                    - user
+                    - assistant
+                    - system
+                  description: 消息角色
+                  example: system
+                payload:
+                  description: 消息内容，结构由 messageType 决定；状态消息中带 stepNumber 的会作为唯一约束键的一部分
+                  oneOf:
+                    - title: SkillEntered
+                      type: object
+                      description: skill_entered — 进入或切换 skill
+                      required: &ref_14
+                        - skillId
+                        - skillVersionId
+                        - entryParams
+                      properties: &ref_15
+                        skillId:
+                          type: string
+                          description: 进入的 skill ID
+                        skillVersionId:
+                          type: string
+                          description: 锁定的 skill 版本 ID
+                        entryParams:
+                          type: object
+                          additionalProperties: true
+                          description: 进入 skill 时的入参
+                        fromSkillId:
+                          type: string
+                          description: 切换来源 skill ID，首次进入 session 时为空
+                        fromSkillVersionId:
+                          type: string
+                          description: 切换来源 skill 版本 ID，首次进入 session 时为空
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义扩展数据
+                    - title: StepInputSubmitted
+                      type: object
+                      description: step_input_submitted — 用户提交确认面板
+                      required: &ref_16
+                        - stepNumber
+                        - refMessageId
+                      properties: &ref_17
+                        stepNumber:
+                          type: integer
+                          description: 对应的 pipeline 步骤序号
+                        refMessageId:
+                          type: string
+                          description: 触发此确认的 step_input_required 消息 ID
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义提交数据
+                    - title: UserText
+                      type: object
+                      description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段
+                      properties: &ref_18
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义扩展数据
+                    - title: AssistantText
+                      type: object
+                      description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段
+                      properties: &ref_19
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义扩展数据
+                    - title: PipelineStart
+                      type: object
+                      description: pipeline_start — pipeline 开始
+                      required: &ref_20
+                        - totalSteps
+                      properties: &ref_21
+                        totalSteps:
+                          type: integer
+                          description: 总步骤数
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义扩展数据
+                    - title: StepStart
+                      type: object
+                      description: step_start — 步骤开始
+                      required: &ref_22
+                        - stepNumber
+                      properties: &ref_23
+                        stepNumber:
+                          type: integer
+                          description: 当前步骤序号
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义扩展数据
+                    - title: StepComplete
+                      type: object
+                      description: step_complete — 步骤完成
+                      required: &ref_24
+                        - stepNumber
+                      properties: &ref_25
+                        stepNumber:
+                          type: integer
+                          description: 完成的步骤序号
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义结果数据（如表格、图片、下载文件等）
+                    - title: StepInputRequired
+                      type: object
+                      description: step_input_required — 等待用户输入确认面板
+                      required: &ref_26
+                        - stepNumber
+                      properties: &ref_27
+                        stepNumber:
+                          type: integer
+                          description: 需要用户确认的步骤序号
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义确认面板数据
+                    - title: PipelineComplete
+                      type: object
+                      description: pipeline_complete — 全部步骤完成
+                      required: &ref_34
+                        - totalSteps
+                        - durationSeconds
+                      properties: &ref_35
+                        totalSteps:
+                          type: integer
+                          description: 总步骤数
+                        durationSeconds:
+                          type: number
+                          description: 总耗时（秒）
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义产出摘要（如导出文件列表）
+                    - title: PipelineError
+                      type: object
+                      description: pipeline_error — pipeline 执行出错，平台将 pipeline_status 更新为 error
+                      required: &ref_32
+                        - code
+                        - message
+                      properties: &ref_33
+                        code:
+                          type: string
+                          description: 错误码，全大写下划线格式，结构同 Web API 错误响应
+                          example: PIPELINE_ERROR
+                        message:
+                          type: string
+                          description: 人类可读的错误描述
+                          example: 请求超时
+                        details:
+                          type: object
+                          additionalProperties: true
+                          description: 附加上下文，结构因错误类型而异
+                    - title: StepProgress
+                      type: object
+                      description: step_progress — 步骤内实时进度，瞬时消息，平台不持久化
+                      required: &ref_28
+                        - stepNumber
+                      properties: &ref_29
+                        stepNumber:
+                          type: integer
+                          description: 当前步骤序号
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: skill 自定义进度数据
+                    - title: StepPartialDetail
+                      type: object
+                      description: step_partial_detail — 步骤内部分结果实时流入，瞬时消息，平台不持久化
+                      required: &ref_30
+                        - stepNumber
+                      properties: &ref_31
+                        stepNumber:
+                          type: integer
+                          description: 当前步骤序号
+                        data:
+                          type: object
+                          additionalProperties: true
+                          description: 步骤内部分结果，结构与对应 step_complete 的 data 一致
+                content:
+                  type: string
+                  description: 文本内容，user_text / assistant_text 时使用
+      responses:
+        '201':
+          description: 消息写入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type:
+                      - string
+                      - 'null'
+                    description: message ID；持久化状态消息为平台分配的 msg_xxx，瞬时消息为 null（未持久化）
+                    example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误（如文件大小超限、格式不支持）
+          content: &ref_5
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: FILE_TOO_LARGE
+                message: File size exceeds limit
+        '401':
+          description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+          content: *ref_2
+        '403':
+          description: Skill 无权调用该接口（scope 不足）
+          content: *ref_3
+        '404':
+          description: 资源不存在
+          content: *ref_4
+        '409':
+          description: 状态消息已存在，违反 `(session_id, message_type, payload.stepNumber)` 唯一约束
+          content: &ref_36
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    required: *ref_0
+                    properties: *ref_1
+                  - type: object
+                    properties:
+                      details:
+                        type: object
+                        description: 附加上下文
+                        properties:
+                          existingMessageId:
+                            type: string
+                            description: 已存在的 message ID
+                            example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+              example:
+                code: STATE_ALREADY_EXISTS
+                message: State message already exists
+                details:
+                  existingMessageId: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+  /skill-api/files:
+    post:
+      tags:
+        - File
+      summary: 上传文件
+      description: '`POST /skill-api/files`'
+      operationId: uploadFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - bizType
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文件内容
+                bizType:
+                  type: string
+                  description: 业务类型，如 session_export
+                  example: session_export
+                bizId:
+                  type: string
+                  description: 关联的 sessionId，可选，传入时立即关联
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+                    description: 文件 ID
+                    example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误（如文件大小超限、格式不支持）
+          content: *ref_5
+        '401':
+          description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+          content: *ref_2
+        '403':
+          description: Skill 无权调用该接口（scope 不足）
+          content: *ref_3
+components:
+  securitySchemes:
+    minusAiSid:
+      type: apiKey
+      in: cookie
+      name: MINUS_AI_SID
+      description: 用户 session cookie（Spring Session opaque token），由用户浏览器透传到 Skill 容器再透传到平台，由网关 SessionAuthFilter 解出 user_id / currentTeamId。
+    skillApiKey:
+      type: apiKey
+      in: header
+      name: X-Skill-Api-Key
+      description: Skill 身份凭证，由平台颁发，验证 skill 身份和权限 scope。
+  schemas:
+    SkillSession:
+      type: object
+      required: *ref_6
+      properties: *ref_7
+    SkillSessionMessagesResponse:
+      type: object
+      required: *ref_8
+      properties: *ref_9
+    SkillSessionMessage:
+      type: object
+      required: *ref_10
+      properties: *ref_11
+    ReportMessageRequest:
+      type: object
+      required: *ref_12
+      properties: *ref_13
+    PayloadSkillEntered:
+      title: SkillEntered
+      type: object
+      description: skill_entered — 进入或切换 skill
+      required: *ref_14
+      properties: *ref_15
+    PayloadStepInputSubmitted:
+      title: StepInputSubmitted
+      type: object
+      description: step_input_submitted — 用户提交确认面板
+      required: *ref_16
+      properties: *ref_17
+    PayloadUserText:
+      title: UserText
+      type: object
+      description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段
+      properties: *ref_18
+    PayloadAssistantText:
+      title: AssistantText
+      type: object
+      description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段
+      properties: *ref_19
+    PayloadPipelineStart:
+      title: PipelineStart
+      type: object
+      description: pipeline_start — pipeline 开始
+      required: *ref_20
+      properties: *ref_21
+    PayloadStepStart:
+      title: StepStart
+      type: object
+      description: step_start — 步骤开始
+      required: *ref_22
+      properties: *ref_23
+    PayloadStepComplete:
+      title: StepComplete
+      type: object
+      description: step_complete — 步骤完成
+      required: *ref_24
+      properties: *ref_25
+    PayloadStepInputRequired:
+      title: StepInputRequired
+      type: object
+      description: step_input_required — 等待用户输入确认面板
+      required: *ref_26
+      properties: *ref_27
+    PayloadStepProgress:
+      title: StepProgress
+      type: object
+      description: step_progress — 步骤内实时进度，瞬时消息，平台不持久化
+      required: *ref_28
+      properties: *ref_29
+    PayloadStepPartialDetail:
+      title: StepPartialDetail
+      type: object
+      description: step_partial_detail — 步骤内部分结果实时流入，瞬时消息，平台不持久化
+      required: *ref_30
+      properties: *ref_31
+    PayloadPipelineError:
+      title: PipelineError
+      type: object
+      description: pipeline_error — pipeline 执行出错，平台将 pipeline_status 更新为 error
+      required: *ref_32
+      properties: *ref_33
+    PayloadPipelineComplete:
+      title: PipelineComplete
+      type: object
+      description: pipeline_complete — 全部步骤完成
+      required: *ref_34
+      properties: *ref_35
+    ErrorResponse:
+      type: object
+      required: *ref_0
+      properties: *ref_1
+  responses:
+    BadRequest:
+      description: 请求参数错误（如文件大小超限、格式不支持）
+      content: *ref_5
+    Unauthorized:
+      description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+      content: *ref_2
+    Forbidden:
+      description: Skill 无权调用该接口（scope 不足）
+      content: *ref_3
+    NotFound:
+      description: 资源不存在
+      content: *ref_4
+    StateAlreadyExists:
+      description: 状态消息已存在，违反 `(session_id, message_type, payload.stepNumber)` 唯一约束
+      content: *ref_36
+    QuotaExceeded:
+      description: 套餐额度耗尽（月度/总量限制），`code` 为 `QUOTA_EXCEEDED`
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: QUOTA_EXCEEDED
+            message: Plan quota exceeded
+    RateLimited:
+      description: 请求频率过快（短时间请求过多），`code` 为 `RATE_LIMITED`
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: RATE_LIMITED
+            message: Too many requests, please retry later
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: INTERNAL_ERROR
+            message: Internal server error

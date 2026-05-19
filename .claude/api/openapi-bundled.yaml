@@ -1,0 +1,3180 @@
+openapi: 3.1.0
+info:
+  title: Web端 Rest API
+  version: 1.0.0
+  description: |
+    ## 认证
+
+    Web 端请求通过 Cookie `MINUS_AI_SID` 鉴权（**Spring Session + Redis**，opaque session token，非 JWT）。
+
+    - 注册 / 登录成功后，平台 Set-Cookie 下发 `MINUS_AI_SID=<sessionId>`（HttpOnly、SameSite=Lax、prod 下 Secure）
+    - 后续请求浏览器自动带 cookie，gateway 通过 `ReactiveSessionRepository.findById(sessionId)` 校验 → 命中后注入 `X-User-Id` + `X-Team-Id` 头给下游
+    - session 默认 7 天滑动过期；登录时带 `rememberMe=true` 延长至 30 天
+    - session 失效 / 不存在 → 业务接口返 `401 UNAUTHORIZED`；前端清状态跳登录页
+    - `/api/auth/**` 与 `/oauth/**` 在 gateway 白名单内（不要求 session 即可访问）
+
+    **第三方 skill 开发者本地调试场景**通过 OAuth 2.0 Authorization Code + PKCE 拿到 `MINUS_AI_SID`，详见 **OAuth** tag 下的两个端点。
+
+    **手机号必绑约束**：邮箱注册的账户已登录但未绑手机号时，所有业务接口返 `403 PHONE_REQUIRED`；仅以下接口允许调用以完成绑定流程：`GET /api/me`（读自己状态，含 `phoneRequired` 字段）、`/api/auth/logout`、`/api/auth/identities/bind`、`/api/auth/vcode/send`（purpose=bind）、`/api/auth/password/change`。注意 `PATCH /api/me`（改 profile）**不在白名单**——必须先绑定手机号才能修改资料。
+servers:
+  - url: /
+    description: 本地联调（自动跟随当前 docs 页面的 host，浏览器访问哪个就调哪个）
+  - url: https://dev.sif.com
+    description: 开发环境
+  - url: https://www.sif.com
+    description: 生产环境
+security:
+  - minusAiSid: []
+tags:
+  - name: OAuth
+    description: |
+      ## OAuth 2.0 Authorization Code + PKCE
+
+      平台对外暴露的 OAuth 2.0 端点。1.0 阶段服务对象 = **第三方 skill 开发者本地调试**，未来可平滑扩展为"第三方应用用 minusai 账号登录"的 OAuth Provider（加 scope / consent / refresh_token / OIDC `id_token` 即可）。
+
+      ### 4 角色映射（与 [RFC 6749 §1.1](https://datatracker.ietf.org/doc/html/rfc6749#section-1.1) 对齐）
+
+      | OAuth 标准 | 本平台实体 | 凭证 / 标识 |
+      |---|---|---|
+      | Resource Owner | 开发者本人 | dev 域 `MINUS_AI_SID` cookie |
+      | User Agent | 浏览器 | 仅 redirect 中介，**不持有任何 token** |
+      | Client | SDK（开发者本机跑的 skill 后端） | `client_id` = `skills.id`（`skl_xxx`）<br>`client_secret` = `skills.api_key`（`ska_xxx`） |
+      | Authorization Server | 本平台（`minusai-dev.com`） | 自身 |
+      | Resource Server | `/skill-api/**` | 验 `MINUS_AI_SID` + `X-Skill-Api-Key` |
+
+      **关键**：`client_id` / `client_secret` 直接复用 skill 创建时已发的 `skill_id` / `skill_api_key`——**1 个 skill = 1 个 OAuth client**，无独立注册流程。
+
+      ### 错误响应格式（**与本文档其他 endpoint 不同**）
+
+      OAuth endpoint 严格遵循 [RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)：
+
+      ```json
+      {
+        "error": "invalid_grant",
+        "error_description": "authorization code has expired or already been used"
+      }
+      ```
+
+      | `error` | HTTP | 用途 |
+      |---|---|---|
+      | `invalid_request` | 400 | 缺必填参数 / 参数格式错（如 `code_challenge_method` 非 `S256`） |
+      | `invalid_client` | 401 | `client_id` 不存在 / `client_secret` 与 `skills.api_key` 不匹配 / skill `status != active` |
+      | `invalid_grant` | 400 | `code` 不存在 / 过期 / 已消费 / `redirect_uri` 与 code 绑定的不一致 / PKCE 校验失败 |
+      | `unsupported_grant_type` | 400 | `grant_type` 非 `authorization_code`（1.0 仅支持此一种） |
+      | `unsupported_response_type` | 400 | `response_type` 非 `code` |
+      | `server_error` | 500 | 内部错误（Redis 抖动等） |
+
+      ### `/oauth/authorize` 错误的双分支处理（RFC 6749 §4.1.2.1）
+
+      - **不可 redirect 的错误**（`client_id` 不存在 / `redirect_uri` 缺失或不在白名单）→ 平台直接渲染错误页 + HTTP 400，**禁止回跳 `redirect_uri`**（否则攻击者可构造任意跳转）
+      - **可 redirect 的错误**（其他参数错）→ 302 回 `redirect_uri` 带 `?error=...&error_description=...&state=...`
+
+      ### redirect_uri 白名单（1.0 配置数组）
+
+      | 模式 | 用途 |
+      |---|---|
+      | `http://localhost(:\d+)?(/.*)?` | 第三方 skill 开发者本机 dev server |
+      | `https://*.minusai-dev.com(/.*)?` | dev 平台部署的 skill 容器 |
+
+      **匹配方式**：解析 URL 后**分别比较** `scheme + host + port`，path 段独立验证 —— **严禁字符串子串 / `startsWith` 匹配**（否则 `http://attacker.com/?localhost=` 可绕过）。
+
+      **gateway 白名单**：`/oauth/**` 与 `/api/auth/**` 一同放行（不要求 session）。
+  - name: Auth
+    description: 注册 / 登录 / 登出 / 验证码 / 密码 / identity 绑定
+  - name: Profile
+    description: 当前用户资料读写（昵称 / 头像 / 语言 / 时区）
+  - name: Skill
+    description: Skill 列表、关联推荐、创建及 endpoint 管理
+  - name: SkillTag
+    description: Skill 标签字典（开发者查询 + admin 后台 CRUD）
+  - name: Session
+    description: Session 创建、查询与删除
+  - name: File
+    description: 文件上传、下载与删除
+  - name: Errors
+    description: |
+      ## 错误响应格式
+
+      所有错误响应均使用统一结构：
+
+      ```json
+      {
+        "code": "NOT_FOUND",
+        "message": "Resource not found",
+        "details": {}
+      }
+      ```
+
+      | 字段 | 类型 | 必填 | 说明 |
+      |------|------|------|------|
+      | `code` | string | ✓ | 错误码，全大写下划线格式 |
+      | `message` | string | ✓ | 人类可读的错误描述 |
+      | `details` | object | — | 附加上下文，结构因错误类型而异 |
+
+      ---
+
+      ## 错误码
+
+      > HTTP 状态码 → `code` 是一对多；`code` → HTTP 状态码 是一对一。
+      >
+      > **调用方处理逻辑**：优先看 `code` 做精细处理（`QUOTA_EXCEEDED` → 弹升级套餐引导；`FILE_TOO_LARGE` → 提示文件大小限制；`CONFLICT` → 提示「任务运行中，请等待完成后操作」）；`code` 不可用时（网络超时、Nginx 502/504 等基础设施层错误导致响应体非 JSON）降级看 HTTP 状态码兜底（`401` → 清除 token 跳登录页；`403` → 提示权限不足；`5xx` → 通用报错并上报日志）。
+
+      | HTTP 状态码 | `code` | 说明 |
+      |------------|--------|------|
+      | 400 | `FILE_TOO_LARGE` | 上传文件超过大小限制 |
+      | 400 | `UNSUPPORTED_FORMAT` | 文件格式不在允许列表（如上传了 .exe） |
+      | 400 | `VALIDATION_ERROR` | 请求参数缺失或格式错误（如 `entryParams` 非 JSON 对象） |
+      | 400 | `VCODE_INVALID` | 验证码错误（输入与 Redis 中存储的值不匹配） |
+      | 400 | `VCODE_EXPIRED` | 验证码已过期或不存在（10 分钟 TTL 已过 / 已被消费） |
+      | 401 | `UNAUTHORIZED` | `MINUS_AI_SID` Cookie 缺失、过期或无效，需重新登录 |
+      | 401 | `PASSWORD_INCORRECT` | 密码登录时密码不匹配 |
+      | 403 | `FORBIDDEN` | 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口） |
+      | 403 | `ACCOUNT_LOCKED` | 账户因连续登录失败被临时锁定（15 分钟） |
+      | 403 | `PHONE_REQUIRED` | 已登录账户尚未绑定手机号，需先调 `/api/auth/identities/bind` 绑定 |
+      | 404 | `NOT_FOUND` | Session / 文件不存在，或不属于当前用户（统一 404，不暴露资源存在性） |
+      | 404 | `IDENTITY_NOT_FOUND` | 登录时 identifier（手机/邮箱）未注册 |
+      | 409 | `CONFLICT` | Session 正在运行中，不允许删除（需等待 pipeline 完成或 error） |
+      | 409 | `NO_CURRENT_VERSION` | 调用默认版本 endpoint 接口时 `current_version_id` 为空（skill 尚未发布首版本） |
+      | 409 | `IDENTITY_TAKEN` | 注册或绑定时手机号/邮箱已被其他账户占用 |
+      | 429 | `QUOTA_EXCEEDED` | 月度 skill 执行次数、存储空间或数据 API 调用次数超出套餐上限 |
+      | 429 | `RATE_LIMITED` | 短时间内对同一接口请求过于频繁（含验证码 60s 冷却 / 24h 配额、登录失败 IP 限频等） |
+      | 500 | `INTERNAL_ERROR` | 服务器内部错误，请稍后重试或联系平台 |
+
+      ---
+
+      ## OAuth 2.0 endpoint 例外
+
+      `/oauth/authorize` 与 `/oauth/token` 走 [RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2) 标准错误格式 `{ "error": "invalid_grant", "error_description": "...", "error_uri": "..." }`（全小写 snake_case），**不**走本节的 `{ code, message, details }` 格式——让标准 OAuth client lib 开箱兼容、未来扩展第三方 OIDC provider 时无需做兼容层。OAuth 错误码集合：`invalid_request` / `invalid_client` / `invalid_grant` / `unsupported_grant_type` / `unsupported_response_type` / `server_error`，详见 **OAuth** tag。
+paths:
+  /api/auth/vcode/send:
+    post:
+      tags:
+        - Auth
+      summary: 发送验证码
+      description: |
+        `POST /api/auth/vcode/send`
+
+        服务端按 `(channel, target)` 生成 6 位数字验证码，写入 Redis `auth:vcode:{channel}:{value}`（TTL 10 分钟，GETDEL 一次性消费）。同时校验冷却（`auth:vcode:send:{channel}:{value}` 60s）和 24h 配额（`auth:vcode:daily:{channel}:{value}` ≤10 次）。dev profile 验证码固定 `888888` 且只打日志不真发；prod profile 调 SMS / Email provider 真发。
+
+        **公开接口**（无需 session）。
+      operationId: sendVcode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_28
+                - channel
+                - target
+                - purpose
+              properties: &ref_29
+                channel:
+                  type: string
+                  enum:
+                    - phone
+                    - email
+                  description: 验证码下发渠道
+                  example: phone
+                target:
+                  type: string
+                  description: channel=phone 时为 E.164 格式手机号；channel=email 时为邮箱地址。服务端用 libphonenumber 校验手机号合法性
+                  example: '+8613800000000'
+                purpose:
+                  type: string
+                  enum:
+                    - register
+                    - login
+                    - reset
+                    - bind
+                  description: 用途；服务端按 purpose 决定文案，**不**校验"用户是否已存在"——避免暴露注册状态做枚举攻击
+                  example: register
+      responses:
+        '204':
+          description: 已发送（或 dev profile 已写入 Redis）
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: &ref_2
+            application/json:
+              schema:
+                type: object
+                required: &ref_0
+                  - code
+                  - message
+                properties: &ref_1
+                  code:
+                    type: string
+                    description: 错误码，全大写下划线格式
+                    example: NOT_FOUND
+                  message:
+                    type: string
+                    description: 人类可读的错误描述
+                    example: Resource not found
+                  details:
+                    type:
+                      - object
+                      - 'null'
+                    description: 附加上下文，结构因错误类型而异；无附加上下文时为 null
+              example:
+                code: FILE_TOO_LARGE
+                message: File size exceeds limit
+        '429':
+          description: 请求频率过快（短时间请求过多），`code` 为 `RATE_LIMITED`
+          content: &ref_3
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: RATE_LIMITED
+                message: Too many requests, please retry later
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: 注册（注册即登录）
+      description: |
+        `POST /api/auth/register`
+
+        消费验证码后，事务内 INSERT users + user_identities + teams（is_personal=true）+ team_members（role=owner），同时建立 Spring Session 并下发 cookie。注册即登录，前端不需再调 login。
+
+        **公开接口**（无需 session）。
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_30
+                - channel
+                - target
+                - code
+              properties: &ref_31
+                channel:
+                  type: string
+                  enum:
+                    - phone
+                    - email
+                  description: 注册通道
+                  example: phone
+                target:
+                  type: string
+                  description: 手机号（E.164） / 邮箱
+                  example: '+8613800000000'
+                code:
+                  type: string
+                  description: 6 位数字验证码
+                  example: '888888'
+                password:
+                  type: string
+                  minLength: 8
+                  description: 注册即设密码；不传则账户为"仅验证码登录"模式（`users.password_hash=NULL`）
+                  example: Qwer1234
+      responses:
+        '200':
+          description: |
+            注册成功；响应 header 含 `Set-Cookie MINUS_AI_SID=<sessionId>`
+          headers:
+            Set-Cookie:
+              description: 下发 session cookie
+              schema:
+                type: string
+                example: MINUS_AI_SID=abc123...; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_32
+                  - userId
+                  - personalTeamId
+                properties: &ref_33
+                  userId:
+                    type: string
+                    description: 新创建的用户 ID
+                    example: usr_5k8Zt7QhZ3kR9mVx2yNpEw
+                  personalTeamId:
+                    type: string
+                    description: 自动建立的 personal team ID（同事务建好的 owner 工作区）
+                    example: tm_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '409':
+          description: 注册或绑定时手机号/邮箱已被其他账户占用（不暴露具体属于谁）
+          content: &ref_5
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: IDENTITY_TAKEN
+                message: This phone or email is already registered
+                details:
+                  channel: phone
+                  target: '+8613800000000'
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: 登录
+      description: |
+        `POST /api/auth/login`
+
+        按 `grantType` 校验凭证（密码 / 验证码），通过后建立 Spring Session 并下发 cookie。session 中 `currentTeamId` 取自 `users.last_team_id`（如果该 team 已不在 team_members 中——比如被踢——回退到 personal team）。
+
+        **公开接口**（无需 session）。
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_34
+                - grantType
+                - identifier
+                - credential
+              properties: &ref_35
+                grantType:
+                  type: string
+                  enum:
+                    - phone_password
+                    - email_password
+                    - phone_code
+                    - email_code
+                  description: 登录授权类型
+                  example: phone_code
+                identifier:
+                  type: string
+                  description: 手机号（E.164） / 邮箱
+                  example: '+8613800000000'
+                credential:
+                  type: string
+                  description: 密码明文（`*_password` 模式）/ 6 位验证码（`*_code` 模式）
+                  example: '888888'
+                rememberMe:
+                  type: boolean
+                  default: false
+                  description: 默认 false；true 时 session TTL 延长至 30 天，cookie 附 Max-Age=2592000
+                  example: false
+      responses:
+        '200':
+          description: |
+            登录成功；响应 header 含 `Set-Cookie MINUS_AI_SID=<sessionId>`，`rememberMe=true` 时附 `Max-Age=2592000`
+          headers:
+            Set-Cookie:
+              description: 下发 session cookie
+              schema:
+                type: string
+                example: MINUS_AI_SID=abc123...; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_36
+                  - userId
+                  - currentTeamId
+                properties: &ref_37
+                  userId:
+                    type: string
+                    description: 用户 ID
+                    example: usr_5k8Zt7QhZ3kR9mVx2yNpEw
+                  currentTeamId:
+                    type: string
+                    description: 本次 session 当前活跃 team ID（取自 `users.last_team_id`，失效则回退 personal team）
+                    example: tm_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: 密码错误（`PASSWORD_INCORRECT`）或 session 缺失（`UNAUTHORIZED`）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: PASSWORD_INCORRECT
+                message: Password is incorrect
+        '403':
+          description: 账户被锁定（`ACCOUNT_LOCKED`）/ banned（`FORBIDDEN`）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: ACCOUNT_LOCKED
+                message: Account locked due to too many failed attempts
+                details:
+                  unlockAtMs: 1778000000000
+        '404':
+          description: identifier 未注册（`IDENTITY_NOT_FOUND`）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: IDENTITY_NOT_FOUND
+                message: No account registered with this identifier
+        '429':
+          description: 请求频率过快（短时间请求过多），`code` 为 `RATE_LIMITED`
+          content: *ref_3
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: 登出
+      description: |
+        `POST /api/auth/logout`
+
+        清空 Spring Session、清空 cookie、从 `auth:user:sessions:{userId}` RSet 移除当前 sessionId。无 session 时也容忍，幂等返回 204。手机号未绑定的账户也允许调用。
+      operationId: logout
+      responses:
+        '204':
+          description: |
+            已登出；响应 header 含 `Set-Cookie MINUS_AI_SID=` 与 `Max-Age=0`
+          headers:
+            Set-Cookie:
+              description: 清空浏览器 cookie
+              schema:
+                type: string
+                example: MINUS_AI_SID=; Path=/; Max-Age=0
+  /api/me:
+    get:
+      tags:
+        - Profile
+      summary: 获取当前用户信息
+      description: |
+        `GET /api/me`
+
+        读 session 中 `userId` + `currentTeamId`，JOIN 出完整用户资料 + 当前 team 信息 + 已绑定的 identities 列表。`avatarUrl` 由 service 层 JOIN files 表拼出真实 URL（`{cdn_base}/{storage_bucket}/{storage_key}`），前端不感知 file_id。
+
+        **手机号未绑定时也可调用**——前端从此接口的 `phoneRequired` 字段获知绑定状态、引导用户跳绑定页面。
+      operationId: getMe
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_38
+                  - userId
+                  - nickname
+                  - locale
+                  - timezone
+                  - status
+                  - phoneRequired
+                  - identities
+                  - currentTeam
+                properties: &ref_39
+                  userId:
+                    type: string
+                    description: 用户 ID
+                    example: usr_5k8Zt7QhZ3kR9mVx2yNpEw
+                  nickname:
+                    type: string
+                    description: 显示昵称（注册时按规则自动生成，用户可改）
+                    example: 用户8000
+                  avatarFileId:
+                    type: string
+                    description: 头像 file ID；avatar_file_id=NULL 时此字段省略
+                    example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+                  avatarUrl:
+                    type: string
+                    format: uri
+                    description: 头像完整 URL（service 层 JOIN files 拼出）；avatar_file_id=NULL 时此字段省略，前端按 nickname 首字母渲染默认 letter avatar
+                    example: https://cdn.sif.com/user-avatar/2026/05/usr_xxx.png
+                  primaryPhone:
+                    type: string
+                    description: E.164 格式手机号；未绑定时省略
+                    example: '+8613800000000'
+                  primaryEmail:
+                    type: string
+                    format: email
+                    description: 邮箱；未绑定时省略
+                    example: foo@bar.com
+                  locale:
+                    type: string
+                    enum:
+                      - zh-CN
+                      - en-US
+                      - ja-JP
+                    description: 用户语言偏好
+                    example: zh-CN
+                  timezone:
+                    type: string
+                    description: IANA 时区
+                    example: Asia/Shanghai
+                  status:
+                    type: string
+                    enum:
+                      - active
+                      - suspended
+                      - banned
+                    description: 账户状态
+                    example: active
+                  phoneRequired:
+                    type: boolean
+                    description: 账户是否尚未绑定手机号（true 表示调业务接口会被 403 PHONE_REQUIRED 拦截，前端据此引导跳绑定页面）
+                    example: false
+                  identities:
+                    type: array
+                    description: 已绑定的 identity 列表
+                    items:
+                      type: object
+                      required: &ref_40
+                        - id
+                        - type
+                        - value
+                        - verifiedAt
+                      properties: &ref_41
+                        id:
+                          type: string
+                          description: identity 记录 ID
+                          example: ui_5k8Zt7QhZ3kR9mVx2yNpEw
+                        type:
+                          type: string
+                          enum:
+                            - phone
+                            - email
+                          description: identity 类型
+                          example: phone
+                        value:
+                          type: string
+                          description: identity 值（E.164 / 邮箱），脱敏可前端处理
+                          example: '+8613800000000'
+                        verifiedAt:
+                          type: integer
+                          format: int64
+                          description: 验证时间戳（毫秒）
+                          example: 1745000000000
+                  currentTeam:
+                    type: object
+                    required: &ref_42
+                      - id
+                      - name
+                      - plan
+                      - role
+                      - isPersonal
+                    properties: &ref_43
+                      id:
+                        type: string
+                        description: team ID
+                        example: tm_5k8Zt7QhZ3kR9mVx2yNpEw
+                      name:
+                        type: string
+                        description: team 名称
+                        example: 用户8000's Workspace
+                      plan:
+                        type: string
+                        enum:
+                          - free
+                          - pro
+                          - enterprise
+                        description: 套餐等级
+                        example: free
+                      role:
+                        type: string
+                        enum:
+                          - owner
+                          - admin
+                          - member
+                        description: 当前用户在该 team 的角色
+                        example: owner
+                      isPersonal:
+                        type: boolean
+                        description: 是否 personal team（注册自动建的个人工作区）
+                        example: true
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: &ref_4
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: UNAUTHORIZED
+                message: Session is invalid or expired
+    patch:
+      tags:
+        - Profile
+      summary: 修改当前用户资料
+      description: |
+        `PATCH /api/me`
+
+        按入参更新 `users` 表对应字段。**未传字段不动**——前端无需为不修改的字段反传旧值。`avatarFileId` 校验该 file 属于当前 user 且 `biz_type='user_avatar'`，更新 `users.avatar_file_id`，旧 file 同事务标记 `status='deleted'`（OSS 物理清理走孤儿任务）。
+
+        **头像上传两步流程**：
+        1. `POST /api/me/files` 上传图片，传 `bizType=user_avatar`、`bizId=currentUserId`，拿到 `fileId`
+        2. `PATCH /api/me {avatarFileId: fileId}` 绑定到用户资料
+
+        **要求已登录 + 已绑定手机号**（未绑手机的账户改不了 profile）。
+      operationId: updateMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 任意字段，至少一个；**未传字段不动**——前端无需为不修改的字段反传旧值
+              properties: &ref_50
+                nickname:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  description: 1-50 字符；不允许全空白
+                  example: 我的昵称
+                avatarFileId:
+                  type:
+                    - string
+                    - 'null'
+                  description: file_xxx；服务端校验属于当前 user 且 biz_type=user_avatar。传 null 表示删除头像（清空 `users.avatar_file_id`，旧 file 标记 status=deleted）
+                  example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+                locale:
+                  type: string
+                  enum:
+                    - zh-CN
+                    - en-US
+                    - ja-JP
+                  description: 用户语言偏好
+                  example: zh-CN
+                timezone:
+                  type: string
+                  description: IANA 时区字符串
+                  example: Asia/Shanghai
+      responses:
+        '204':
+          description: 更新成功
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 已登录账户尚未绑定手机号；前端引导用户跳"绑定手机号"页面
+          content: &ref_92
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: PHONE_REQUIRED
+                message: Phone binding required
+        '404':
+          description: 资源不存在或无权访问
+          content: &ref_8
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: NOT_FOUND
+                message: Resource not found
+  /api/auth/password/change:
+    post:
+      tags:
+        - Auth
+      summary: 修改密码
+      description: |
+        `POST /api/auth/password/change`
+
+        校验旧密码后更新 `users.password_hash`，**强制下线该用户所有设备**（清空 `auth:user:sessions:{userId}` Set 中的所有 sessionId）。当前发起请求的 session 也会被清，用户需重新登录。手机号未绑定的账户也允许调用。
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_44
+                - oldPassword
+                - newPassword
+              properties: &ref_45
+                oldPassword:
+                  type: string
+                  description: 旧密码明文。如 `users.password_hash=NULL`（仅验证码注册账户）则必须传空字符串，否则返 400
+                  example: Qwer1234
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: 新密码明文，最小长度 8
+                  example: NewPass5678
+      responses:
+        '204':
+          description: |
+            修改成功；响应 header 含 `Set-Cookie MINUS_AI_SID=` 与 `Max-Age=0`，前端需重定向到登录页
+          headers:
+            Set-Cookie:
+              description: 当前 session 已清
+              schema:
+                type: string
+                example: MINUS_AI_SID=; Path=/; Max-Age=0
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: 旧密码错误（`PASSWORD_INCORRECT`）或无 session（`UNAUTHORIZED`）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: PASSWORD_INCORRECT
+                message: Old password is incorrect
+  /api/auth/password/reset:
+    post:
+      tags:
+        - Auth
+      summary: 重置密码（未登录用户）
+      description: |
+        `POST /api/auth/password/reset`
+
+        未登录用户忘记密码自助重置：消费验证码（purpose=reset）→ 反查 user → 更新 password_hash → **强制下线该用户全部设备**。重置成功后调用 `/api/auth/login` 用新密码建立新 session。
+
+        **公开接口**（无需 session）。
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_46
+                - channel
+                - target
+                - code
+                - newPassword
+              properties: &ref_47
+                channel:
+                  type: string
+                  enum:
+                    - phone
+                    - email
+                  description: 通道
+                  example: phone
+                target:
+                  type: string
+                  description: 手机号（E.164）/ 邮箱
+                  example: '+8613800000000'
+                code:
+                  type: string
+                  description: 6 位验证码（`vcode/send` purpose=reset 取得）
+                  example: '888888'
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: 新密码明文，8-72 字符
+                  example: NewPass5678
+      responses:
+        '204':
+          description: 重置成功（同账户全部活跃 session 被强制下线，需重新登录）
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '403':
+          description: 账户被封停 / 暂停，无法重置密码
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: FORBIDDEN
+                message: Account is banned
+        '404':
+          description: identifier 未注册（`IDENTITY_NOT_FOUND`）。注：`vcode/send` 不暴露注册状态（仍返 204），仅本接口在确认重置时才返回此错误
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: IDENTITY_NOT_FOUND
+                message: No account registered with this identifier
+  /api/auth/identities/bind:
+    post:
+      tags:
+        - Auth
+      summary: 绑定新 identity（手机或邮箱）
+      description: |
+        `POST /api/auth/identities/bind`
+
+        消费验证码后，事务内 INSERT user_identities + UPDATE `users.primary_phone` 或 `primary_email`（按 channel）。**不自动切换 primary**：如果用户已绑了手机 A 又绑手机 B，A 仍是 primary，需走另一接口切换。
+
+        **手机号未绑定的账户也允许调用**（这是绑手机本身的接口）。
+      operationId: bindIdentity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_48
+                - channel
+                - target
+                - code
+              properties: &ref_49
+                channel:
+                  type: string
+                  enum:
+                    - phone
+                    - email
+                  description: 要绑定的 identity 通道
+                  example: phone
+                target:
+                  type: string
+                  description: 手机号（E.164） / 邮箱
+                  example: '+8613800000000'
+                code:
+                  type: string
+                  description: 6 位验证码（`POST /api/auth/vcode/send` 用 `purpose=bind` 取得）
+                  example: '888888'
+      responses:
+        '204':
+          description: 绑定成功
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '409':
+          description: 注册或绑定时手机号/邮箱已被其他账户占用（不暴露具体属于谁）
+          content: *ref_5
+  /api/me/skills:
+    get:
+      tags:
+        - Skill
+      summary: 获取用户可用的 Skill 列表
+      description: '`GET /api/me/skills`'
+      operationId: listSkills
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: &ref_9
+                    - id
+                    - displayName
+                    - description
+                    - version
+                    - useCases
+                    - tags
+                  properties: &ref_10
+                    id:
+                      type: string
+                      description: skill ID（`skl_xxx`），亦作 URL 路由 `/skill/{skillId}` 的 routing key
+                      example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                    displayName:
+                      type: string
+                      description: 当前版本的显示名称，按用户 locale fallback
+                      example: 关键词调研
+                    description:
+                      type: string
+                      description: 当前版本的描述，按用户 locale fallback
+                      example: AI 驱动的关键词自动化调研，30秒出结果
+                    iconFileId:
+                      type:
+                        - string
+                        - 'null'
+                      description: 图标文件 ID，无 icon 时为 null
+                      example: file_8YzLqRtVwXxNpMcAbDeFgHiJkO
+                    iconUrl:
+                      type: string
+                      format: uri
+                      description: 完整图标 URL；iconFileId 为 null 时返回平台默认占位图
+                      example: https://cdn.sif.com/skills/keyword-research/icon.png
+                    version:
+                      type: string
+                      description: 当前版本号
+                      example: 1.0.0
+                    useCases:
+                      type: array
+                      maxItems: 8
+                      description: 适用场景文本数组（按用户 locale fallback）
+                      items:
+                        type: string
+                      example:
+                        - 新品调研
+                        - 广告优化
+                    tags:
+                      type: array
+                      maxItems: 10
+                      description: 标签对象数组（按用户 locale fallback）
+                      items:
+                        type: object
+                        description: 出参形态 — 含 code + label，label 按用户 locale fallback
+                        required: &ref_6
+                          - code
+                          - label
+                        properties: &ref_7
+                          code:
+                            type: string
+                            example: amazon
+                          label:
+                            type: string
+                            description: 按用户 locale fallback 后的显示名
+                            example: 亚马逊
+                      example:
+                        - code: amazon
+                          label: 亚马逊
+                        - code: keyword
+                          label: 关键词
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+  /api/me/skills/{skillId}:
+    get:
+      tags:
+        - Skill
+      summary: 获取某 skill 的完整详情
+      description: |
+        `GET /api/me/skills/{skillId}`
+
+        返回 skill 当前生效版本的完整元数据（含 steps / useCases / tags）。v1.0 不做用户维度权限校验，
+        只要 skill `status=active` 且当前版本 `status` 为 `published` 或 `deprecated` 即可访问。
+      operationId: getMySkillDetail
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: Skill 详情
+          content:
+            application/json:
+              schema:
+                type: object
+                description: skill 详情接口响应（含完整 steps / useCases / tags）
+                required: &ref_15
+                  - id
+                  - currentVersionId
+                  - version
+                  - displayName
+                  - description
+                  - steps
+                  - useCases
+                  - tags
+                properties: &ref_16
+                  id:
+                    type: string
+                    description: skill ID（`skl_xxx`），亦作 URL 路由 routing key
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  currentVersionId:
+                    type: string
+                    description: 当前生效版本 ID（`sv_xxx`），运行时锁定此版本
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  version:
+                    type: string
+                    description: 当前生效版本号（SemVer）
+                    example: 1.0.0
+                  displayName:
+                    type: string
+                    description: 当前版本的显示名称，按用户 locale fallback
+                    example: 关键词调研
+                  description:
+                    type: string
+                    description: 当前版本的描述，按用户 locale fallback
+                    example: AI 驱动的关键词自动化调研，30秒出结果
+                  iconFileId:
+                    type:
+                      - string
+                      - 'null'
+                    description: 图标文件 ID，无 icon 时为 null
+                    example: file_8YzLqRtVwXxNpMcAbDeFgHiJkO
+                  iconUrl:
+                    type: string
+                    format: uri
+                    description: 完整图标 URL，与 iconFileId 配对返回；iconFileId 为 null 时返回平台默认占位图
+                    example: https://cdn.sif.com/skills/keyword-research/icon.png
+                  steps:
+                    type: array
+                    maxItems: 20
+                    description: 步骤数组，按 stepNumber 升序展示；默认 []
+                    items:
+                      type: object
+                      required: &ref_11
+                        - stepNumber
+                        - stepName
+                      properties: &ref_12
+                        stepNumber:
+                          type: integer
+                          minimum: 1
+                          description: 步骤号，从 1 开始严格递增
+                          example: 1
+                        stepName:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                          description: 步骤名（按用户 locale fallback）
+                          example: 提取核心关键词
+                  useCases:
+                    type: array
+                    maxItems: 8
+                    description: 适用场景文本数组（按用户 locale fallback），开发者自由输入；默认 []
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 50
+                    example:
+                      - 新品调研
+                      - 广告优化
+                  tags:
+                    type: array
+                    maxItems: 10
+                    description: 标签对象数组（按用户 locale fallback），默认 []
+                    items:
+                      type: object
+                      description: 出参形态 — 含 code + label，label 按用户 locale fallback
+                      required: *ref_6
+                      properties: *ref_7
+                    example:
+                      - code: amazon
+                        label: 亚马逊
+                      - code: keyword
+                        label: 关键词
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/me/skills/{skillId}/related:
+    get:
+      tags:
+        - Skill
+      summary: 获取当前 Skill 的关联推荐列表
+      description: '`GET /api/me/skills/{skillId}/related`'
+      operationId: listRelatedSkills
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: *ref_9
+                  properties: *ref_10
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/skills:
+    post:
+      tags:
+        - Skill
+      summary: 创建 Skill
+      description: |
+        `POST /api/skills`
+
+        任意登录用户自助创建 skill。同事务写入 `skills` + `skill_versions` 首版本，首版本 `status='published'` 直接上架。鉴权复用 `MINUS_AI_SID` cookie，新建 skill 的 `author_id` 强制 = 当前登录 user_id（不接受外部传入）。
+      operationId: createSkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_51
+                - displayName
+              properties: &ref_52
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 显示名（默认中文），trim 后 1-200 字
+                  example: 关键词调研
+                version:
+                  type: string
+                  pattern: ^\d+\.\d+\.\d+$
+                  default: 1.0.0
+                  description: SemVer 版本号；不传则默认 1.0.0
+                  example: 1.0.0
+                description:
+                  type: string
+                  maxLength: 5000
+                  description: skill 描述（默认中文），最多 5000 字
+                  example: AI 驱动的关键词自动化调研，30秒出结果
+                iconFileId:
+                  type: string
+                  description: 图标文件 ID（file_xxx），必须是当前用户上传且未删除的文件
+                steps:
+                  type: array
+                  maxItems: 20
+                  description: 步骤数组，默认 []；每条 {stepNumber, stepName}，stepNumber 从 1 严格递增
+                  items:
+                    type: object
+                    required: *ref_11
+                    properties: *ref_12
+                  default: []
+                useCases:
+                  type: array
+                  maxItems: 8
+                  description: 适用场景文本数组，默认 []；每条 1-50 字，自动去重 + trim 空白
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                  default: []
+                tags:
+                  type: array
+                  maxItems: 10
+                  description: 标签对象数组 [{code}, ...]，默认 []；每个 code 必须在 skill_tags 字典且 status=active
+                  items:
+                    type: object
+                    description: 入参形态 — 引用一个已存在的标签，仅含 code
+                    required: &ref_13
+                      - code
+                    properties: &ref_14
+                      code:
+                        type: string
+                        pattern: ^[a-z][a-z0-9_]*$
+                        minLength: 2
+                        maxLength: 50
+                        example: amazon
+                  default: []
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_53
+                  - id
+                  - currentVersionId
+                  - version
+                  - apiKey
+                properties: &ref_54
+                  id:
+                    type: string
+                    description: 新创建的 skill ID
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  currentVersionId:
+                    type: string
+                    description: 首版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  version:
+                    type: string
+                    description: 实际落库的版本号（含默认 1.0.0 兜底）
+                    example: 1.0.0
+                  apiKey:
+                    type: string
+                    description: skill 容器调平台 `/skill-api/**` 用的 key；**仅此一次返回**，后续无接口可再查
+                    example: ska_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '409':
+          description: 资源状态冲突，无法执行操作
+          content: &ref_25
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: CONFLICT
+                message: Session is currently running
+  /api/skills/{skillId}:
+    patch:
+      tags:
+        - Skill
+      summary: 更新 skill 当前版本元数据（不开新版本号）
+      description: |
+        `PATCH /api/skills/{skillId}`
+
+        修改 `skills.current_version_id` 指向的那一行 `skill_versions` 的可编辑字段；
+        **不创建新版本号**，适用改错字 / 调展示。部分更新：字段缺失则不修改；传 null 视为非法。
+        老 session 锁定该版本会跟着展示更新——1.0 阶段可接受。
+        鉴权：当前 user 必须是 `skills.author_id` 或 admin 白名单。
+      operationId: patchSkill
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                PATCH /api/skills/{skillId} 入参。部分更新：字段缺失则不修改；字段传值则覆盖式更新。
+                传 null 一律视为非法（返 400）；至少传一个字段（minProperties: 1），否则 400 EMPTY_BODY。
+              minProperties: 1
+              properties: &ref_55
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 显示名（默认中文），trim 后 1-200 字
+                description:
+                  type: string
+                  maxLength: 5000
+                  description: skill 描述（默认中文），最多 5000 字；空字符串合法 = 清空
+                iconFileId:
+                  type: string
+                  description: 文件 ID，不支持传 null 清空（admin 接口兜底）
+                steps:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: *ref_11
+                    properties: *ref_12
+                  description: 覆盖式替换；传 [] 表示清空
+                useCases:
+                  type: array
+                  maxItems: 8
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                  description: 覆盖式替换；传 [] 表示清空
+                tags:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    description: 入参形态 — 引用一个已存在的标签，仅含 code
+                    required: *ref_13
+                    properties: *ref_14
+                  description: 覆盖式替换；传 [] 表示清空
+      responses:
+        '200':
+          description: 更新后的完整详情（结构同 GET /api/me/skills/{skillId}）
+          content:
+            application/json:
+              schema:
+                type: object
+                description: skill 详情接口响应（含完整 steps / useCases / tags）
+                required: *ref_15
+                properties: *ref_16
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: &ref_17
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: FORBIDDEN
+                message: Admin permission required
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: skill 尚未设置 current_version_id，无法使用默认版本 path
+          content: &ref_18
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: NO_CURRENT_VERSION
+                message: Skill has no current version published yet
+  /api/skills/{skillId}/versions:
+    post:
+      tags:
+        - Skill
+      summary: 创建 skill 新版本（升级）
+      description: |
+        `POST /api/skills/{skillId}/versions`
+
+        同事务：INSERT 新版本（未传字段从当前版本继承） + UPDATE 老版本 `status='deprecated'`
+        + UPDATE `skills.current_version_id` 切换到新版本。version 不传则基于当前版本 patch +1。
+        鉴权：author 本人或 admin 白名单。
+      operationId: createSkillVersion
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                POST /api/skills/{skillId}/versions 入参。全部字段选填；未传字段从当前版本完整复制；
+                显式传值（含 []）即覆盖；不允许传 null。
+              properties: &ref_56
+                version:
+                  type: string
+                  pattern: ^\d+\.\d+\.\d+$
+                  description: SemVer 版本号；不传则基于当前版本 patch +1（1.0.0 → 1.0.1）；传了必须严格大于当前版本且不冲突历史版本号
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 显示名；不传则继承当前版本
+                description:
+                  type: string
+                  maxLength: 5000
+                  description: skill 描述；不传则继承当前版本
+                iconFileId:
+                  type: string
+                  description: 图标文件 ID；不传则继承当前版本
+                steps:
+                  type: array
+                  maxItems: 20
+                  description: 步骤数组；不传则继承当前版本，传值（含 []）即覆盖
+                  items:
+                    type: object
+                    required: *ref_11
+                    properties: *ref_12
+                useCases:
+                  type: array
+                  maxItems: 8
+                  description: 适用场景文本数组；不传则继承当前版本
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                tags:
+                  type: array
+                  maxItems: 10
+                  description: 标签对象数组 [{code}, ...]；不传则继承当前版本
+                  items:
+                    type: object
+                    description: 入参形态 — 引用一个已存在的标签，仅含 code
+                    required: *ref_13
+                    properties: *ref_14
+      responses:
+        '201':
+          description: 新版本创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_57
+                  - id
+                  - currentVersionId
+                  - version
+                  - previousVersionId
+                  - previousVersion
+                properties: &ref_58
+                  id:
+                    type: string
+                    description: skill ID（路径上的 skillId 原样回传）
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  currentVersionId:
+                    type: string
+                    description: 新版本 ID
+                    example: sv_NewVersionId123456789012
+                  version:
+                    type: string
+                    description: 实际落库的新版本号（含 patch +1 兜底）
+                    example: 1.0.1
+                  previousVersionId:
+                    type: string
+                    description: 老版本 ID（已被改为 deprecated）
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  previousVersion:
+                    type: string
+                    description: 老版本号（已被改为 deprecated）
+                    example: 1.0.0
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: skill 尚未设置 current_version_id，无法使用默认版本 path
+          content: *ref_18
+  /api/skills/{skillId}/related:
+    put:
+      tags:
+        - Skill
+      summary: 更新 Skill 的关联推荐列表
+      description: |
+        `PUT /api/skills/{skillId}/related`
+
+        内部接口，不暴露给前端 UI。覆盖式更新：同事务先删除该 skill 的所有现存推荐关系，再按入参顺序重新插入；`display_order` 由数组下标决定（0..N-1）。`items: []` 合法，等价于清空。禁止自引用（items 中不可包含路径 skillId 自身）。鉴权同 createSkill：`MINUS_AI_SID` + admin 白名单。
+      operationId: updateSkillRelated
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_62
+                - items
+              properties: &ref_63
+                items:
+                  type: array
+                  description: 下游 skill ID 数组，顺序即前端展示顺序；空数组合法（语义=清空所有推荐）
+                  items:
+                    type: string
+                    description: 下游 skill ID
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  example:
+                    - skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                    - skl_AbCdEfGhIjKlMnOpQrStUv
+      responses:
+        '200':
+          description: 更新成功，返回新的关联推荐列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: *ref_9
+                  properties: *ref_10
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/admin/skills/{skillId}/endpoint:
+    put:
+      tags:
+        - Skill
+      summary: 更新 Skill 当前版本 endpoint
+      description: |
+        `PUT /api/admin/skills/{skillId}/endpoint`
+
+        管理员接口，不暴露给前端 UI。写入 `skill_versions.endpoint_url`，事务 commit 后失效 gateway Redis 缓存 key（`skill:{skillId}`、`skill:version:{skillId}:{version}`），gateway 下次 cache miss 即拿到新 endpoint，无需重启。作用于 `skills.current_version_id` 指向的版本；若 `current_version_id IS NULL` 返 409。鉴权：`MINUS_AI_SID` + admin 白名单。
+      operationId: setSkillCurrentEndpoint
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_19
+                - endpointUrl
+              properties: &ref_20
+                endpointUrl:
+                  type: string
+                  description: 容器后端地址，必须以 `http://` 或 `https://` 开头；空字符串等价于清空（将 `endpoint_url` 置 NULL）
+                  example: http://skill-keyword-research:9001
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_21
+                  - skillVersionId
+                  - version
+                properties: &ref_22
+                  skillVersionId:
+                    type: string
+                    description: 被更新的 skill 版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  version:
+                    type: string
+                    description: SemVer 版本号
+                    example: 1.0.0
+                  endpointUrl:
+                    type: string
+                    description: 写入后的 endpoint 地址；若置 NULL（清空）则此字段省略
+                    example: http://skill-keyword-research:9001
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: skill 尚未设置 current_version_id，无法使用默认版本 path
+          content: *ref_18
+    delete:
+      tags:
+        - Skill
+      summary: 清空 Skill 当前版本 endpoint
+      description: |
+        `DELETE /api/admin/skills/{skillId}/endpoint`
+
+        将 `skill_versions.endpoint_url` 置为 NULL，语义同 PUT 传空字符串。失效同一组 Redis key。
+      operationId: clearSkillCurrentEndpoint
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '204':
+          description: 清空成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: skill 尚未设置 current_version_id，无法使用默认版本 path
+          content: *ref_18
+  /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint:
+    put:
+      tags:
+        - Skill
+      summary: 更新 Skill 指定版本 endpoint
+      description: |
+        `PUT /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint`
+
+        管理员接口。`{skillVersion}` 为 SemVer 字符串（如 `1.0.0`），按 `(skill_id, version)` 唯一索引查 `skill_versions`。写入 `endpoint_url` 并失效 Redis 缓存，无需重启 gateway。鉴权：`MINUS_AI_SID` + admin 白名单。
+      operationId: setSkillVersionEndpoint
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: string
+          description: SemVer 版本号，如 1.0.0
+          example: 1.0.0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: *ref_19
+              properties: *ref_20
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_21
+                properties: *ref_22
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+    delete:
+      tags:
+        - Skill
+      summary: 清空 Skill 指定版本 endpoint
+      description: |
+        `DELETE /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint`
+
+        将指定版本的 `endpoint_url` 置为 NULL，失效同一组 Redis key。
+      operationId: clearSkillVersionEndpoint
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: string
+          description: SemVer 版本号，如 1.0.0
+          example: 1.0.0
+      responses:
+        '204':
+          description: 清空成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/skill-tags:
+    get:
+      tags:
+        - SkillTag
+      summary: 查询标签字典（开发者用）
+      description: |
+        `GET /api/skill-tags`
+
+        开发者在平台 UI 创建 / 编辑 skill 时，前端拉字典做 tag 多选下拉。
+        只返回 `status='active'` 的 tag，按 code 升序。label 按用户 locale fallback。
+      operationId: listSkillTags
+      responses:
+        '200':
+          description: 标签字典
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: 出参形态 — 含 code + label，label 按用户 locale fallback
+                  required: *ref_6
+                  properties: *ref_7
+              example:
+                - code: amazon
+                  label: 亚马逊
+                - code: keyword
+                  label: 关键词
+                - code: listing
+                  label: 商品详情页
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+  /api/admin/skill-tags:
+    get:
+      tags:
+        - SkillTag
+      summary: admin 全量列表
+      description: |
+        `GET /api/admin/skill-tags`
+
+        admin 后台维护标签字典列表页。label 不做 locale fallback，返回主表默认中文 label。
+      operationId: adminListSkillTags
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - disabled
+          description: 选填，不传 = 全部
+      responses:
+        '200':
+          description: tag 列表（按 createdAt 倒序）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
+                  required: &ref_23
+                    - code
+                    - label
+                    - status
+                    - createdAt
+                    - updatedAt
+                  properties: &ref_24
+                    code:
+                      type: string
+                      description: 业务 key 兼主键，跨环境稳定；一旦创建不可改
+                      example: amazon
+                    label:
+                      type: string
+                      description: 默认中文显示名（admin 视角不做 locale fallback）
+                      example: 亚马逊
+                    status:
+                      type: string
+                      enum:
+                        - active
+                        - disabled
+                      description: active = 可用；disabled = 软下线，不再可选但已引用旧 skill 仍能拼 label
+                      example: active
+                    createdAt:
+                      type: integer
+                      format: int64
+                      description: 创建时间戳（毫秒）
+                      example: 1745280000000
+                    updatedAt:
+                      type: integer
+                      format: int64
+                      description: 最后更新时间戳（毫秒）
+                      example: 1745280000000
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+    post:
+      tags:
+        - SkillTag
+      summary: 创建标签
+      description: '`POST /api/admin/skill-tags`'
+      operationId: adminCreateSkillTag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_59
+                - code
+                - label
+              properties: &ref_60
+                code:
+                  type: string
+                  pattern: ^[a-z][a-z0-9_]*$
+                  minLength: 2
+                  maxLength: 50
+                  description: 业务 key，跨环境稳定；一旦创建不可改
+                  example: amazon
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: 默认中文显示名；i18n 走 translations 后续维护
+                  example: 亚马逊
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
+                required: *ref_23
+                properties: *ref_24
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '409':
+          description: 资源状态冲突，无法执行操作
+          content: *ref_25
+  /api/admin/skill-tags/{code}:
+    patch:
+      tags:
+        - SkillTag
+      summary: 更新标签 label / status
+      description: |
+        `PATCH /api/admin/skill-tags/{code}`
+
+        code 不可改（已被 `skill_versions.tags` 引用）；想换 code 只能 DELETE + 重新 POST。
+        部分更新：字段缺失则不修改；传 null 视为非法。
+      operationId: adminPatchSkillTag
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z][a-z0-9_]*$
+          example: amazon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                部分更新语义：字段缺失则不修改；传 null 一律视为非法（返 400）。
+                至少要传一个字段，否则 400 EMPTY_BODY。
+                code 不可改；想换 code 只能 DELETE 后 POST 新建。
+              minProperties: 1
+              properties: &ref_61
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: 默认中文显示名，trim 后 1-100 字
+                status:
+                  type: string
+                  enum:
+                    - active
+                    - disabled
+                  description: 切换软下线状态；硬删除走 DELETE 接口
+      responses:
+        '200':
+          description: 更新后的完整 tag
+          content:
+            application/json:
+              schema:
+                type: object
+                description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
+                required: *ref_23
+                properties: *ref_24
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+    delete:
+      tags:
+        - SkillTag
+      summary: 硬删除标签（归档）
+      description: |
+        `DELETE /api/admin/skill-tags/{code}`
+
+        同事务 INSERT 到 `skill_tags_archived` 后 DELETE 主表。
+        已被旧 `skill_versions.tags` 引用的 code 删除后，前端要做"未知 code 兜底"展示。
+        常规下线建议走 PATCH `status='disabled'`，DELETE 只在确实要彻底清理时用。
+      operationId: adminDeleteSkillTag
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z][a-z0-9_]*$
+          example: amazon
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_17
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/me/skills/{skillId}/sessions:
+    post:
+      tags:
+        - Session
+      summary: 开启新 Session
+      description: '`POST /api/me/skills/{skillId}/sessions`'
+      operationId: createSession
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entryParams
+              properties:
+                entryParams:
+                  type: object
+                  additionalProperties: true
+                  description: Skill 自定义入参，平台不校验结构，透传给 Skill 容器
+                  example:
+                    marketplace: US
+                    asin: B01NBNDC1T
+      responses:
+        '201':
+          description: Session 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+                    description: 新创建的 session ID
+                    example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+    get:
+      tags:
+        - Session
+      summary: 获取某 Skill 的历史 Session 列表
+      description: '`GET /api/me/skills/{skillId}/sessions`'
+      operationId: listSessions
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 不透明翻页游标，首次请求不传；值来自上一页响应的 nextCursor，原样回传即可（服务端内部编码了 lastActiveAt 和 session id，keyset pagination）
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: 每页条数，默认 20
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_66
+                  - items
+                  - hasMore
+                properties: &ref_67
+                  items:
+                    type: array
+                    description: session 摘要列表，按 lastActiveAt 倒序
+                    items:
+                      type: object
+                      required: &ref_64
+                        - id
+                        - createdAt
+                        - lastActiveAt
+                        - entryParams
+                        - pipelineStatus
+                        - skillVersion
+                        - isLatestVersion
+                      properties: &ref_65
+                        id:
+                          type: string
+                          description: session ID
+                          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+                        createdAt:
+                          type: integer
+                          format: int64
+                          description: Session 创建时间戳（毫秒）
+                          example: 1745000000000
+                        lastActiveAt:
+                          type: integer
+                          format: int64
+                          description: 最后活跃时间戳（毫秒），随 pipeline 进展刷新，前端列表展示此字段
+                          example: 1745000060000
+                        entryParams:
+                          type: object
+                          additionalProperties: true
+                          description: 进入 Skill 时的入参，用于前端拼列表标题
+                          example:
+                            marketplace: US
+                            asin: B01NBNDC1T
+                        pipelineStatus:
+                          type: string
+                          enum:
+                            - pending
+                            - running
+                            - complete
+                            - error
+                          description: pipeline 运行状态
+                          example: complete
+                        pipelineOutput:
+                          type:
+                            - object
+                            - 'null'
+                          additionalProperties: true
+                          description: pipeline 完成后的产出数据，仅 pipelineStatus=complete 时有值；其他状态为 null。结构由各 skill 自定义，平台不约束内容（冗余自 pipeline_complete 消息 payload 的 data 字段，供列表页直接展示）
+                        skillVersion:
+                          type: string
+                          description: 运行时锁定的版本号
+                          example: 1.0.0
+                        isLatestVersion:
+                          type: boolean
+                          description: 是否为当前最新版本，用于 UI 展示旧版本提示
+                          example: true
+                  hasMore:
+                    type: boolean
+                    description: 是否还有更多数据
+                    example: false
+                  nextCursor:
+                    type:
+                      - string
+                      - 'null'
+                    description: 下一页游标，hasMore=false 时为 null；不透明字符串，服务端内部编码了 lastActiveAt 和 session id（keyset pagination），客户端原样回传即可
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/me/skills/{skillId}/sessions/{sessionId}:
+    get:
+      tags:
+        - Session
+      summary: 获取 Session 历史回放信息
+      description: '`GET /api/me/skills/{skillId}/sessions/{sessionId}`'
+      operationId: getSession
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_70
+                  - id
+                  - createdAt
+                  - skillId
+                  - pipelineStatus
+                  - skillVersion
+                  - isLatestVersion
+                  - messages
+                properties: &ref_71
+                  id:
+                    type: string
+                    description: session ID
+                    example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+                  createdAt:
+                    type: integer
+                    format: int64
+                    description: Session 创建时间戳（毫秒）
+                    example: 1745000000000
+                  skillId:
+                    type: string
+                    description: 当前查询的 skill ID（外键引用）
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  pipelineStatus:
+                    type: string
+                    enum:
+                      - pending
+                      - running
+                      - complete
+                      - error
+                    description: 该 skill 在此 session 内的 pipeline 运行状态
+                    example: complete
+                  skillVersion:
+                    type: string
+                    description: 运行时锁定的版本号
+                    example: 1.0.0
+                  isLatestVersion:
+                    type: boolean
+                    description: 是否为当前最新版本
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      required: &ref_68
+                        - id
+                        - sequence
+                        - role
+                        - messageType
+                        - payload
+                        - createdAt
+                      properties: &ref_69
+                        id:
+                          type: string
+                          description: message ID
+                          example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+                        sequence:
+                          type: integer
+                          description: 消息在 session 内的顺序号，从 1 开始
+                          example: 1
+                        role:
+                          type: string
+                          enum:
+                            - user
+                            - assistant
+                            - system
+                          description: 消息角色
+                          example: system
+                        content:
+                          type:
+                            - string
+                            - 'null'
+                          description: 文本内容，user_text / assistant_text 时有值，其他 messageType 为 null
+                          example: 请帮我分析这组关键词
+                        messageType:
+                          type: string
+                          enum:
+                            - skill_entered
+                            - step_input_submitted
+                            - user_text
+                            - assistant_text
+                            - pipeline_start
+                            - step_start
+                            - step_complete
+                            - step_input_required
+                            - pipeline_complete
+                            - pipeline_error
+                          description: |
+                            消息类型，前端据此选择渲染组件。仅含持久化状态消息；瞬时事件如 `step_progress` / `step_partial_detail` 不入库，不会出现在 history。
+                            - `skill_entered` — 进入/切换 skill（role=user）
+                            - `step_input_submitted` — 提交 pipeline step 确认面板（role=user）
+                            - `user_text` — 用户对话文本，v1.0 不生效（role=user）
+                            - `assistant_text` — AI 文字回复，v1.0 不生效（role=assistant）
+                            - `pipeline_start` — pipeline 开始（role=system）
+                            - `step_start` — 步骤开始（role=system）
+                            - `step_complete` — 步骤完成（role=system）
+                            - `step_input_required` — 等待用户输入（role=system）
+                            - `pipeline_complete` — 全部步骤完成（role=system）
+                            - `pipeline_error` — pipeline 执行出错（role=system）
+                          example: pipeline_start
+                        payload:
+                          description: |
+                            消息内容，结构由 messageType 决定。
+
+                            注：用 anyOf 而非 oneOf——多个 payload 子类（如 PayloadUserText / PayloadAssistantText / PayloadPipelineStart）都允许 0 必填字段
+                            + additionalProperties:true，会让同一 object 同时满足多个分支。messageType 字段在 SessionMessage 层已经
+                            独立指明真实类型，oneOf 的"恰好命中一个"约束反而带来 false positive。
+                          anyOf:
+                            - title: SkillEntered
+                              type: object
+                              description: skill_entered — 进入或切换 skill
+                              required: &ref_72
+                                - skillId
+                                - skillVersionId
+                                - entryParams
+                              properties: &ref_73
+                                skillId:
+                                  type: string
+                                  description: 进入的 skill ID
+                                skillVersionId:
+                                  type: string
+                                  description: 锁定的 skill 版本 ID
+                                entryParams:
+                                  type: object
+                                  additionalProperties: true
+                                  description: 进入 skill 时的入参
+                                fromSkillId:
+                                  type: string
+                                  description: 切换来源 skill ID，首次进入 session 时为空
+                                fromSkillVersionId:
+                                  type: string
+                                  description: 切换来源 skill 版本 ID，首次进入 session 时为空
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义扩展数据
+                            - title: StepInputSubmitted
+                              type: object
+                              description: step_input_submitted — 用户提交确认面板
+                              required: &ref_74
+                                - stepNumber
+                              properties: &ref_75
+                                stepNumber:
+                                  type: integer
+                                  description: 对应的 pipeline 步骤序号
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义提交数据
+                            - title: UserText
+                              type: object
+                              description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
+                              properties: &ref_76
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义扩展数据
+                            - title: AssistantText
+                              type: object
+                              description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
+                              properties: &ref_77
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义扩展数据
+                            - title: PipelineStart
+                              type: object
+                              description: pipeline_start — pipeline 开始
+                              properties: &ref_78
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义扩展数据
+                            - title: StepStart
+                              type: object
+                              description: step_start — 步骤开始
+                              required: &ref_79
+                                - stepNumber
+                              properties: &ref_80
+                                stepNumber:
+                                  type: integer
+                                  description: 当前步骤序号
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义扩展数据
+                            - title: StepComplete
+                              type: object
+                              description: step_complete — 步骤完成
+                              required: &ref_81
+                                - stepNumber
+                              properties: &ref_82
+                                stepNumber:
+                                  type: integer
+                                  description: 完成的步骤序号
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义结果数据（如表格、图片、下载文件等），skill 前后端自行约定结构
+                            - title: StepInputRequired
+                              type: object
+                              description: step_input_required — 等待用户输入确认面板
+                              required: &ref_83
+                                - stepNumber
+                              properties: &ref_84
+                                stepNumber:
+                                  type: integer
+                                  description: 需要用户确认的步骤序号
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义确认面板数据，skill 前端根据 stepNumber 和 data 内容决定渲染哪种面板
+                            - title: PipelineComplete
+                              type: object
+                              description: pipeline_complete — 全部步骤完成
+                              properties: &ref_85
+                                data:
+                                  type: object
+                                  additionalProperties: true
+                                  description: skill 自定义产出摘要（如导出文件列表）
+                            - title: PipelineError
+                              type: object
+                              description: pipeline_error — pipeline 执行出错
+                              required: &ref_86
+                                - reason
+                              properties: &ref_87
+                                reason:
+                                  type: string
+                                  description: 错误原因码
+                                  example: STEP_TIMEOUT
+                                details:
+                                  type: object
+                                  additionalProperties: true
+                                  description: 附加上下文，结构因错误类型而异
+                        createdAt:
+                          type: integer
+                          format: int64
+                          description: 消息创建时间戳（毫秒）
+                          example: 1745000000100
+                    description: 消息列表，按 sequence 升序
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /api/me/sessions/{sessionId}:
+    delete:
+      tags:
+        - Session
+      summary: 删除单条历史 Session
+      description: '`DELETE /api/me/sessions/{sessionId}`'
+      operationId: deleteSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: 资源状态冲突，无法执行操作
+          content: *ref_25
+  /api/me/sessions:
+    delete:
+      tags:
+        - Session
+      summary: 批量删除历史 Session
+      description: '`DELETE /api/me/sessions`'
+      operationId: batchDeleteSessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionIds
+              properties:
+                sessionIds:
+                  type: array
+                  items:
+                    type: string
+                  description: 要删除的 session ID 数组
+                  example:
+                    - ses_xxx
+                    - ses_yyy
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+        '409':
+          description: 批次中存在运行中的 Session，整批拒绝
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    required: *ref_0
+                    properties: *ref_1
+                  - type: object
+                    properties:
+                      details:
+                        type: object
+                        properties:
+                          runningSessionIds:
+                            type: array
+                            items:
+                              type: string
+                            description: 批次中处于 running 状态的 session ID 列表
+                            example:
+                              - ses_xxx
+  /api/me/files:
+    post:
+      tags:
+        - File
+      summary: 上传文件
+      description: '`POST /api/me/files`'
+      operationId: uploadFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - bizType
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文件内容
+                bizType:
+                  type: string
+                  description: 业务类型，如 session_upload
+                  example: session_upload
+                bizId:
+                  type: string
+                  description: 关联业务 ID（如 sessionId），可选，传入时立即关联，不传则后续回填
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+                    description: 文件 ID
+                    example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+  /api/me/files/{fileId}:
+    get:
+      tags:
+        - File
+      summary: 下载文件（302 重定向至 OSS 签名 URL）
+      description: |
+        `GET /api/me/files/{fileId}`
+
+        签名 URL 上附 `response-content-disposition` 参数，让 OSS 响应里返回 `Content-Disposition: attachment; filename*=UTF-8''<percent-encoded(file_name)>`，浏览器据此保存为原始 `files.file_name`（含中文等非 ASCII 字符），不暴露 storage_key。
+      operationId: downloadFile
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '302':
+          description: 重定向到 OSS 临时签名 URL（有效期 10 分钟）
+          headers:
+            Location:
+              description: OSS 临时签名 URL，query 含 `response-content-disposition`
+              schema:
+                type: string
+                format: uri
+            Content-Disposition:
+              description: 由 OSS 透传（实际写在 OSS 对 Location 的响应上），格式 `attachment; filename*=UTF-8''<percent-encoded file_name>`，浏览器据此保存为原始文件名
+              schema:
+                type: string
+                example: attachment; filename*=UTF-8''%E5%85%B3%E9%94%AE%E8%AF%8D%E8%B0%83%E7%A0%94-US-B01NBNDC1T.xlsx
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+    delete:
+      tags:
+        - File
+      summary: 删除文件
+      description: '`DELETE /api/me/files/{fileId}`'
+      operationId: deleteFile
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_8
+  /oauth/authorize:
+    get:
+      tags:
+        - OAuth
+      summary: OAuth 授权端点（颁发 authorization code）
+      description: |
+        `GET /oauth/authorize`
+
+        第三方 skill SDK 后端检测到用户未登录 → 生成 `state` / `code_challenge` → 浏览器 302 跳来此 endpoint 启动授权流程。
+
+        ## 实现效果
+
+        1. 校验 `response_type=code`、`code_challenge_method=S256` 等参数合法性
+        2. 校验 `client_id` 对应 `skills` 行存在且 `status='active'`（不合法 → 错误页 400）
+        3. 校验 `redirect_uri` 命中白名单（不合法 → 错误页 400）
+        4. 检查浏览器是否已登录（`MINUS_AI_SID` cookie + Spring Session 命中）
+           - **未登录** → 302 到平台 SPA `/login?returnTo=<原 OAuth URL urlencode>`；SPA 登录组件检测到 `returnTo` 含 `/oauth/authorize` 时，登录成功后 `location.href = returnTo` 重新触发本端点
+           - **已登录** → 生成高熵 `code` = `base64url(SecureRandom(32))`（43 字符），写 Redis `auth:code:{code}` 60s TTL，302 回 `redirect_uri` 带 `?code={code}&state={state}`
+
+        ## Redis 副作用
+
+        - `SETEX auth:code:{code} 60 <JSON>` — value 为：
+
+        ```json
+        {
+          "clientId": "skl_xxx",
+          "redirectUri": "http://localhost:3000/api/oauth/callback",
+          "codeChallenge": "...",
+          "codeChallengeMethod": "S256",
+          "userId": "usr_xxx",
+          "used": false,
+          "expMs": 1747200000000
+        }
+        ```
+
+        ## 鉴权
+
+        未登录 302 跳登录页，登录后由 SPA 重新触发本端点；本端点自身不强制要求 session（但已登录态决定分支走向）。
+      operationId: oauthAuthorize
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - code
+          description: 必须为 `code`，其他值返 `unsupported_response_type`
+          example: code
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: skill ID（= `skills.id`）
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: |
+            SDK 回调 URL，必须命中白名单（`http://localhost(:\d+)?(/.*)?` 或 `https://*.minusai-dev.com(/.*)?`）。典型值：
+            - 本机：`http://localhost:3000/api/oauth/callback`
+            - dev 部署：`https://{host}.minusai-dev.com/skill/{skillId}/{version}/api/oauth/callback`
+          example: http://localhost:3000/api/oauth/callback
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: SDK 生成的 CSRF token，平台原样回传 redirect query（不校验格式，建议 ≥ 16 字符高熵）
+          example: 5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 43
+            maxLength: 43
+          description: '`base64url(sha256(code_verifier))`，43 字符（PKCE）'
+          example: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - S256
+          description: 必须为 `S256`，其他值（含 `plain`）返 `invalid_request`
+          example: S256
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 1.0 忽略；保留字段以便未来扩展 scope / consent
+      responses:
+        '302':
+          description: |
+            重定向到 redirect_uri（已登录、校验通过）或平台 SPA `/login?returnTo=...`（未登录）。
+            可 redirect 的错误（`unsupported_response_type` / `invalid_request` / `server_error`）也走此分支，
+            URL 形如 `{redirect_uri}?error=...&error_description=...&state=...`。
+          headers:
+            Location:
+              description: |
+                典型值：
+                - 已登录成功：`{redirect_uri}?code={code}&state={state}`
+                - 未登录：`/login?returnTo=<原 OAuth URL urlencode>`
+                - 可 redirect 错误：`{redirect_uri}?error=invalid_request&error_description=...&state=...`
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: |
+            不可 redirect 的错误（直接渲染错误页 + HTTP 400，**禁止回跳 `redirect_uri`** 防任意跳转）：
+            - `invalid_client` — `client_id` 不存在 / 对应 skill `status != active`
+            - `invalid_request` — `redirect_uri` 缺失 / 不在白名单 / 格式不合法
+          content:
+            text/html:
+              schema:
+                type: string
+                description: 平台渲染的错误页 HTML
+  /oauth/token:
+    post:
+      tags:
+        - OAuth
+      summary: OAuth Token 端点（用 code 换 access_token）
+      description: |
+        `POST /oauth/token`
+
+        SDK 后端在 `/api/oauth/callback` 收到平台回跳的 `code` 后，server-to-server 调本端点用 `code` + `client_secret` + `code_verifier` 换 `access_token`。
+
+        Content-Type 仅接受 `application/x-www-form-urlencoded`；**不**接受 JSON、**不**支持 HTTP Basic Auth（按 dev-experience.md §8 简化决策）。
+
+        ## 校验顺序（按 RFC 6749 §5.2 推荐顺序，**实现时必须严格按编号**）
+
+        1. `grant_type == "authorization_code"` → 否则 `400 unsupported_grant_type`
+        2. 所有必填字段非空 + 基本格式 → 否则 `400 invalid_request`
+        3. `GET auth:code:{code}` 命中 + value 中 `used == false` + `expMs > now` → 否则 `400 invalid_grant`
+        4. value.`clientId == client_id` → 否则 `400 invalid_grant`（**注意：用 invalid_grant 而非 invalid_client，避免泄露"code 是为另一 client 颁发"的元信息**）
+        5. value.`redirectUri == redirect_uri` → 否则 `400 invalid_grant`
+        6. `skills` 表反查 `id = client_id AND api_key = client_secret AND status = 'active'` → 否则 `401 invalid_client`
+        7. `base64url(sha256(code_verifier)) == value.codeChallenge` → 否则 `400 invalid_grant`
+        8. 全过 → `DEL auth:code:{code}`、加载用户 Spring Session sid、返回 200
+
+        ## Redis 副作用
+
+        - `GET auth:code:{code}` — 取 code 绑定的 metadata
+        - `DEL auth:code:{code}` — **所有校验通过后**才删（一次性消费、防重放）
+
+        ## 鉴权
+
+        通过 form body 的 `client_id` + `client_secret` 校验；不要求 cookie / session。
+      operationId: oauthToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: &ref_88
+                - grant_type
+                - code
+                - redirect_uri
+                - client_id
+                - client_secret
+                - code_verifier
+              description: |
+                `POST /oauth/token` 的 form body（`application/x-www-form-urlencoded`）。
+                字段名遵循 RFC 6749 snake_case 命名（**与本文档其他接口的 camelCase 不同**）。
+              properties: &ref_89
+                grant_type:
+                  type: string
+                  enum:
+                    - authorization_code
+                  description: 必须为 `authorization_code`，其他值返 `unsupported_grant_type`
+                  example: authorization_code
+                code:
+                  type: string
+                  description: '`/oauth/authorize` 颁发的一次性 auth code，60s 内一次有效'
+                  example: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: 必须与 `/oauth/authorize` 时传的 `redirect_uri` 完全一致（防 redirect URI 替换攻击）
+                  example: http://localhost:3000/api/oauth/callback
+                client_id:
+                  type: string
+                  description: skill ID（= `skills.id`）
+                  example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                client_secret:
+                  type: string
+                  description: skill API key（= `skills.api_key`）；来自开发者本地 `.env`，**永不进浏览器**
+                  example: ska_5k8Zt7QhZ3kR9mVx2yNpEw
+                code_verifier:
+                  type: string
+                  minLength: 43
+                  maxLength: 128
+                  description: PKCE 原文 verifier；平台 `sha256` 后必须等于 `/oauth/authorize` 时绑定的 `code_challenge`
+                  example: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk-dBjftJeZ4CVP-mB92K27uhbUJU1
+      responses:
+        '200':
+          description: |
+            授权成功，返回 access_token（= 当前用户的 Spring Session sid，复用现有 session，不发新 session）。
+            SDK 拿到后写入本机域 cookie `MINUS_AI_SID`，后续业务调用浏览器自动带 cookie。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_90
+                  - access_token
+                  - token_type
+                  - expires_in
+                  - scope
+                description: |
+                  `POST /oauth/token` 200 响应（`application/json`），按 [RFC 6749 §5.1](https://datatracker.ietf.org/doc/html/rfc6749#section-5.1)。
+                  字段名遵循 OAuth snake_case 命名。
+                  **故意不返** `refresh_token`（1.0 简化：session 过期 SDK 重走 OAuth flow）和 OIDC `id_token`（1.0 不上 OIDC，user info 走 `GET /api/me`）。
+                properties: &ref_91
+                  access_token:
+                    type: string
+                    description: Spring Session sid，**与 `MINUS_AI_SID` cookie 值完全相同**。SDK 拿到后写入本机域 cookie，后续业务调用浏览器自动带 cookie
+                    example: spring_sid_xxxxxxx
+                  token_type:
+                    type: string
+                    enum:
+                      - session
+                    description: |
+                      固定 `session`（**非标 OAuth Bearer**）。此字段刻意非标——SDK 拿到 sid 必须以 **HttpOnly cookie** 形式提供给浏览器、由 gateway `SessionAuthFilter` 解 cookie 鉴权，**不能塞 `Authorization: Bearer` 头**（gateway 没有 bearer 鉴权路径）；用 `session` 字面值让 SDK 一眼识别"这是 cookie token、非 bearer"
+                    example: session
+                  expires_in:
+                    type: integer
+                    minimum: 0
+                    description: |
+                      当前 session 实际剩余 TTL（秒）：默认 7 天 session 颁发时为 `604800`；`rememberMe=true` 颁发的 session 为 `2592000`；
+                      **不是新发** TTL，是从 Spring Session repository 读出来的剩余值（用户已用一段时间则相应缩短）
+                    example: 604800
+                  scope:
+                    type: string
+                    description: 1.0 固定空串 `""`，保留字段以便未来扩展
+                    example: ''
+        '400':
+          description: |
+            `invalid_request` / `unsupported_grant_type` / `invalid_grant`
+            （`error` 字段标识具体类型，详见 OAuth tag 错误码表）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_26
+                  - error
+                description: |
+                  OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
+                  **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
+                properties: &ref_27
+                  error:
+                    type: string
+                    enum:
+                      - invalid_request
+                      - invalid_client
+                      - invalid_grant
+                      - unsupported_grant_type
+                      - unsupported_response_type
+                      - server_error
+                    description: |
+                      标准 OAuth 错误码（全小写 snake_case）：
+                      - `invalid_request` (400) — 缺必填参数 / 参数格式错
+                      - `invalid_client` (401) — client_id 不存在 / client_secret 不匹配 / skill status != active
+                      - `invalid_grant` (400) — code 不存在 / 过期 / 已消费 / redirect_uri 不一致 / PKCE 校验失败
+                      - `unsupported_grant_type` (400) — grant_type 非 authorization_code
+                      - `unsupported_response_type` (400) — response_type 非 code
+                      - `server_error` (500) — 内部错误
+                    example: invalid_grant
+                  error_description:
+                    type: string
+                    description: 人类可读的错误描述
+                    example: authorization code has expired or already been used
+                  error_uri:
+                    type: string
+                    format: uri
+                    description: 进一步说明此错误的文档 URL（1.0 不发；保留字段以便未来 OIDC 扩展）
+              examples:
+                invalid_grant:
+                  summary: code 已过期或已消费
+                  value:
+                    error: invalid_grant
+                    error_description: authorization code has expired or already been used
+                invalid_request:
+                  summary: 缺必填参数
+                  value:
+                    error: invalid_request
+                    error_description: missing required parameter code_verifier
+                unsupported_grant_type:
+                  summary: grant_type 非 authorization_code
+                  value:
+                    error: unsupported_grant_type
+                    error_description: only 'authorization_code' is supported
+        '401':
+          description: client_id 不存在 / client_secret 不匹配 / skill status != active
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_26
+                description: |
+                  OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
+                  **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
+                properties: *ref_27
+              example:
+                error: invalid_client
+                error_description: client authentication failed
+        '500':
+          description: 内部错误（Redis 异常等基础设施问题）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_26
+                description: |
+                  OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
+                  **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
+                properties: *ref_27
+              example:
+                error: server_error
+                error_description: internal server error
+components:
+  securitySchemes:
+    minusAiSid:
+      type: apiKey
+      in: cookie
+      name: MINUS_AI_SID
+      description: |
+        Spring Session opaque token，存储在 `HttpOnly; SameSite=Lax`（prod 加 `Secure`）Cookie 中，
+        key 为 `MINUS_AI_SID`。注册 / 登录成功后由 platform 写入 Redis（`spring:session:*` keyspace）并
+        Set-Cookie 下发；后续请求浏览器自动带，gateway `SessionAuthFilter` 通过
+        `ReactiveSessionRepository.findById` 校验后注入 `X-User-Id` / `X-Team-Id` 头给下游。
+
+        - **Web 端**：浏览器自动管理 cookie；前端 JS 不可读（HttpOnly）
+        - **Skill 端**：Skill 容器从用户浏览器请求中带 cookie，调 `/skill-api/**` 时透传
+
+        Session 默认 7 天滑动过期；登录传 `rememberMe=true` 延长至 30 天。详见
+        [docs/1.0/architecture.md §7](../../../../docs/1.0/architecture.md)。
+  schemas:
+    SendVcodeRequest:
+      type: object
+      required: *ref_28
+      properties: *ref_29
+    RegisterRequest:
+      type: object
+      required: *ref_30
+      properties: *ref_31
+    RegisterResponse:
+      type: object
+      required: *ref_32
+      properties: *ref_33
+    LoginRequest:
+      type: object
+      required: *ref_34
+      properties: *ref_35
+    LoginResponse:
+      type: object
+      required: *ref_36
+      properties: *ref_37
+    MeResponse:
+      type: object
+      required: *ref_38
+      properties: *ref_39
+    IdentitySummary:
+      type: object
+      required: *ref_40
+      properties: *ref_41
+    CurrentTeamSummary:
+      type: object
+      required: *ref_42
+      properties: *ref_43
+    ChangePasswordRequest:
+      type: object
+      required: *ref_44
+      properties: *ref_45
+    ResetPasswordRequest:
+      type: object
+      required: *ref_46
+      properties: *ref_47
+    BindIdentityRequest:
+      type: object
+      required: *ref_48
+      properties: *ref_49
+    UpdateMeRequest:
+      type: object
+      description: 任意字段，至少一个；**未传字段不动**——前端无需为不修改的字段反传旧值
+      properties: *ref_50
+    SkillStep:
+      type: object
+      required: *ref_11
+      properties: *ref_12
+    SkillTagRef:
+      type: object
+      description: 入参形态 — 引用一个已存在的标签，仅含 code
+      required: *ref_13
+      properties: *ref_14
+    SkillTag:
+      type: object
+      description: 出参形态 — 含 code + label，label 按用户 locale fallback
+      required: *ref_6
+      properties: *ref_7
+    SkillListItem:
+      type: object
+      required: *ref_9
+      properties: *ref_10
+    SkillDetail:
+      type: object
+      description: skill 详情接口响应（含完整 steps / useCases / tags）
+      required: *ref_15
+      properties: *ref_16
+    CreateSkillRequest:
+      type: object
+      required: *ref_51
+      properties: *ref_52
+    CreateSkillResponse:
+      type: object
+      required: *ref_53
+      properties: *ref_54
+    UpdateSkillRequest:
+      type: object
+      description: |
+        PATCH /api/skills/{skillId} 入参。部分更新：字段缺失则不修改；字段传值则覆盖式更新。
+        传 null 一律视为非法（返 400）；至少传一个字段（minProperties: 1），否则 400 EMPTY_BODY。
+      minProperties: 1
+      properties: *ref_55
+    CreateSkillVersionRequest:
+      type: object
+      description: |
+        POST /api/skills/{skillId}/versions 入参。全部字段选填；未传字段从当前版本完整复制；
+        显式传值（含 []）即覆盖；不允许传 null。
+      properties: *ref_56
+    CreateSkillVersionResponse:
+      type: object
+      required: *ref_57
+      properties: *ref_58
+    SkillTagAdminView:
+      type: object
+      description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
+      required: *ref_23
+      properties: *ref_24
+    CreateSkillTagRequest:
+      type: object
+      required: *ref_59
+      properties: *ref_60
+    UpdateSkillTagRequest:
+      type: object
+      description: |
+        部分更新语义：字段缺失则不修改；传 null 一律视为非法（返 400）。
+        至少要传一个字段，否则 400 EMPTY_BODY。
+        code 不可改；想换 code 只能 DELETE 后 POST 新建。
+      minProperties: 1
+      properties: *ref_61
+    UpdateSkillEndpointRequest:
+      type: object
+      required: *ref_19
+      properties: *ref_20
+    UpdateSkillEndpointResponse:
+      type: object
+      required: *ref_21
+      properties: *ref_22
+    UpdateSkillRelatedRequest:
+      type: object
+      required: *ref_62
+      properties: *ref_63
+    SessionSummary:
+      type: object
+      required: *ref_64
+      properties: *ref_65
+    SessionListResponse:
+      type: object
+      required: *ref_66
+      properties: *ref_67
+    SessionMessage:
+      type: object
+      required: *ref_68
+      properties: *ref_69
+    SessionDetail:
+      type: object
+      required: *ref_70
+      properties: *ref_71
+    PayloadSkillEntered:
+      title: SkillEntered
+      type: object
+      description: skill_entered — 进入或切换 skill
+      required: *ref_72
+      properties: *ref_73
+    PayloadStepInputSubmitted:
+      title: StepInputSubmitted
+      type: object
+      description: step_input_submitted — 用户提交确认面板
+      required: *ref_74
+      properties: *ref_75
+    PayloadUserText:
+      title: UserText
+      type: object
+      description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
+      properties: *ref_76
+    PayloadAssistantText:
+      title: AssistantText
+      type: object
+      description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
+      properties: *ref_77
+    PayloadPipelineStart:
+      title: PipelineStart
+      type: object
+      description: pipeline_start — pipeline 开始
+      properties: *ref_78
+    PayloadStepStart:
+      title: StepStart
+      type: object
+      description: step_start — 步骤开始
+      required: *ref_79
+      properties: *ref_80
+    PayloadStepComplete:
+      title: StepComplete
+      type: object
+      description: step_complete — 步骤完成
+      required: *ref_81
+      properties: *ref_82
+    PayloadStepInputRequired:
+      title: StepInputRequired
+      type: object
+      description: step_input_required — 等待用户输入确认面板
+      required: *ref_83
+      properties: *ref_84
+    PayloadPipelineComplete:
+      title: PipelineComplete
+      type: object
+      description: pipeline_complete — 全部步骤完成
+      properties: *ref_85
+    PayloadPipelineError:
+      title: PipelineError
+      type: object
+      description: pipeline_error — pipeline 执行出错
+      required: *ref_86
+      properties: *ref_87
+    ErrorResponse:
+      type: object
+      required: *ref_0
+      properties: *ref_1
+    OAuthTokenRequest:
+      type: object
+      required: *ref_88
+      description: |
+        `POST /oauth/token` 的 form body（`application/x-www-form-urlencoded`）。
+        字段名遵循 RFC 6749 snake_case 命名（**与本文档其他接口的 camelCase 不同**）。
+      properties: *ref_89
+    OAuthTokenResponse:
+      type: object
+      required: *ref_90
+      description: |
+        `POST /oauth/token` 200 响应（`application/json`），按 [RFC 6749 §5.1](https://datatracker.ietf.org/doc/html/rfc6749#section-5.1)。
+        字段名遵循 OAuth snake_case 命名。
+        **故意不返** `refresh_token`（1.0 简化：session 过期 SDK 重走 OAuth flow）和 OIDC `id_token`（1.0 不上 OIDC，user info 走 `GET /api/me`）。
+      properties: *ref_91
+    OAuthErrorResponse:
+      type: object
+      required: *ref_26
+      description: |
+        OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
+        **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
+      properties: *ref_27
+  responses:
+    Unauthorized:
+      description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+      content: *ref_4
+    PhoneRequired:
+      description: 已登录账户尚未绑定手机号；前端引导用户跳"绑定手机号"页面
+      content: *ref_92
+    IdentityTaken:
+      description: 注册或绑定时手机号/邮箱已被其他账户占用（不暴露具体属于谁）
+      content: *ref_5
+    Forbidden:
+      description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+      content: *ref_17
+    BadRequest:
+      description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+      content: *ref_2
+    NotFound:
+      description: 资源不存在或无权访问
+      content: *ref_8
+    Conflict:
+      description: 资源状态冲突，无法执行操作
+      content: *ref_25
+    NoCurrentVersion:
+      description: skill 尚未设置 current_version_id，无法使用默认版本 path
+      content: *ref_18
+    QuotaExceeded:
+      description: 套餐额度耗尽（月度/总量限制），`code` 为 `QUOTA_EXCEEDED`
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: QUOTA_EXCEEDED
+            message: Plan quota exceeded
+    RateLimited:
+      description: 请求频率过快（短时间请求过多），`code` 为 `RATE_LIMITED`
+      content: *ref_3
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: INTERNAL_ERROR
+            message: Internal server error
