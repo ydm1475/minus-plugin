@@ -464,7 +464,7 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "初始框架" && assert_contains "$OUTPUT" "步骤结构"; then
+  if assert_contains "$OUTPUT" "初始框架" && assert_contains "$OUTPUT" "三步法"; then
     pass "project-detector: first entry includes initial framework message"
   else
     fail "project-detector: first entry includes initial framework message" "got: $OUTPUT"
