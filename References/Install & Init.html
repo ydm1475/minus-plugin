@@ -923,21 +923,21 @@
   <a href="javascript:void(0)" data-target="s1-3" class="toc-step">1.3 粘贴到 Code 模块</a>
   <a href="javascript:void(0)" data-target="s1-4" class="toc-step">1.4 执行安装</a>
   <a href="javascript:void(0)" data-target="phase2" class="toc-phase">Phase 2 · 首次初始化</a>
-  <a href="javascript:void(0)" data-target="s2-0" class="toc-step">2.0 自动进入初始化</a>
-  <a href="javascript:void(0)" data-target="s2-1" class="toc-step">2.1 自动检查鉴权状态</a>
+  <a href="javascript:void(0)" data-target="s2-0" class="toc-step">2.0 调用 Plugin</a>
+  <a href="javascript:void(0)" data-target="s2-1" class="toc-step">2.1 检查鉴权状态</a>
   <a href="javascript:void(0)" data-target="s2-1a" class="toc-step">2.1a 登录流程</a>
-  <a href="javascript:void(0)" data-target="s2-2" class="toc-step">2.2 自动检查项目上下文</a>
+  <a href="javascript:void(0)" data-target="s2-2" class="toc-step">2.2 检查项目上下文</a>
   <a href="javascript:void(0)" data-target="s2-3" class="toc-step">2.3 创建 Skill 项目</a>
   <a href="javascript:void(0)" data-target="s2-4" class="toc-step">2.4 Scaffold 项目结构</a>
   <a href="javascript:void(0)" data-target="s2-5" class="toc-step">2.5 引导打开文件夹</a>
   <a href="javascript:void(0)" data-target="s2-6" class="toc-step">2.6 开始新 Session</a>
   <a href="javascript:void(0)" data-target="phase3" class="toc-phase">Phase 3 · 日常进入开发</a>
-  <a href="javascript:void(0)" data-target="s3-1" class="toc-step">3.1 打开项目文件夹 → 自动激活</a>
-  <a href="javascript:void(0)" data-target="s3-2" class="toc-step">3.2 环境检查</a>
-  <a href="javascript:void(0)" data-target="s3-3" class="toc-step">3.3 生成初始页面</a>
-  <a href="javascript:void(0)" data-target="s3-4" class="toc-step">3.4 报告就绪</a>
+  <a href="javascript:void(0)" data-target="s3-1" class="toc-step">3.1 打开项目文件夹</a>
+  <a href="javascript:void(0)" data-target="s3-2" class="toc-step">3.2 调用 /minus</a>
+  <a href="javascript:void(0)" data-target="s3-3" class="toc-step">3.3 环境检查</a>
+  <a href="javascript:void(0)" data-target="s3-4" class="toc-step">3.4 生成初始页面</a>
+  <a href="javascript:void(0)" data-target="s3-5" class="toc-step">3.5 报告就绪</a>
   <a href="javascript:void(0)" data-target="data-structures" class="toc-section">关键数据结构</a>
-  <a href="javascript:void(0)" data-target="context-guide" class="toc-section">目录上下文智能引导</a>
   <a href="javascript:void(0)" data-target="error-handling" class="toc-section">异常场景处理</a>
   <a href="javascript:void(0)" data-target="principles" class="toc-section">核心设计原则</a>
 </nav>
@@ -947,7 +947,7 @@
   <div class="hero-badge">MINUS CREATOR PLUGIN SPEC</div>
   <h1>Creator Plugin Flow<br>Install &amp; Init</h1>
   <p class="hero-sub">从安装 Plugin 到 Creator 准备好开始开发，经历的每一步。精确到可直接作为 Plugin 开发规格。</p>
-  <a class="hero-link" href="9 - Dev & Publish.html">Dev &amp; Publish 流程 &rarr;</a>
+  <a class="hero-link" href="9 - Creator Plugin Flow - Dev & Publish.html">Dev &amp; Publish 流程 &rarr;</a>
 </div>
 
 <div class="container">
@@ -978,7 +978,7 @@
           <td>Phase 3</td>
           <td>日常进入开发</td>
           <td>每次开发</td>
-          <td>打开项目文件夹 &rarr; Plugin 自动激活 &rarr; 就绪</td>
+          <td>打开项目文件夹 &rarr; /minus &rarr; 自动就绪</td>
         </tr>
       </tbody>
     </table>
@@ -988,19 +988,7 @@
     </div>
 
     <div class="env-note">
-      <strong>环境假设：</strong>流程优先基于 Claude Desktop 的 Code 模块设计，后续实现时增加对 CLI 的支持。先以 Claude Code 为基础开发，后续增加对 Codex 的支持。
-    </div>
-
-    <div class="design-note">
-      <strong>核心准则：低技术门槛，不低估用户。</strong>Plugin 的目标用户中大部分没有技术背景，但也有一部分具备开发经验。Plugin 的默认交互应做到：不需要理解底层技术原理，照着提示就能完成操作。同时避免过度解释——<strong>技术复杂度由 Plugin 吸收，但不要让懂技术的 Creator 觉得被当成小白。</strong>具体做法：用通俗语言作为默认表达，技术细节按需展示而非强制隐藏。
-    </div>
-
-    <div class="design-note">
-      <strong>双触发模式：</strong>Plugin 的所有功能同时支持斜杠命令和自然语言触发。例如 <code>/minus publish</code> 和"帮我发布"等价，<code>/minus</code> 和"打开 Minus"等价。Creator 不需要记住任何命令，用自然语言描述意图即可。斜杠命令作为快捷方式保留，供熟悉的 Creator 使用。
-    </div>
-
-    <div class="design-note">
-      <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制。每次完成一个主要任务后（如完成一个节点的开发），Plugin 自动评估当前会话的上下文使用情况。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator 不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
+      <strong>环境假设：</strong>流程优先基于 Claude Desktop 的 Code 模块设计，后续实现时增加对 CLI 的支持。
     </div>
   </section>
 
@@ -1086,11 +1074,11 @@
         <div class="conv-body">
           <div class="conv-line"><span class="role sys">system</span> <span class="msg">Installing Minus Creator Plugin...</span></div>
           <div class="conv-line"><span class="role sys">system</span> <span class="msg"><span class="ok">✓</span> Minus Creator Plugin 安装成功 (v1.0.0)</span></div>
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">Minus Creator Plugin 已就绪！接下来帮你完成初始设置...</span></div>
+          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">Minus Creator Plugin 已就绪。输入 <span class="hi">/minus</span> 开始使用。</span></div>
         </div>
       </div>
       <div class="design-note" style="margin-top:16px;">
-        <strong>Phase 1 完成。</strong>安装是一次性的，Plugin 注册后全局可用，工作目录已就绪。安装完成后 Plugin 在当前 Session 中自动继续，直接进入 Phase 2。
+        <strong>Phase 1 完成。</strong>安装是一次性的，Plugin 注册后全局可用，工作目录已就绪。
       </div>
     </div>
   </section>
@@ -1112,18 +1100,16 @@
     <!-- 2.0 -->
     <div class="step-card" id="s2-0">
       <div class="step-id">Step 2.0</div>
-      <h3>Plugin 自动进入初始化</h3>
-      <div class="actor plugin">Plugin</div>
-      <p>安装完成后（Phase 1），Plugin 在当前 Session 中直接继续，自动进入初始化流程。Creator 无需输入任何额外指令——从安装到登录是一个连贯的体验。</p>
-      <div class="design-note" style="margin-top:12px;">
-        <strong>后续创建新 Skill：</strong>首次初始化完成后，如果 Creator 想在新 Session 中创建另一个 Skill 项目，可通过 <code>/minus</code> 或自然语言（如「我想创建新 Skill」）手动触发。日常开发中打开已有项目时，Plugin 通过 SessionStart hook 自动激活。
-      </div>
+      <h3>Creator 调用 Plugin</h3>
+      <div class="actor creator">Creator</div>
+      <p>Creator 在 Claude Desktop Code 模块的对话框中输入 <code>/minus</code> 并发送。这是 Creator 需要做的<strong style="color:#fff;">唯一主动操作</strong>，后续全部由 Plugin 引导。</p>
+      <p style="margin-top:8px;">此时 Creator 可能在任意工作目录中，无需提前导航。</p>
     </div>
 
     <!-- 2.1 -->
     <div class="step-card" id="s2-1">
       <div class="step-id">Step 2.1</div>
-      <h3>Plugin 自动检查鉴权状态</h3>
+      <h3>Plugin 检查鉴权状态</h3>
       <div class="actor plugin">Plugin</div>
       <p>Plugin 读取平台标准配置目录下的凭证文件：</p>
       <table class="inner-table">
@@ -1237,7 +1223,7 @@
     <!-- 2.2 -->
     <div class="step-card" id="s2-2">
       <div class="step-id">Step 2.2</div>
-      <h3>Plugin 自动检查项目上下文</h3>
+      <h3>Plugin 检查项目上下文</h3>
       <div class="actor plugin">Plugin</div>
       <p>鉴权通过后，Plugin 检查<strong style="color:#fff;">当前工作目录</strong>的内容。<strong style="color:#fff;">目录内容是权威判断依据，<code>projects.json</code> 仅为便利缓存。</strong></p>
 
@@ -1321,7 +1307,7 @@
           </div>
           <div class="guide-step">
             <div class="guide-step-num">3</div>
-            <p>Plugin 将 Skill ID 写入 <code>.minus/skill.json</code>，Skill API Key 写入 <code>.env.local</code></p>
+            <p>Plugin 将 Skill ID 写入 <code>.minus/skill.json</code> 的 <code>skillId</code> 字段，Skill API Key 写入 <code>.env.local</code></p>
           </div>
         </div>
 
@@ -1345,7 +1331,7 @@
         <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">分离的原因：避免 Creator 个人凭证暴露在 Skill 运行环境中，且每个 Skill 可独立控制数据 API 的访问权限和用量。</p>
 
         <div class="pending-note" style="margin-top:16px;">
-          <strong>离线场景：</strong>如果此时网络不可用，<code>.minus/skill.json</code> 中 <code>skillId</code> 字段标记为 <code>"pending"</code>。下次 Creator 在该项目中执行 <code>/minus</code> 且网络可用时，Plugin 自动完成注册并回写。在注册完成之前，本地开发不受影响，仅发布功能和需要调用平台数据 API 的步骤测试被阻塞。
+          <strong>离线场景：</strong>如果此时网络不可用，<code>.minus/skill.json</code> 中 <code>id</code> 和 <code>api_key</code> 字段均标记为 <code>pending</code>。下次 Creator 在该项目中执行 <code>/minus</code> 且网络可用时，Plugin 自动完成注册并回写。在注册完成之前，本地开发不受影响，仅发布功能和需要调用平台数据 API 的步骤测试被阻塞。
         </div>
       </div>
 
@@ -1361,12 +1347,14 @@
       <div class="file-tree">
         <div class="tree-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>~/minus/关键词调研/</span></div>
         <div class="tree-body">
-          <div><span class="file">.minus/skill.json</span> <span class="comment"># 项目标识（Skill ID、版本号）</span></div>
+          <div><span class="file">.minus/skill.json</span> <span class="comment"># Skill 元信息（名称、版本、作者、描述）</span></div>
           <div><span class="file">CLAUDE.md</span> <span class="comment"># Claude Code 项目指令（自动加载）</span></div>
           <div><span class="file">package.json</span> <span class="comment"># 依赖声明（如需要）</span></div>
           <div><span class="file">.gitignore</span> <span class="comment"># Git 忽略规则</span></div>
-          <div><span class="folder">frontend/</span> <span class="comment"># 前端代码</span></div>
-          <div class="indent"><span class="folder">assets/</span> <span class="comment"># 资源文件（图标、模板等）</span></div>
+          <div><span class="folder">steps/</span> <span class="comment"># 步骤定义目录</span></div>
+          <div class="indent"><span class="file">.gitkeep</span></div>
+          <div><span class="folder">assets/</span> <span class="comment"># 资源文件（图标、模板等）</span></div>
+          <div class="indent"><span class="file">.gitkeep</span></div>
           <div><span class="folder">tests/</span> <span class="comment"># 测试用例</span></div>
           <div class="indent"><span class="file">.gitkeep</span></div>
         </div>
@@ -1377,7 +1365,7 @@
         <tbody>
           <tr>
             <td><code>.minus/skill.json</code></td>
-            <td>包含平台分配的 <code>skillId</code> 和 <code>version</code>。Skill 的业务信息存储在后端，通过平台 API 管理。运行时凭证在 <code>.env.local</code> 中。</td>
+            <td>预填所有基础字段的默认值（见「关键数据结构」章节），Creator 打开项目后即可通过 GUI 看到 Skill 的初始框架。各字段均标注可通过对话修改。</td>
           </tr>
           <tr>
             <td><code>CLAUDE.md</code></td>
@@ -1399,7 +1387,7 @@
       </div>
 
       <div class="design-note" style="margin-top:16px;">
-        <strong>依赖不在此时安装。</strong>Scaffold 只负责创建文件结构，保持轻快。依赖安装在 Creator 打开项目文件夹时由 Phase 3 的 SessionStart hook 自动触发完成——那才是 Creator 真正准备开始工作的时刻。
+        <strong>依赖不在此时安装。</strong>Scaffold 只负责创建文件结构，保持轻快。依赖安装在 Creator 打开项目文件夹、首次发送 <code>/minus</code> 时由 Phase 3 的三层检查自动完成——那才是 Creator 真正准备开始工作的时刻。
       </div>
     </div>
 
@@ -1420,7 +1408,7 @@
           <div class="conv-line"><span class="role plugin"> </span> <span class="msg">接下来请完成三步：</span></div>
           <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">1.</span> 在 Claude 的 Code 模块新开一个 session</span></div>
           <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">2.</span> 选择 ~/minus/关键词调研/ 文件夹作为工作目录</span></div>
-          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">3.</span> Plugin 会自动激活，你直接开始工作即可</span></div>
+          <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="hi">3.</span> 发送 /minus 开始工作</span></div>
           <div class="conv-line blank"></div>
           <div class="conv-line"><span class="role plugin"> </span> <span class="msg">如果你想把项目放在其他位置，告诉我路径，我帮你重新创建。</span></div>
         </div>
@@ -1484,7 +1472,7 @@
       <div class="step-id">Step 2.6</div>
       <h3>Creator 打开项目文件夹，开始新 Session</h3>
       <div class="actor creator">Creator</div>
-      <p>Creator 在 Claude Desktop 中打开项目文件夹，Claude Code 自动加载 <code>CLAUDE.md</code>。SessionStart hook 检测到 Skill 项目后自动激活 Plugin，进入 Phase 3。</p>
+      <p>Creator 在 Claude Desktop 中打开项目文件夹，Claude Code 自动加载 <code>CLAUDE.md</code>。Creator 在新 session 中输入 <code>/minus</code>，进入 Phase 3。</p>
       <div class="design-note" style="margin-top:16px;">
         <strong>Phase 2 完成。</strong>Creator 现在拥有完整的 Skill 项目目录、全局登录状态和正确的工作目录设置。
       </div>
@@ -1508,29 +1496,34 @@
     <!-- 3.1 -->
     <div class="step-card" id="s3-1">
       <div class="step-id">Step 3.1</div>
-      <h3>Creator 打开项目文件夹 → Plugin 自动激活</h3>
+      <h3>Creator 打开项目文件夹</h3>
       <div class="actor creator">Creator</div>
       <p>Creator 启动 Claude Desktop，将 Skill 项目文件夹设为工作目录。Claude Code 自动：</p>
       <ul>
         <li>加载 <code>CLAUDE.md</code></li>
         <li>加载项目级 Memory</li>
-        <li>SessionStart hook 检测到 <code>.minus/skill.json</code>，自动激活 Plugin</li>
+        <li>识别到 Minus Creator Plugin 已安装</li>
       </ul>
-      <div class="design-note" style="margin-top:12px;">
-        <strong>无需手动输入 <code>/minus</code>。</strong>Plugin 通过 SessionStart hook 检测到当前目录是 Minus Skill 项目后，自动进入开发模式。<code>/minus</code> 作为手动备用入口保留，供 Creator 在非项目目录中主动触发。
-      </div>
     </div>
 
     <!-- 3.2 -->
     <div class="step-card" id="s3-2">
       <div class="step-id">Step 3.2</div>
+      <h3>Creator 调用 /minus</h3>
+      <div class="actor creator">Creator</div>
+      <p>在对话框中输入 <code>/minus</code>。</p>
+    </div>
+
+    <!-- 3.3 -->
+    <div class="step-card" id="s3-3">
+      <div class="step-id">Step 3.3</div>
       <h3>Plugin 执行环境检查</h3>
       <div class="actor plugin">Plugin</div>
-      <p>Plugin 依次执行四项检查。前两项静默完成；第三、四项视情况告知 Creator。</p>
+      <p>Plugin 依次执行三项检查。前两项静默完成；第三项需要明确告知 Creator。</p>
 
       <div class="subsection">
         <h4>① 鉴权检查（静默）</h4>
-        <p style="font-size:14px; color:var(--text-muted);">读取凭证文件，校验是否已登录 Minus Plugin、API Key 是否有效。过期则自动 refresh。refresh 失败则触发重新登录流程。</p>
+        <p style="font-size:14px; color:var(--text-muted);">读取凭证文件，校验 token 有效性。过期则自动 refresh。refresh 失败则触发重新登录流程。</p>
       </div>
 
       <div class="subsection">
@@ -1576,52 +1569,15 @@
         <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">后续进入项目（已有依赖目录）：</p>
         <p style="font-size:14px; color:var(--text-muted);">静默对比 lock file 与已安装依赖。一致则跳过（Creator 无感知），不一致则提示并自动更新。</p>
       </div>
-
-      <div class="subsection">
-        <h4>④ Plugin 版本检查（SessionStart 自动执行）</h4>
-        <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">SessionStart hook 同时检查 Plugin 自身版本是否为最新。本地缓存上次检查时间，<strong style="color:#fff;">每天最多检查一次</strong>，避免每次 session 都请求网络。网络不可用时静默跳过。</p>
-
-        <p style="font-size:14px; color:#fff; font-weight:600; margin-bottom:8px;">小版本 / 补丁更新（自动静默更新）：</p>
-        <div class="conv-mock">
-          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>自动更新 — patch/minor</span></div>
-          <div class="conv-body">
-            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> Minus 已就绪 — 关键词调研 v0.1.0</span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg" style="color:var(--text-muted);">Plugin 已自动更新至 v1.2.1（修复了发布校验的一个问题）</span></div>
-            <div class="conv-line blank"></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">上次你完成了「数据采集」步骤的开发，</span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">下一个待开发的步骤是「竞争度分析」。</span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">直接告诉我要做什么，或输入 /minus help 查看所有命令。</span></div>
-          </div>
-        </div>
-
-        <p style="font-size:14px; color:#fff; font-weight:600; margin-top:16px; margin-bottom:8px;">大版本更新（提示确认）：</p>
-        <div class="conv-mock">
-          <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>大版本更新 — major</span></div>
-          <div class="conv-body">
-            <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> Minus 已就绪 — 关键词调研 v0.1.0</span></div>
-            <div class="conv-line blank"></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg"><span class="warn">⚠</span> Plugin 有新的大版本可用：v1.x → <span class="hi">v2.0.0</span></span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">更新内容：支持多步骤并行执行、新增 Skill 模板库</span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">输入 <span class="hi">/minus update</span> 立即更新，或继续当前版本工作。</span></div>
-            <div class="conv-line blank"></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">上次你完成了「数据采集」步骤的开发，</span></div>
-            <div class="conv-line"><span class="role plugin"> </span> <span class="msg">下一个待开发的步骤是「竞争度分析」。</span></div>
-          </div>
-        </div>
-
-        <div class="design-note" style="margin-top:12px;">
-          <strong>设计原则：不阻塞开发。</strong>无论哪种更新，Creator 都可以直接开始工作。小版本自动完成，大版本由 Creator 自行决定更新时机。版本检查结果缓存在 <code>~/.minus/update-check.json</code>，记录上次检查时间和最新版本号。
-        </div>
-      </div>
     </div>
 
-    <!-- 3.3 -->
-    <div class="step-card" id="s3-3">
-      <div class="step-id">Step 3.3</div>
-      <h3>自动生成 Skill 初始页面（首次进入）</h3>
+    <!-- 3.4 -->
+    <div class="step-card" id="s3-4">
+      <div class="step-id">Step 3.4</div>
+      <h3>生成 Skill 初始页面（首次进入）</h3>
       <div class="actor plugin">Plugin</div>
-      <p><strong style="color:#fff;">仅在首次进入项目时执行</strong>（检测到后端步骤定义为空且初始页面文件不存在）。后续进入跳过此步骤，直接到 3.4。</p>
-      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">依赖安装完成后，Plugin 不询问 Creator，直接用后端存储的 Skill 基础信息自动生成 Skill 的初始页面代码，并自动打开预览：</p>
+      <p><strong style="color:#fff;">仅在首次进入项目时执行</strong>（检测到 <code>.minus/skill.json</code> 中步骤为空且初始页面文件不存在）。后续进入跳过此步骤，直接到 3.5。</p>
+      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">依赖安装完成后，Plugin 不询问 Creator，直接用 <code>.minus/skill.json</code> 中的默认值自动生成 Skill 的初始页面代码，并自动打开预览：</p>
 
       <div class="conv-mock">
         <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>自动生成初始页面</span></div>
@@ -1645,7 +1601,7 @@
         <div class="guide-steps">
           <div class="guide-step">
             <div class="guide-step-num">1</div>
-            <p>通过平台 API 读取后端存储的 Skill 信息（名称、描述、版本、标签等）</p>
+            <p>读取 <code>.minus/skill.json</code> 中的当前字段值（名称、描述、版本、标签等）</p>
           </div>
           <div class="guide-step">
             <div class="guide-step-num">2</div>
@@ -1659,17 +1615,17 @@
       </div>
 
       <div class="design-note" style="margin-top:12px;">
-        <strong>不提前询问的原因：</strong>Creator 还没看到框架长什么样，无法做出有效决策。先展示再修改的模式认知负担最低，与后端预填默认值的设计思路一致。
+        <strong>不提前询问的原因：</strong>Creator 还没看到框架长什么样，无法做出有效决策。先展示再修改的模式认知负担最低，与 <code>.minus/skill.json</code> 预填默认值的设计思路一致。
       </div>
     </div>
 
-    <!-- 3.4 -->
-    <div class="step-card" id="s3-4">
-      <div class="step-id">Step 3.4</div>
+    <!-- 3.5 -->
+    <div class="step-card" id="s3-5">
+      <div class="step-id">Step 3.5</div>
       <h3>报告就绪，进入开发模式</h3>
       <div class="actor plugin">Plugin</div>
       <p>Plugin 根据项目实际状态给出<strong style="color:#fff;">有针对性的就绪提示</strong>，而不是泛泛的"你可以做什么"。</p>
-      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">Plugin 通过两个来源判断当前状态：① 后端数据（通过平台 API 读取 Skill 信息和步骤数据）；② Claude Code 项目级 Memory（上次 session 记录的开发进度）。</p>
+      <p style="font-size:14px; color:var(--text-muted); margin-top:8px;">Plugin 通过两个来源判断当前状态：① 项目文件分析（<code>.minus/skill.json</code>、<code>steps/</code> 目录等）；② Claude Code 项目级 Memory（上次 session 记录的开发进度）。</p>
 
       <div class="prompt-examples">
         <div class="prompt-ex">
@@ -1691,7 +1647,7 @@
       </div>
 
       <div class="design-note" style="margin-top:16px;">
-        <strong>Phase 3 完成。</strong>Creator 可立即开始开发。进入 <a class="hero-link" href="9 - Dev & Publish.html">Dev &amp; Publish 流程</a>。
+        <strong>Phase 3 完成。</strong>Creator 可立即开始开发。进入 <a class="hero-link" href="9 - Creator Plugin Flow - Dev & Publish.html">Dev &amp; Publish 流程</a>。
       </div>
     </div>
   </section>
@@ -1755,11 +1711,12 @@
       <table class="inner-table">
         <thead><tr><th>文件/目录</th><th>创建时机</th><th>用途</th></tr></thead>
         <tbody>
-          <tr><td><code>.minus/skill.json</code></td><td>Scaffold</td><td>项目标识和版本号（Skill ID、version）</td></tr>
+          <tr><td><code>.minus/skill.json</code></td><td>Scaffold</td><td>项目标识和版本号（skillId、version）</td></tr>
           <tr><td><code>CLAUDE.md</code></td><td>Scaffold</td><td>Claude Code 项目级指令</td></tr>
           <tr><td><code>package.json</code></td><td>Scaffold（可选）</td><td>npm 依赖声明</td></tr>
           <tr><td><code>.gitignore</code></td><td>Scaffold</td><td>Git 忽略规则</td></tr>
-          <tr><td><code>frontend/assets/</code></td><td>Scaffold</td><td>图标、模板等资源</td></tr>
+          <tr><td><code>.env.local</code></td><td>Scaffold</td><td>运行时凭证（MINUS_AI_SKILL_API_KEY）</td></tr>
+          <tr><td><code>assets/</code></td><td>Scaffold</td><td>图标、模板等资源</td></tr>
           <tr><td><code>tests/</code></td><td>Scaffold</td><td>测试用例</td></tr>
         </tbody>
       </table>
@@ -1767,12 +1724,12 @@
 
     <div class="subsection">
       <h4>.minus/skill.json 初始内容</h4>
-      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;"><code>.minus/skill.json</code> 是轻量级的本地项目标识文件，Skill 的所有业务信息（名称、描述、版本、步骤、输入输出、标签、作者等）存储在后端，通过平台 API 读写，<strong style="color:#fff;">后端是唯一数据源</strong>。</p>
+      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;"><code>.minus/skill.json</code> 是轻量级的本地项目标识文件。Skill 的所有业务信息（名称、描述、步骤、标签等）存储在后端，通过平台 API 读写，<strong style="color:#fff;">后端是唯一数据源</strong>。运行时凭证 <code>MINUS_AI_SKILL_API_KEY</code> 存储在 <code>.env.local</code> 中。</p>
       <div class="json-block">
         <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>.minus/skill.json</span></div>
         <pre>{
   <span class="key">"skillId"</span>: <span class="str">"sk_8f3a2b"</span>,
-  <span class="key">"version": <span class="str">"1.0.0"</span></span>
+  <span class="key">"version"</span>: <span class="str">"1.0.0"</span>
 }</pre>
       </div>
       <table class="inner-table" style="margin-top:12px;">
@@ -1780,11 +1737,10 @@
         <tbody>
           <tr><td><code>skillId</code></td><td>平台分配的 Skill 唯一标识，不可改</td></tr>
           <tr><td><code>version</code></td><td>当前版本号（SemVer）</td></tr>
-          <tr><td><code>version</code></td><td>当前版本号（SemVer）</td></tr>
         </tbody>
       </table>
       <div class="design-note" style="margin-top:12px;">
-        <strong>设计意图：</strong>本地只保留项目标识和版本号，运行时凭证存于 .env.local（被 .gitignore 忽略）。Creator 通过对话修改的 Skill 信息（名称、描述、步骤等）直接写入后端，前端展示和运行时均从后端拉取。
+        <strong>设计意图：</strong>本地只保留项目标识和版本号，运行时凭证存于 <code>.env.local</code>（被 .gitignore 忽略）。Creator 通过对话修改的 Skill 信息（名称、描述、步骤等）直接写入后端，前端展示和运行时均从后端拉取。
       </div>
     </div>
 
@@ -1802,112 +1758,15 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
 - Type: Minus Platform Skill
 
 <span class="comment">## Available Commands</span>
-- <span class="str">`/minus`</span> — 手动进入开发模式（打开项目目录时自动激活）
+- <span class="str">`/minus`</span> — 进入开发模式
 - <span class="str">`/minus help`</span> — 查看所有命令
 - <span class="str">`/minus publish`</span> — 校验、打包、发布
 
 <span class="comment">## Dev Guidelines</span>
-- 项目标识见 .minus/skill.json（Skill ID），运行时凭证见 .env.local
-- Skill 业务信息和步骤定义存储在后端，通过 Plugin 管理
+- Skill 结构规范见 .minus/skill.json
+- 步骤定义放在 steps/ 目录
 - 测试用例放在 tests/ 目录</pre>
       </div>
-    </div>
-  </section>
-
-  <div class="divider"></div>
-
-  <!-- Context Guide -->
-  <section id="context-guide">
-    <div class="section-label">Context Guide</div>
-    <h2>目录上下文智能引导</h2>
-
-    <p style="color:var(--text-muted); font-size:15px; margin-bottom:24px;">Creator 大多没有技术背景，不会按"目录 → Session → 项目"的技术逻辑来思考。他们会在任何上下文中提出任何请求。<strong style="color:#fff;">Plugin 需要处理所有"意图合理但上下文不对"的请求。</strong></p>
-
-    <table class="inner-table" style="margin-bottom:32px;">
-      <thead><tr><th>原则</th><th>说明</th></tr></thead>
-      <tbody>
-        <tr><td style="color:#fff;">不拒绝</td><td>Creator 的意图永远合理，Plugin 负责解决"位置不对"的问题</td></tr>
-        <tr><td style="color:#fff;">不说教</td><td>不解释技术原因（"每个 Skill 需要独立目录"），直接给行动方案</td></tr>
-        <tr><td style="color:#fff;">能做就做</td><td>能在当前 Session 完成的就完成（调 API、scaffold 文件），只在必须切 Session 时才引导</td></tr>
-        <tr><td style="color:#fff;">降低成本</td><td>引导切目录时给出完整路径，未来支持自动复制到剪贴板或点击跳转</td></tr>
-      </tbody>
-    </table>
-
-    <!-- Scenario 1 -->
-    <div class="step-card">
-      <div class="step-id" style="color:var(--accent);">场景 1</div>
-      <h3>在 Skill A 中请求创建新 Skill</h3>
-      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>"帮我创建一个新的 Skill"、"我想做一个新工具"等</p>
-      <p>Plugin <strong>在当前 Session 中完成创建</strong>（调 API 注册 + 在 Workspace 下 scaffold），然后引导切目录：</p>
-      <div class="conv-mock" style="margin-top:12px;">
-        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
-        <div class="conv-body">
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">没问题！先给新 Skill 起个名字？</span></div>
-          <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">竞品监控</span></div>
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 新项目已创建！<br>Skill：竞品监控 (sk_9d4c1f)<br>位置：~/minus/竞品监控/<br><br>接下来请在 Claude Desktop 中新开一个 session，<br>选择 ~/minus/竞品监控/ 作为工作目录。<br>当前项目「关键词调研」的进度不受影响。</span></div>
-        </div>
-      </div>
-      <div class="design-note" style="margin-top:12px;"><strong>关键：</strong>不问"你确定要离开当前项目吗？"——Creator 说了就是想做，直接帮忙。</div>
-    </div>
-
-    <!-- Scenario 2 -->
-    <div class="step-card">
-      <div class="step-id" style="color:var(--accent);">场景 2</div>
-      <h3>在 Skill A 中请求打开/切换到 Skill B</h3>
-      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>"打开竞品监控"、"切换到我的另一个项目"、"我想去看看另一个 Skill"等</p>
-      <div class="conv-mock" style="margin-top:12px;">
-        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
-        <div class="conv-body">
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">你有这些 Skill 项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/ &nbsp;&larr; 当前<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请在 Claude Desktop 中新开一个 session，<br>选择 ~/minus/竞品监控/ 作为工作目录即可。</span></div>
-        </div>
-      </div>
-      <p style="margin-top:12px; color:var(--text-muted);">如果 Creator 说的项目名不在列表中，确认是否要创建新项目。</p>
-    </div>
-
-    <!-- Scenario 3 -->
-    <div class="step-card">
-      <div class="step-id" style="color:var(--accent);">场景 3</div>
-      <h3>在 Workspace 目录中请求"开始开发"</h3>
-      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 打开了 <code>~/minus/</code> 而非具体 Skill 目录</p>
-      <div class="conv-mock" style="margin-top:12px;">
-        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
-        <div class="conv-body">
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">你当前在 Minus 工作区，这里有 2 个 Skill 项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请选择要打开的项目，在 Claude Desktop 中<br>以该文件夹为工作目录开一个新 session。<br>或者告诉我你想创建新的 Skill。</span></div>
-        </div>
-      </div>
-      <p style="margin-top:12px; color:var(--text-muted);">Workspace 为空时：直接提示"你还没有创建过 Skill。要现在创建第一个吗？"</p>
-    </div>
-
-    <!-- Scenario 4 -->
-    <div class="step-card">
-      <div class="step-id" style="color:var(--accent);">场景 4</div>
-      <h3>在 Skill 子目录中触发</h3>
-      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 把工作目录设在了 <code>~/minus/关键词调研/src/</code> 等子目录</p>
-      <p>Plugin 向上遍历查找 <code>.minus/skill.json</code>，找到则识别项目，但提示修正：</p>
-      <div class="conv-mock" style="margin-top:12px;">
-        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
-        <div class="conv-body">
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">项目已识别：关键词调研 (sk_8f3a2b)<br><br>提示：当前在项目子目录中（.../src/），<br>建议下次直接以 ~/minus/关键词调研/ 作为工作目录，<br>这样 CLAUDE.md 和 Memory 才能正常加载。<br><br>本次 session 可以继续工作，但部分功能可能受限。</span></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Scenario 5 -->
-    <div class="step-card">
-      <div class="step-id" style="color:var(--accent);">场景 5</div>
-      <h3>在非 Minus 目录中通过 /minus 触发</h3>
-      <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 在任意目录输入 <code>/minus</code></p>
-      <div class="conv-mock" style="margin-top:12px;">
-        <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
-        <div class="conv-body">
-          <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">当前目录不是 Minus 项目。你有 2 个已创建的项目：<br><br>1. 关键词调研 &nbsp;~/minus/关键词调研/<br>2. 竞品监控 &nbsp;&nbsp;&nbsp;~/minus/竞品监控/<br><br>请在 Claude Desktop 中打开对应文件夹开始工作。<br>或者告诉我你想创建新的 Skill。</span></div>
-        </div>
-      </div>
-      <p style="margin-top:12px; color:var(--text-muted);">无任何项目时：直接提示"你还没有创建过 Skill，要现在创建第一个吗？"</p>
-    </div>
-
-    <div class="design-note" style="margin-top:24px;">
-      <strong>实现说明：</strong>以上所有场景的项目列表来自 <code>projects.json</code>（便利缓存）。Plugin 在列出时按 <code>last_opened</code> 倒序排列，最近使用的项目排在最前面。
     </div>
   </section>
 
@@ -1932,13 +1791,18 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
           <td>重新登录一次</td>
         </tr>
         <tr>
+          <td>打开了错误的文件夹</td>
+          <td>检测不到 <code>.minus/skill.json</code>，提示并列出已注册项目。</td>
+          <td>看到提示和项目列表</td>
+        </tr>
+        <tr>
           <td>项目文件夹被<br>移动/删除</td>
           <td><code>projects.json</code> 路径失效。提示路径不存在，建议更新或重建。</td>
           <td>看到错误和修复建议</td>
         </tr>
         <tr>
           <td>.minus/skill.json 格式损坏</td>
-          <td>JSON 解析失败，显示错误信息，建议修复或 Git 恢复。</td>
+          <td>YAML 解析失败，显示错误位置，建议修复或 Git 恢复。</td>
           <td>看到具体错误</td>
         </tr>
         <tr>
@@ -1952,14 +1816,14 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
           <td>立即得到反馈</td>
         </tr>
         <tr>
-          <td>Plugin 版本过低<br>（patch/minor）</td>
-          <td>SessionStart 时自动静默更新，就绪消息中附带一行更新说明。每天最多检查一次。</td>
-          <td>无感知或看到一行提示，不阻塞</td>
+          <td>Plugin 版本过低</td>
+          <td>就绪消息中附带非侵入式更新提示。</td>
+          <td>不阻塞开发</td>
         </tr>
         <tr>
-          <td>Plugin 版本过低<br>（major）</td>
-          <td>就绪消息中提示新版本及更新内容，提供 <code>/minus update</code> 命令。不强制更新。</td>
-          <td>看到提示，自行决定更新时机</td>
+          <td>在 Workspace 目录打开<br>（非具体 Skill）</td>
+          <td>列出子目录中的 Skill，引导打开具体目录。</td>
+          <td>选择后得到引导</td>
         </tr>
         <tr>
           <td>Creator 手动在新位置<br>创建项目并打开</td>
@@ -1968,10 +1832,6 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
         </tr>
       </tbody>
     </table>
-
-    <div class="design-note" style="margin-top:16px;">
-      <strong>注意：</strong>目录相关的异常（打开错误文件夹、在 Workspace 目录打开、在子目录打开等）已在上方「目录上下文智能引导」中详细说明。
-    </div>
   </section>
 
   <div class="divider"></div>
@@ -2000,11 +1860,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
       </div>
       <div class="principle-card">
         <h4>最少手动操作</h4>
-        <p>唯一手动步骤：在 Desktop 打开项目文件夹。安装后自动进入初始化，日常开发通过 SessionStart hook 自动激活，全程无需手动输入 <code>/minus</code></p>
-      </div>
-      <div class="principle-card">
-        <h4>上下文智能引导</h4>
-        <p>Creator 在任何位置提出任何请求，Plugin 都不拒绝、不说教，能做就做，做不了的引导到正确位置</p>
+        <p>唯一手动步骤：在 Desktop 打开项目文件夹</p>
       </div>
       <div class="principle-card">
         <h4>Desktop Code 模块优先</h4>

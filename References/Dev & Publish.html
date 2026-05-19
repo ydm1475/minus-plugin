@@ -1145,7 +1145,7 @@
     </div>
 
     <div class="branch-box">
-      <p><strong>统一预览地址：</strong>Creator 只需要记住一个地址来测试 Skill。Plugin 在首次启动预览时自动检测可用端口，写入 <code>.minus.json</code> 的 <code>preview_port</code> 字段，后续每次复用。如果该端口被占用，Plugin 自动切换到新端口并通知 Creator。无论底层有多少服务，Creator 看到的始终是一个入口：<code>http://localhost:{port}/preview</code>。</p>
+      <p><strong>统一预览地址：</strong>Creator 只需要记住一个地址来测试 Skill。Plugin 在首次启动预览时自动检测可用端口，如果该端口被占用，Plugin 自动切换到新端口并通知 Creator。无论底层有多少服务，Creator 看到的始终是一个入口：<code>http://localhost:{port}</code>。</p>
     </div>
 
     <p>Creator 确认后，Plugin 通过平台 API 更新后端该步骤的状态，保存进度到 Memory，进入下一个节点的开发。</p>
@@ -1298,7 +1298,7 @@
         <div class="conv-line blank"></div>
         <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">开始发布前校验...</span></div>
         <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> .minus.json 格式正确</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> .minus/skill.json 格式正确</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 所有必填字段已填写（name、description、version、author — 后端校验）</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 输入定义完整</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 步骤定义完整（3/3 步骤均已在后端就绪）</span></div>
@@ -1327,7 +1327,7 @@
     <table class="inner-table">
       <thead><tr><th>校验项</th><th>说明</th></tr></thead>
       <tbody>
-        <tr><td><code>.minus.json</code> 格式</td><td>JSON 语法正确，<code>skill_id</code> 和 <code>api_key</code> 有效</td></tr>
+        <tr><td><code>.minus/skill.json</code> 格式</td><td>JSON 语法正确，<code>skill_id</code> 和 <code>api_key</code> 有效</td></tr>
         <tr><td>必填字段</td><td>后端存储的 <code>name</code>、<code>description</code>、<code>version</code>、<code>author</code> 不为空</td></tr>
         <tr><td>输入定义</td><td>后端 <code>input</code> 字段完整，type 和 label 已设置</td></tr>
         <tr><td>步骤完整性</td><td>后端声明的每个步骤均有完整定义且状态为 completed</td></tr>
@@ -1367,7 +1367,7 @@
         <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在打包...</span></div>
         <div class="conv-line blank"></div>
         <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 已生成发布包：关键词调研-v0.1.0.skill</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">  包含：.minus.json + 3 个步骤定义 + 结果呈现配置</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">  包含：.minus/skill.json + 3 个步骤定义 + 结果呈现配置</span></div>
         <div class="conv-line"><span class="role"></span> <span class="msg">  大小：12 KB</span></div>
       </div>
     </div>
