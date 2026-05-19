@@ -141,6 +141,20 @@ function createMockApi() {
         return;
       }
 
+      // ── Skills: update ──
+      if (method === "PATCH" && url.match(/^\/api\/skills\/[^/]+$/)) {
+        const skillId = url.split("/")[3];
+        const skill = state.skills.find((s) => s.id === skillId);
+        if (!skill) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ code: "NOT_FOUND", message: "Skill 不存在" }));
+          return;
+        }
+        Object.assign(skill, json);
+        res.end(JSON.stringify(skill));
+        return;
+      }
+
       // ── Skills: endpoint set ──
       if (method === "PUT" && url.match(/^\/api\/admin\/skills\/.+\/endpoint$/)) {
         const skillId = url.split("/")[4];
@@ -484,6 +498,111 @@ describe("Flow 3: 创建 Skill → 设置 Endpoint → 创建 Session", () => {
     const data = JSON.parse(getText(r));
     assert.ok(data.items.length >= 1, "Should have at least 1 session");
     assert.equal(data.items[0].entryParams.keyword, "wireless earbuds");
+  });
+});
+
+describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
+  let mockApi, apiPort, client, tmpHome;
+  const skillId = "sk_update_test";
+
+  before(async () => {
+    mockApi = createMockApi();
+    await new Promise((resolve) => {
+      mockApi.server.listen(0, () => {
+        apiPort = mockApi.server.address().port;
+        resolve();
+      });
+    });
+    tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "integ-"));
+    client = new McpClient();
+    await client.start({
+      MINUS_API_BASE: `http://127.0.0.1:${apiPort}`,
+      HOME: tmpHome,
+    });
+
+    // Pre-login
+    await client.callTool("auth_vcode", {
+      channel: "phone",
+      target: "+8613800000010",
+      purpose: "register",
+    });
+    await client.callTool("auth_register", {
+      channel: "phone",
+      target: "+8613800000010",
+      code: "123456",
+    });
+
+    // Pre-create skill in mock state
+    mockApi.state.skills.push({
+      id: skillId, currentVersionId: "ver_1", apiKey: "ak_test",
+      displayName: "关键词调研", description: "测试", version: "1.0.0",
+    });
+  });
+
+  after(async () => {
+    await client.stop();
+    mockApi.server.close();
+    await fs.rm(tmpHome, { recursive: true, force: true });
+  });
+
+  it("1. 写入输入定义", async () => {
+    const r = await client.callTool("skill_update", {
+      skillId,
+      updates: {
+        input: {
+          type: "keyword",
+          label: "主关键词",
+          placeholder: "如：wireless earbuds",
+          required: true,
+        },
+      },
+    });
+    assert.ok(getText(r).includes("已更新"));
+    const skill = mockApi.state.skills.find((s) => s.id === skillId);
+    assert.equal(skill.input.type, "keyword");
+    assert.equal(skill.input.label, "主关键词");
+  });
+
+  it("2. 写入步骤结构", async () => {
+    const r = await client.callTool("skill_update", {
+      skillId,
+      updates: {
+        steps: [
+          { stepNumber: 1, stepName: "关键词数据采集", status: "pending" },
+          { stepNumber: 2, stepName: "竞争度分析", status: "pending" },
+          { stepNumber: 3, stepName: "长尾词推荐", status: "pending" },
+        ],
+      },
+    });
+    assert.ok(getText(r).includes("已更新"));
+    const skill = mockApi.state.skills.find((s) => s.id === skillId);
+    assert.equal(skill.steps.length, 3);
+    assert.equal(skill.steps[0].stepName, "关键词数据采集");
+  });
+
+  it("3. 更新步骤状态（节点开发完成）", async () => {
+    const r = await client.callTool("skill_update", {
+      skillId,
+      updates: {
+        steps: [
+          { stepNumber: 1, stepName: "关键词数据采集", status: "completed" },
+          { stepNumber: 2, stepName: "竞争度分析", status: "in_progress" },
+          { stepNumber: 3, stepName: "长尾词推荐", status: "pending" },
+        ],
+      },
+    });
+    assert.ok(getText(r).includes("已更新"));
+    const skill = mockApi.state.skills.find((s) => s.id === skillId);
+    assert.equal(skill.steps[0].status, "completed");
+    assert.equal(skill.steps[1].status, "in_progress");
+  });
+
+  it("4. 更新不存在的 Skill 返回错误", async () => {
+    const r = await client.callTool("skill_update", {
+      skillId: "sk_nonexistent",
+      updates: { displayName: "test" },
+    });
+    assert.ok(getText(r).includes("失败") || getText(r).includes("不存在"));
   });
 });
 

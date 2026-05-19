@@ -132,6 +132,7 @@ describe("MCP Server - Tool Registration", () => {
       "session_list",
       "skill_endpoint_set",
       "skill_list",
+      "skill_update",
     ]);
   });
 

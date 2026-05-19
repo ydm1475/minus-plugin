@@ -387,6 +387,132 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   fi
 )
 
+# Test: Skill project output contains dev server startup instruction
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "npm run dev"; then
+    pass "project-detector: includes dev server startup instruction"
+  else
+    fail "project-detector: includes dev server startup instruction" "got: $OUTPUT"
+  fi
+)
+
+# Test: Skill project without node_modules includes npm install instruction
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  echo '{}' > "$TMP/test-project/package.json"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "需要安装"; then
+    pass "project-detector: detects missing node_modules"
+  else
+    fail "project-detector: detects missing node_modules" "got: $OUTPUT"
+  fi
+)
+
+# Test: Skill project with node_modules shows ready
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  mkdir -p "$TMP/test-project/node_modules"
+  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  echo '{}' > "$TMP/test-project/package.json"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "已就绪"; then
+    pass "project-detector: node_modules present shows ready"
+  else
+    fail "project-detector: node_modules present shows ready" "got: $OUTPUT"
+  fi
+)
+
+# Test: Non-first-entry output includes status-aware prompts
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  touch "$TMP/test-project/.minus/initialized"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "状态 A" && assert_contains "$OUTPUT" "状态 D"; then
+    pass "project-detector: non-first-entry includes status-aware prompts"
+  else
+    fail "project-detector: non-first-entry includes status-aware prompts" "got: $OUTPUT"
+  fi
+)
+
+# Test: First entry output includes initial framework message
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "初始框架" && assert_contains "$OUTPUT" "步骤结构"; then
+    pass "project-detector: first entry includes initial framework message"
+  else
+    fail "project-detector: first entry includes initial framework message" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ agent files ═══"
+# ══════════════════════════════════════════════════════
+
+AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
+
+# Test: skill-guide.md has required frontmatter
+(
+  CONTENT=$(cat "$AGENTS_DIR/skill-guide.md")
+  if assert_contains "$CONTENT" "name: skill-guide" && assert_contains "$CONTENT" "skill_update" && assert_contains "$CONTENT" "skill_update"; then
+    pass "skill-guide.md: has name, mentions skill_update"
+  else
+    fail "skill-guide.md: missing required content" ""
+  fi
+)
+
+# Test: node-dev.md has required frontmatter and MCP mention
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "name: node-dev" && assert_contains "$CONTENT" "MCP" && assert_contains "$CONTENT" "skill_update"; then
+    pass "node-dev.md: has name, mentions MCP and skill_update"
+  else
+    fail "node-dev.md: missing required content" ""
+  fi
+)
+
+# Test: node-dev.md references pipeline.py
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "pipeline.py"; then
+    pass "node-dev.md: references pipeline.py"
+  else
+    fail "node-dev.md: should reference pipeline.py" ""
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ project-detector.sh ═══"
+# ══════════════════════════════════════════════════════
+
 # Test: outputs context tags
 (
   TMP=$(make_tmp)

@@ -358,6 +358,37 @@ server.tool(
 // create-skill 内部会调用 POST /api/skills 注册并生成项目结构
 
 server.tool(
+  "skill_update",
+  "更新 Skill 信息（输入定义、步骤结构、步骤状态等）",
+  {
+    skillId: z.string().describe("Skill ID"),
+    updates: z.record(z.unknown()).describe("要更新的字段（如 input、steps、displayName、description 等）"),
+  },
+  async ({ skillId, updates }) => {
+    const result = await apiRequest("PATCH", `/api/skills/${skillId}`, {
+      body: updates,
+    });
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `更新失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Skill 已更新。`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
   "skill_endpoint_set",
   "更新 Skill 当前版本的 endpoint URL（管理员接口）",
   {

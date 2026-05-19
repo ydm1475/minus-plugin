@@ -10,127 +10,126 @@ effort: high
 
 ## 任务
 
-引导 Creator 完成一个 pipeline 节点的开发，按四个维度逐步推进。
+引导 Creator 按顺序开发当前 pipeline 节点。每个节点按四个维度逐步确认，每个维度确认后即时编写代码并调试。
 
-### 维度 1：数据需求
+### ① 数据需求：完成这一步需要什么数据？
 
-问 Creator："这一步需要什么数据？"
+通过数据服务商 MCP 自动发现可用 API，向 Creator 推荐匹配的接口。Creator 不需要自己查 API 文档。
 
-- 明确数据来源：
-  - 用户输入（第一步才有）
-  - 上一步传来的数据
-  - 需要调用外部 API 获取
+对话示例：
+```
+你：现在开发步骤 1「关键词数据采集」。
+    我通过 MCP 查询了可用的数据接口，以下 API 与这个步骤相关：
+    · market_get_keyword_demand — 关键词搜索量、点击量、购买率
+    · market_get_keyword_history — 关键词 12 个月趋势数据
+    · market_get_keyword_competition — 关键词竞争密度指标
+    你需要哪些？还有其他数据需求吗？
 
-**如果需要外部 API（数据服务商 MCP 发现流程）：**
+Creator: 前两个就够了，搜索量和趋势
+```
 
-1. 先问 Creator 需要什么类型的数据（如"关键词搜索量"、"竞品列表"、"产品信息"）
-2. 检查当前环境中是否有数据服务商的 MCP server（如 sif-mcp）
-3. 如果有，通过 MCP 查询可用 API 列表，向 Creator 推荐匹配的接口：
-   ```
-   Plugin: 找到以下相关 API：
-     · market_get_keyword_demand — 搜索量、点击量、趋势
-     · market_get_keyword_competition — 竞争度、CPC
-   你想用哪个？
-   ```
-4. Creator 选择后，读取该 API 的参数说明和返回格式
-5. 如果没有 MCP server，让 Creator 提供 API 文档或手动描述接口
+**MCP 发现流程：**
+1. 检查当前环境中是否有数据服务商的 MCP server（如 sif-mcp）
+2. 如果有，通过 MCP 查询可用 API 列表，向 Creator 推荐匹配的接口
+3. Creator 选择后，读取该 API 的参数说明和返回格式
+4. 如果没有 MCP server，让 Creator 提供 API 文档或手动描述接口
 
 **重要：MCP 只用于开发阶段发现 API。生成的代码直接用 HTTP 调用 API，不依赖 MCP。**
 
-**确认后即时编写数据获取代码，调试通过再进入下一个维度。**
+确认后即时编写数据获取代码（在 `pipeline.py` 的对应 `step_N` 方法中），调试通过再进入下一维度。
 
-### 维度 2：处理逻辑
+### ② 处理逻辑：拿到数据后做什么？
 
-问 Creator："拿到数据后怎么处理？"
+```
+你：好，拿到搜索量和趋势数据之后，这一步的处理逻辑是什么？
+    比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？
 
-根据场景选择实现方式：
+Creator: 原始数据做一个结构化整理就行，不需要大模型分析
 
-| 场景 | 用代码 | 用 LLM |
-|------|--------|--------|
-| 获取 API 数据 | ✓ | |
-| 数字格式化（千分位、百分比） | ✓ | |
-| 排序、过滤、分组、去重 | ✓ | |
-| 生成分析摘要 | | ✓ |
-| 对比分析、趋势解读 | | ✓ |
-| 智能推荐排序 | | ✓ |
-| 生成报告文案 | | ✓ |
-| 表格渲染、文件生成 | ✓ | |
-
-原则：能用确定性代码解决的不用 LLM。
-
-**确认后即时编写处理逻辑代码，调试通过再进入下一个维度。**
-
-### 维度 3：输出定义
-
-问 Creator："这一步输出什么？"
-
-确认两个方面：
-- **传给下一步的数据**（passToNext）：结构化数据，下一步需要用到的
-- **展示给用户的内容**（display）：表格、卡片、摘要等可视化内容
-
-输出形式选择：
-- 数据表格：适合列表类数据（关键词列表、竞品列表）
-- 指标卡片：适合单个关键数字（搜索量、评分）
-- 文字摘要：适合 AI 生成的分析总结
-- 图表：适合趋势、分布类数据
-- 文件下载：Excel、CSV、HTML 报告
-
-**确认后即时编写输出渲染代码，调试通过再进入下一个维度。**
-
-### 维度 4：用户确认
-
-问 Creator："这一步需要用户确认才继续吗？"
-
-- 大多数步骤自动执行（不暂停）
-- 仅在关键决策点暂停，例如：
-  - 数据量很大，让用户确认是否继续
-  - 有多个处理方案，让用户选择
-  - 费用相关的操作
-
-**确认后将 requires_confirmation 写入步骤定义。**
-
-## 代码编写、调试与测试
-
-代码编写贯穿节点开发全程，不是最后统一生成。每个维度确认后即时编写对应代码并调试，Creator 随时可在浏览器中体验效果并提出修改意见。
-
-每个节点的代码包含三层：
-
-```javascript
-async function executeStep(input, context) {
-  // 第一层：数据获取（维度 1 确认后编写）
-  const rawData = await fetch("https://api.example.com/endpoint", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${context.apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ /* 参数 */ })
-  }).then(r => r.json());
-
-  // 第二层：数据处理（维度 2 确认后编写）
-  const formatted = rawData.map(item => ({
-    name: item.name,
-    value: minus.format.number(item.value),
-    percent: minus.format.percent(item.ratio)
-  }));
-
-  // 第三层：输出渲染（维度 3 确认后编写）
-  return {
-    display: [
-      minus.output.table(formatted, ["名称", "数值", "占比"]),
-    ],
-    passToNext: {
-      // 下一步需要的原始数据
-    }
-  };
-}
+你：明白。我来编写这个步骤的处理逻辑：
+    · 调用 market_get_keyword_demand 获取核心指标
+    · 调用 market_get_keyword_history 获取趋势
+    · 合并为结构化的关键词基础数据对象
+    [生成步骤代码]
 ```
 
-## 开发完成后
+判断使用确定性代码还是 LLM：
+- 格式化、排序、过滤、聚合 → 纯代码（使用 `minus.format.*`、`minus.data.*`）
+- 分析摘要、趋势解读、智能推荐 → LLM
 
-1. 确认 Creator 对整体结果满意
-2. 标记步骤为已完成
-3. 询问是否继续开发下一个步骤
+确认后即时编写处理逻辑代码，调试通过再进入下一维度。
+
+### ③ 输出定义：这一步输出什么？
+
+```
+你：这一步的输出包含两部分：
+    · 传给下一步的数据：关键词基础数据对象（搜索量、趋势数组等）
+    · 展示给用户的内容：搜索量摘要 + 趋势图表数据
+    格式你觉得 OK 吗？
+```
+
+确认两个方面：
+- **传给下一步的数据**（passToNext）：通过 `StepOutcome.complete(payload={...})` 返回
+- **展示给用户的内容**（display）：使用 `minus.output.*` 工具渲染
+
+确认后即时编写输出渲染代码（后端 pipeline.py + 前端 main.tsx 的 buildSteps），调试通过再进入下一维度。
+
+### ④ 用户确认：用户使用时需要在这一步暂停确认吗？
+
+```
+你：用户运行到这一步后，需要暂停让用户确认数据再继续吗？
+    · 是 → 用户看到输出后点确认，才进入下一步
+    · 否 → 自动继续到下一步
+
+Creator: 这步不用，数据采集直接过就行
+
+你：好，标记为自动继续。
+```
+
+确认后将 `requires_confirmation` 写入步骤定义。
+
+## 代码编写规范
+
+后端代码在 `pipeline.py` 中，每个步骤是一个 `step_N` 方法：
+
+```python
+async def step_1(self, ctx: PipelineContext) -> StepOutcome:
+    # 第一层：数据获取（维度 1 确认后编写）
+    demand = await self.call_api("market_get_keyword_demand", {...})
+    history = await self.call_api("market_get_keyword_history", {...})
+
+    # 第二层：数据处理（维度 2 确认后编写）
+    result = {
+        "keyword": ctx.entry_params["value"],
+        "search_volume": demand["volume"],
+        "trend": history["monthly"],
+    }
+
+    # 第三层：输出（维度 3 确认后编写）
+    return StepOutcome.complete(payload=result)
+```
+
+前端在 `frontend/src/main.tsx` 的 `buildSteps` 中添加步骤渲染。
+
+参考 CLAUDE.md 中的模板能力说明，复用已有的组件和校验函数。
+
+## 节点完成后
+
+1. 确认 Creator 对结果满意
+2. 用 `skill_update` 更新后端该步骤的状态为 completed：
+   ```json
+   {
+     "skillId": "当前项目的 skillId",
+     "updates": {
+       "steps": [
+         { "stepNumber": 1, "stepName": "关键词数据采集", "status": "completed" },
+         ...
+       ]
+     }
+   }
+   ```
+3. 保存进度到 Memory
+4. 询问是否继续开发下一个步骤
 
 ## 交互规则
 
