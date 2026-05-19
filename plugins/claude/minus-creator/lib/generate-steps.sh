@@ -36,7 +36,6 @@ fi
   echo ""
   echo ""
   echo "class ${CLASS_NAME}(Pipeline):"
-  echo "    version = \"1.0.0\""
 
   for i in $(seq 1 $STEP_COUNT); do
     idx=$((i - 1))
