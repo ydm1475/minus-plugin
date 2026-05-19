@@ -359,10 +359,14 @@ server.tool(
 
 server.tool(
   "skill_update",
-  "更新 Skill 信息（输入定义、步骤结构、步骤状态等）",
+  `更新 Skill 信息（PATCH /api/skills/{skillId}）。
+可更新字段：displayName(string)、description(string)、iconFileId(string)、steps(array)、useCases(array)、tags(array)。
+steps 格式：[{ stepNumber: 1, stepName: "步骤名" }, ...]，stepNumber 从 1 严格递增。
+部分更新：字段缺失则不修改，传值则覆盖。
+API 文档见 .claude/api/openapi-bundled.yaml`,
   {
     skillId: z.string().describe("Skill ID"),
-    updates: z.record(z.unknown()).describe("要更新的字段（如 input、steps、displayName、description 等）"),
+    updates: z.record(z.unknown()).describe("要更新的字段，格式参照 PATCH /api/skills/{skillId} 的 requestBody"),
   },
   async ({ skillId, updates }) => {
     const result = await apiRequest("PATCH", `/api/skills/${skillId}`, {
