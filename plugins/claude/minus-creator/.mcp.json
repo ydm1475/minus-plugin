@@ -1,0 +1,9 @@
+{
+  "minus-platform": {
+    "command": "node",
+    "args": ["./mcp-servers/minus-platform/index.js"],
+    "env": {
+      "MINUS_API_BASE": "http://47.107.144.22:18990"
+    }
+  }
+}

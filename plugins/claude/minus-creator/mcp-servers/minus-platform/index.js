@@ -1,0 +1,558 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+
+const API_BASE = process.env.MINUS_API_BASE || "http://47.107.144.22:18990";
+const CREDENTIALS_PATH = path.join(os.homedir(), ".minus", "credentials.json");
+
+// ─── Credential Management ───
+
+async function loadCredentials() {
+  try {
+    const data = await fs.readFile(CREDENTIALS_PATH, "utf8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+async function saveCredentials(creds) {
+  const dir = path.dirname(CREDENTIALS_PATH);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(CREDENTIALS_PATH, JSON.stringify(creds, null, 2), "utf8");
+}
+
+async function clearCredentials() {
+  try {
+    await fs.unlink(CREDENTIALS_PATH);
+  } catch {}
+}
+
+function extractSessionCookie(headers) {
+  const setCookie = headers.get("set-cookie") || "";
+  const match = setCookie.match(/MINUS_AI_SID=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+// ─── HTTP Client ───
+
+async function apiRequest(method, endpoint, { body, needsAuth = true } = {}) {
+  const url = `${API_BASE}${endpoint}`;
+  const headers = { "Content-Type": "application/json" };
+
+  if (needsAuth) {
+    const creds = await loadCredentials();
+    if (!creds?.session_id) {
+      return {
+        error: true,
+        code: "NOT_LOGGED_IN",
+        message: "未登录。请先使用 auth_login 工具登录 Minus 平台。",
+      };
+    }
+    headers["Cookie"] = `MINUS_AI_SID=${creds.session_id}`;
+  }
+
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+
+  const response = await fetch(url, options);
+
+  const sessionId = extractSessionCookie(response.headers);
+
+  if (response.status === 204) {
+    return { ok: true, sessionId };
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    return {
+      error: true,
+      status: response.status,
+      code: data?.code || "UNKNOWN",
+      message: data?.message || `HTTP ${response.status}`,
+      details: data?.details,
+      sessionId,
+    };
+  }
+
+  return { ok: true, data, sessionId };
+}
+
+// ─── MCP Server ───
+
+const server = new McpServer({
+  name: "minus-platform",
+  version: "0.1.0",
+});
+
+// ── Auth Tools ──
+
+server.tool(
+  "auth_vcode",
+  "发送验证码到手机或邮箱（用于注册或登录）",
+  {
+    channel: z.enum(["phone", "email"]).describe("验证码发送渠道"),
+    target: z.string().describe("手机号（E.164 格式如 +8613800000000）或邮箱"),
+    purpose: z
+      .enum(["register", "login", "reset", "bind"])
+      .describe("用途"),
+  },
+  async ({ channel, target, purpose }) => {
+    const result = await apiRequest("POST", "/api/auth/vcode/send", {
+      body: { channel, target, purpose },
+      needsAuth: false,
+    });
+
+    if (result.error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `发送验证码失败：${result.message}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `验证码已发送到 ${target}。请让 Creator 查收并提供验证码。`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "auth_register",
+  "注册新 Minus 账户（注册即登录）",
+  {
+    channel: z.enum(["phone", "email"]).describe("注册通道"),
+    target: z.string().describe("手机号（E.164）或邮箱"),
+    code: z.string().describe("6 位数字验证码"),
+    password: z
+      .string()
+      .optional()
+      .describe("密码（可选，不传则仅验证码登录模式）"),
+  },
+  async ({ channel, target, code, password }) => {
+    const body = { channel, target, code };
+    if (password) body.password = password;
+
+    const result = await apiRequest("POST", "/api/auth/register", {
+      body,
+      needsAuth: false,
+    });
+
+    if (result.error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `注册失败：${result.message}`,
+          },
+        ],
+      };
+    }
+
+    if (result.sessionId) {
+      await saveCredentials({
+        session_id: result.sessionId,
+        user_id: result.data.userId,
+        team_id: result.data.personalTeamId,
+        api_base: API_BASE,
+      });
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `注册成功！用户 ID: ${result.data.userId}。已自动登录。`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "auth_login",
+  "登录 Minus 平台（支持手机/邮箱 + 密码/验证码）",
+  {
+    grantType: z
+      .enum(["phone_password", "email_password", "phone_code", "email_code"])
+      .describe("登录方式"),
+    identifier: z.string().describe("手机号（E.164）或邮箱"),
+    credential: z.string().describe("密码或 6 位验证码"),
+    rememberMe: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("记住登录状态（默认 true，30 天有效）"),
+  },
+  async ({ grantType, identifier, credential, rememberMe }) => {
+    const result = await apiRequest("POST", "/api/auth/login", {
+      body: { grantType, identifier, credential, rememberMe },
+      needsAuth: false,
+    });
+
+    if (result.error) {
+      const hints = {
+        PASSWORD_INCORRECT: "密码错误，请重试。",
+        IDENTITY_NOT_FOUND: "该账号未注册，需要先注册。",
+        ACCOUNT_LOCKED: "账户被锁定，请稍后重试。",
+        VCODE_INVALID: "验证码错误，请重新输入。",
+        VCODE_EXPIRED: "验证码已过期，请重新发送。",
+      };
+      const hint = hints[result.code] || result.message;
+      return {
+        content: [{ type: "text", text: `登录失败：${hint}` }],
+      };
+    }
+
+    if (result.sessionId) {
+      await saveCredentials({
+        session_id: result.sessionId,
+        user_id: result.data.userId,
+        team_id: result.data.currentTeamId,
+        api_base: API_BASE,
+      });
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `登录成功！用户 ID: ${result.data.userId}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "auth_status",
+  "检查当前登录状态和用户信息",
+  {},
+  async () => {
+    const creds = await loadCredentials();
+    if (!creds?.session_id) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "未登录。请使用 auth_login 或 auth_register 登录。",
+          },
+        ],
+      };
+    }
+
+    const result = await apiRequest("GET", "/api/me");
+
+    if (result.error) {
+      if (result.code === "UNAUTHORIZED") {
+        await clearCredentials();
+        return {
+          content: [
+            {
+              type: "text",
+              text: "登录已过期，请重新登录。",
+            },
+          ],
+        };
+      }
+      return {
+        content: [
+          { type: "text", text: `查询失败：${result.message}` },
+        ],
+      };
+    }
+
+    const user = result.data;
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              logged_in: true,
+              user_id: user.userId,
+              nickname: user.nickname,
+              phone: user.primaryPhone,
+              email: user.primaryEmail,
+              team: user.currentTeam?.name,
+              plan: user.currentTeam?.plan,
+              phone_required: user.phoneRequired,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "auth_logout",
+  "登出 Minus 平台",
+  {},
+  async () => {
+    await apiRequest("POST", "/api/auth/logout");
+    await clearCredentials();
+    return {
+      content: [{ type: "text", text: "已登出。" }],
+    };
+  }
+);
+
+// ── Skill Tools ──
+
+server.tool(
+  "skill_list",
+  "列出当前用户的所有 Skill",
+  {},
+  async () => {
+    const result = await apiRequest("GET", "/api/me/skills");
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `查询失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "skill_create",
+  "创建新 Skill（注意：返回的 apiKey 仅此一次，必须妥善保存）",
+  {
+    displayName: z.string().describe("Skill 显示名称"),
+    description: z.string().describe("Skill 描述"),
+    version: z.string().default("1.0.0").describe("版本号（SemVer）"),
+    slug: z
+      .string()
+      .optional()
+      .describe("可读标识（小写字母/数字/下划线/连字符），不传则用 skill_id"),
+  },
+  async ({ displayName, description, version, slug }) => {
+    const body = { displayName, description, version };
+    if (slug) body.slug = slug;
+
+    const result = await apiRequest("POST", "/api/skills", { body });
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `创建失败：${result.message}` },
+        ],
+      };
+    }
+
+    const { id, currentVersionId, apiKey } = result.data;
+    return {
+      content: [
+        {
+          type: "text",
+          text: [
+            `Skill 创建成功！`,
+            ``,
+            `  skill_id: ${id}`,
+            `  version_id: ${currentVersionId}`,
+            `  api_key: ${apiKey}`,
+            ``,
+            `⚠️ api_key 仅此一次返回，请立即写入 .minus.json 保存！`,
+            `建议执行：`,
+            `  将 skill_id "${id}" 和 api_key "${apiKey}" 写入当前项目的 .minus.json`,
+          ].join("\n"),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "skill_endpoint_set",
+  "更新 Skill 当前版本的 endpoint URL（管理员接口）",
+  {
+    skillId: z.string().describe("Skill ID"),
+    endpointUrl: z.string().describe("容器后端地址（http:// 或 https://）"),
+  },
+  async ({ skillId, endpointUrl }) => {
+    const result = await apiRequest(
+      "PUT",
+      `/api/admin/skills/${skillId}/endpoint`,
+      { body: { endpointUrl } }
+    );
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `更新 endpoint 失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Endpoint 已更新：${result.data.version} → ${endpointUrl}`,
+        },
+      ],
+    };
+  }
+);
+
+// ── Session Tools ──
+
+server.tool(
+  "session_create",
+  "创建 Skill 运行 Session（测试用）",
+  {
+    skillId: z.string().describe("Skill ID"),
+    entryParams: z
+      .record(z.unknown())
+      .describe("Skill 入参（JSON 对象，透传给 Skill 容器）"),
+  },
+  async ({ skillId, entryParams }) => {
+    const result = await apiRequest(
+      "POST",
+      `/api/me/skills/${skillId}/sessions`,
+      { body: { entryParams } }
+    );
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `创建 Session 失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Session 已创建：${result.data.id}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "session_list",
+  "查看 Skill 的历史 Session 列表",
+  {
+    skillId: z.string().describe("Skill ID"),
+    limit: z.number().optional().default(10).describe("每页条数"),
+    cursor: z.string().optional().describe("翻页游标"),
+  },
+  async ({ skillId, limit, cursor }) => {
+    let endpoint = `/api/me/skills/${skillId}/sessions?limit=${limit}`;
+    if (cursor) endpoint += `&cursor=${encodeURIComponent(cursor)}`;
+
+    const result = await apiRequest("GET", endpoint);
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `查询失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// ── File Tools ──
+
+server.tool(
+  "file_upload",
+  "上传文件到 Minus 平台",
+  {
+    filePath: z.string().describe("本地文件路径"),
+  },
+  async ({ filePath }) => {
+    const creds = await loadCredentials();
+    if (!creds?.session_id) {
+      return {
+        content: [
+          { type: "text", text: "未登录，请先登录。" },
+        ],
+      };
+    }
+
+    const fileBuffer = await fs.readFile(filePath);
+    const fileName = path.basename(filePath);
+
+    const formData = new FormData();
+    formData.append("file", new Blob([fileBuffer]), fileName);
+
+    const response = await fetch(`${API_BASE}/api/me/files`, {
+      method: "POST",
+      headers: {
+        Cookie: `MINUS_AI_SID=${creds.session_id}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `上传失败：${err?.message || `HTTP ${response.status}`}`,
+          },
+        ],
+      };
+    }
+
+    const data = await response.json();
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// ─── Start Server ───
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
