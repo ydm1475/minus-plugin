@@ -36,46 +36,78 @@ effort: high
 
 ### 1. 未登录
 如果登录状态为 NOT_LOGGED_IN：
-- 友好地告知 Creator 需要先登录
-- 询问是否有 Minus 账号
-  - 有 → 引导登录（询问手机号/邮箱，发验证码，完成登录）
-  - 没有 → 引导注册（询问手机号/邮箱，发验证码，完成注册）
-- 必须使用 `mcp__minus-platform__auth_vcode` 发送验证码，`mcp__minus-platform__auth_login` 或 `mcp__minus-platform__auth_register` 完成认证
-- 不要使用 sif-mcp 或任何其他 MCP server 的登录功能，只用 minus-platform
+
+**登录流程（严格按顺序执行，禁止跳步）：**
+
+Step A：问 Creator 有没有账号
+Step B：问 Creator 的手机号——原样输出："你的手机号是多少？"
+  ⛔ 禁止：自动使用 userEmail 或系统上下文中的任何邮箱/手机号
+  ⛔ 禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool
+  ⛔ 禁止：提到邮箱，只支持手机号
+Step C：等 Creator 提供手机号
+Step D：问 Creator 用密码还是验证码登录——原样输出："你想用密码登录还是验证码登录？"
+  如果选密码：用 `mcp__minus-platform__auth_login`（grantType=phone_password）直接登录
+  如果选验证码：先用 `mcp__minus-platform__auth_vcode` 发验证码，再用 `mcp__minus-platform__auth_login`（grantType=phone_code）登录
+Step E：完成认证
+
+仅使用 minus-platform MCP server，不要使用 sif-mcp 或其他任何 MCP server 的登录功能。
 
 ### 2. 已登录 + 无项目（.minus/skill.json 不存在）
 
-先用 `skill_list` 查询 Creator 已有的 Skill，然后提供选择：
+先用 `skill_list` 查询 Creator 已有的 Skill。
 
+**必须先列出所有项目名称和简介**，然后再询问：
 ```
-Plugin: 你想做什么？
+Plugin: 你有这些 Skill 项目：
+  1. 关键词调研 — AI 驱动的关键词自动化调研
+  2. 竞品监控 — 自动监控竞品动态
+  ...
+
+你想做什么？
   1. 创建新的 Skill 项目
-  2. 打开已有的 Skill 项目（你有 N 个已创建的项目）
+  2. 打开已有的 Skill 项目
 ```
+⛔ 禁止：只说"你有 N 个项目"而不列出具体名称
 
 **如果选"创建新项目"：**
 
-第一步：问名称
-```
-Plugin: 给你的 Skill 项目起个名字？（这个名字会作为项目文件夹名）
-Creator: 关键词调研
-```
+**Step 1：只问名称（原样输出以下提示语，不要改写）：**
+"给你的 Skill 项目起个名字？（这会作为项目文件夹名）"
+
 命名约束：过滤文件系统非法字符（/ \ : * ? " < > |），中英文均可，长度 1-50 字符。
 
-第二步：通过 `create-skill` 脚手架创建项目（注册 + scaffold 一步完成）
-- 执行 Bash 命令：`cd ~/minus && create-skill`
-- 脚手架是交互式的，会依次询问：显示名称、描述、输入类型等
-- Plugin 不要自己回答这些问题，让 Creator 在脚手架交互中自行输入
-- 脚手架会自动调用平台 API 注册 Skill 并在 ~/minus/{名称}/ 下生成完整项目结构
-- 如果 `create-skill` 命令不可用，提示 Creator 先安装：`npm link` 或联系 Minus 团队
-
-**如果选"打开已有"：列出项目列表，引导打开文件夹**
+**Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
+```bash
+cd ~/minus && create-skill "项目名称" --non-interactive
 ```
-Plugin: 你有这些 Skill 项目：
-  1. 关键词调研  ~/minus/关键词调研/
-  2. 竞品监控    ~/minus/竞品监控/
 
-  请打开对应文件夹开始工作。
+⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
+⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
+✅ 必须：通过 Bash tool 执行 `create-skill` CLI 命令
+
+描述默认为空，输入类型默认为 asin，后续都可以在开发过程中修改。
+
+MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.json`，MCP 登录后 create-skill 自动复用登录态，无需额外传参。
+
+脚手架会自动完成：
+- 向平台注册 Skill（获得 skillId 和 apiKey）
+- 在 ~/minus/{项目名称}/ 下生成完整项目结构（前后端代码、配置文件、.minus/skill.json）
+- 创建 Python 虚拟环境并安装后端依赖
+- 安装前端 npm 依赖
+
+脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
+
+如果 `create-skill` 命令不可用，提示 Creator 先安装：
+```bash
+cd ~/Desktop/sif-platform-template/packages/create-skill && npm link
+```
+
+**如果选"打开已有"：引导新开对话并打开项目文件夹**
+```
+Plugin: 请按以下步骤打开项目：
+  1. 新开一个对话
+  2. 选择对应项目的文件夹作为工作目录（如 ~/minus/关键词调研/）
+  3. Plugin 会自动激活，直接开始工作
 ```
 
 **如果 skill_list 返回为空（无已有项目）：跳过选择，直接进入命名**
@@ -147,23 +179,28 @@ Plugin: ✓ 项目已创建！
 - 这一步需要什么数据？
 - 数据从哪来？（API 调用 / 上一步传入 / 用户输入）
 - 如果需要外部 API，帮 Creator 确认具体的 API 和参数
+- 确认后即时编写数据获取代码，调试通过再进入下一维度
 
 **维度 2：处理逻辑**
 - 拿到数据后怎么处理？
 - 判断使用确定性代码还是 LLM：
   - 格式化、排序、过滤、聚合 → 纯代码
   - 分析摘要、趋势解读、智能推荐 → LLM
-- 生成对应的代码
+- 确认后即时编写处理逻辑代码，调试通过再进入下一维度
 
 **维度 3：输出定义**
 - 这一步输出什么？
 - 哪些数据传给下一步（passToNext）
 - 哪些展示给用户（display）
 - 使用什么展示形式（表格、卡片、摘要等）
+- 确认后即时编写输出渲染代码，调试通过再进入下一维度
 
 **维度 4：用户确认**
 - 这一步是否需要用户在运行时确认才继续？
 - 大多数步骤自动执行，仅关键决策点暂停
+- 确认后将 requires_confirmation 写入步骤定义
+
+代码编写、调试与测试贯穿节点开发全程，不是最后统一生成。Creator 随时可在浏览器中体验效果并提出修改意见。
 
 ## 结果呈现设计
 
@@ -253,8 +290,9 @@ async function executeStep(input, context) {
 
 ## 上下文管理
 
-每次完成一个主要任务后：
-1. 评估当前对话长度
-2. 如果对话较长（感知到多轮操作后），在合适的断点保存进度
+贯穿整个开发过程持续检查，不限于节点边界——单个节点也可能耗尽一个对话。
+
+1. 持续评估当前对话长度（不等任务完成）
+2. 当接近上限时，在当前工作的合理断点保存进度
 3. 用通俗语言建议 Creator 开新对话：
    "当前对话内容比较多了，为了保持最佳工作状态，建议开一个新对话继续。我已经把进度保存好了，新对话中输入 /minus 就能继续。"

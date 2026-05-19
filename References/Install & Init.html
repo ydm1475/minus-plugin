@@ -1244,10 +1244,10 @@
       <div class="subsection">
         <h4>判断分支</h4>
         <div class="branch-box">
-          <p><strong>当前目录存在 <code>.minus.json</code></strong> → 有效 Skill 项目。如不在 <code>projects.json</code> 中则静默追加注册。直接跳到 Phase 3。</p>
+          <p><strong>当前目录存在 <code>.minus/skill.json</code></strong> → 有效 Skill 项目。如不在 <code>projects.json</code> 中则静默追加注册。直接跳到 Phase 3。</p>
         </div>
         <div class="branch-box">
-          <p><strong>当前目录存在 <code>.minus-workspace</code> 但无 <code>.minus.json</code></strong> → Workspace 上层目录。扫描子目录中含 <code>.minus.json</code> 的项目：若有，列出供选择并引导打开；若无（首次使用），直接进入 2.3。</p>
+          <p><strong>当前目录存在 <code>.minus-workspace</code> 但无 <code>.minus/skill.json</code></strong> → Workspace 上层目录。扫描子目录中含 <code>.minus/skill.json</code> 的项目：若有，列出供选择并引导打开；若无（首次使用），直接进入 2.3。</p>
         </div>
         <div class="branch-box">
           <p><strong>当前目录与 Minus 无关</strong> → 进入 2.3。同时读取 <code>projects.json</code>，如有已注册项目则在选项中展示。</p>
@@ -1257,7 +1257,7 @@
       <table class="inner-table">
         <thead><tr><th>检测标志</th><th>位置</th><th>用途</th></tr></thead>
         <tbody>
-          <tr><td><code>.minus.json</code></td><td>Skill 项目根目录</td><td>标识有效 Minus Skill 项目（权威判据）</td></tr>
+          <tr><td><code>.minus/skill.json</code></td><td>Skill 项目根目录</td><td>标识有效 Minus Skill 项目（权威判据）</td></tr>
           <tr><td><code>.minus-workspace</code></td><td>Workspace 目录</td><td>标识 Minus 项目集合目录</td></tr>
           <tr><td><code>projects.json</code></td><td>全局配置目录</td><td>便利缓存，记录已知项目路径，非权威</td></tr>
         </tbody>
@@ -1321,7 +1321,7 @@
           </div>
           <div class="guide-step">
             <div class="guide-step-num">3</div>
-            <p>Plugin 将 Skill ID 和 Skill API Key 写入项目根目录的 <code>.minus.json</code></p>
+            <p>Plugin 将 Skill ID 写入 <code>.minus/skill.json</code>，Skill API Key 写入 <code>.env.local</code></p>
           </div>
         </div>
 
@@ -1338,14 +1338,14 @@
               <td style="color:#fff;">Skill API Key</td>
               <td>单个 Skill</td>
               <td>运行时操作：用户使用 Skill 时调用平台数据 API</td>
-              <td>项目目录 <code>.minus.json</code></td>
+              <td>项目目录 <code>.env.local</code>（<code>MINUS_AI_SKILL_API_KEY</code>）</td>
             </tr>
           </tbody>
         </table>
         <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">分离的原因：避免 Creator 个人凭证暴露在 Skill 运行环境中，且每个 Skill 可独立控制数据 API 的访问权限和用量。</p>
 
         <div class="pending-note" style="margin-top:16px;">
-          <strong>离线场景：</strong>如果此时网络不可用，<code>.minus.json</code> 中 <code>skill_id</code> 和 <code>api_key</code> 字段均标记为 <code>"pending"</code>。下次 Creator 在该项目中执行 <code>/minus</code> 且网络可用时，Plugin 自动完成注册并回写。在注册完成之前，本地开发不受影响，仅发布功能和需要调用平台数据 API 的步骤测试被阻塞。
+          <strong>离线场景：</strong>如果此时网络不可用，<code>.minus/skill.json</code> 中 <code>skillId</code> 字段标记为 <code>"pending"</code>。下次 Creator 在该项目中执行 <code>/minus</code> 且网络可用时，Plugin 自动完成注册并回写。在注册完成之前，本地开发不受影响，仅发布功能和需要调用平台数据 API 的步骤测试被阻塞。
         </div>
       </div>
 
@@ -1361,12 +1361,12 @@
       <div class="file-tree">
         <div class="tree-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>~/minus/关键词调研/</span></div>
         <div class="tree-body">
-          <div><span class="file">.minus.json</span> <span class="comment"># 项目标识（Skill ID、API Key、预览端口）</span></div>
+          <div><span class="file">.minus/skill.json</span> <span class="comment"># 项目标识（Skill ID、版本号）</span></div>
           <div><span class="file">CLAUDE.md</span> <span class="comment"># Claude Code 项目指令（自动加载）</span></div>
           <div><span class="file">package.json</span> <span class="comment"># 依赖声明（如需要）</span></div>
           <div><span class="file">.gitignore</span> <span class="comment"># Git 忽略规则</span></div>
-          <div><span class="folder">assets/</span> <span class="comment"># 资源文件（图标、模板等）</span></div>
-          <div class="indent"><span class="file">.gitkeep</span></div>
+          <div><span class="folder">frontend/</span> <span class="comment"># 前端代码</span></div>
+          <div class="indent"><span class="folder">assets/</span> <span class="comment"># 资源文件（图标、模板等）</span></div>
           <div><span class="folder">tests/</span> <span class="comment"># 测试用例</span></div>
           <div class="indent"><span class="file">.gitkeep</span></div>
         </div>
@@ -1376,8 +1376,8 @@
         <thead><tr><th>文件</th><th>初始内容</th></tr></thead>
         <tbody>
           <tr>
-            <td><code>.minus.json</code></td>
-            <td>包含平台分配的 <code>skill_id</code>、<code>api_key</code> 和默认 <code>preview_port</code>（见「关键数据结构」章节）。Skill 的业务信息存储在后端，通过平台 API 管理。</td>
+            <td><code>.minus/skill.json</code></td>
+            <td>包含平台分配的 <code>skillId</code> 和 <code>version</code>。Skill 的业务信息存储在后端，通过平台 API 管理。运行时凭证在 <code>.env.local</code> 中。</td>
           </tr>
           <tr>
             <td><code>CLAUDE.md</code></td>
@@ -1514,7 +1514,7 @@
       <ul>
         <li>加载 <code>CLAUDE.md</code></li>
         <li>加载项目级 Memory</li>
-        <li>SessionStart hook 检测到 <code>.minus.json</code>，自动激活 Plugin</li>
+        <li>SessionStart hook 检测到 <code>.minus/skill.json</code>，自动激活 Plugin</li>
       </ul>
       <div class="design-note" style="margin-top:12px;">
         <strong>无需手动输入 <code>/minus</code>。</strong>Plugin 通过 SessionStart hook 检测到当前目录是 Minus Skill 项目后，自动进入开发模式。<code>/minus</code> 作为手动备用入口保留，供 Creator 在非项目目录中主动触发。
@@ -1535,7 +1535,7 @@
 
       <div class="subsection">
         <h4>② 项目识别（静默）</h4>
-        <p style="font-size:14px; color:var(--text-muted);">检查当前目录是否存在 <code>.minus.json</code>。存在但不在 <code>projects.json</code> 中则静默追加注册。不存在则提示可能打开了错误文件夹。</p>
+        <p style="font-size:14px; color:var(--text-muted);">检查当前目录是否存在 <code>.minus/skill.json</code>。存在但不在 <code>projects.json</code> 中则静默追加注册。不存在则提示可能打开了错误文件夹。</p>
       </div>
 
       <div class="subsection">
@@ -1755,37 +1755,36 @@
       <table class="inner-table">
         <thead><tr><th>文件/目录</th><th>创建时机</th><th>用途</th></tr></thead>
         <tbody>
-          <tr><td><code>.minus.json</code></td><td>Scaffold</td><td>项目标识和本地配置（Skill ID、API Key、预览端口）</td></tr>
+          <tr><td><code>.minus/skill.json</code></td><td>Scaffold</td><td>项目标识和版本号（Skill ID、version）</td></tr>
           <tr><td><code>CLAUDE.md</code></td><td>Scaffold</td><td>Claude Code 项目级指令</td></tr>
           <tr><td><code>package.json</code></td><td>Scaffold（可选）</td><td>npm 依赖声明</td></tr>
           <tr><td><code>.gitignore</code></td><td>Scaffold</td><td>Git 忽略规则</td></tr>
-          <tr><td><code>assets/</code></td><td>Scaffold</td><td>图标、模板等资源</td></tr>
+          <tr><td><code>frontend/assets/</code></td><td>Scaffold</td><td>图标、模板等资源</td></tr>
           <tr><td><code>tests/</code></td><td>Scaffold</td><td>测试用例</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="subsection">
-      <h4>.minus.json 初始内容</h4>
-      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;"><code>.minus.json</code> 是轻量级的本地项目标识文件，仅包含三个字段。Skill 的所有业务信息（名称、描述、版本、步骤、输入输出、标签、作者等）存储在后端，通过平台 API 读写，<strong style="color:#fff;">后端是唯一数据源</strong>。</p>
+      <h4>.minus/skill.json 初始内容</h4>
+      <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;"><code>.minus/skill.json</code> 是轻量级的本地项目标识文件，Skill 的所有业务信息（名称、描述、版本、步骤、输入输出、标签、作者等）存储在后端，通过平台 API 读写，<strong style="color:#fff;">后端是唯一数据源</strong>。</p>
       <div class="json-block">
-        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>.minus.json</span></div>
+        <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>.minus/skill.json</span></div>
         <pre>{
-  <span class="key">"skill_id"</span>: <span class="str">"sk_8f3a2b"</span>,
-  <span class="key">"api_key"</span>: <span class="str">"sk_key_xxx..."</span>,
-  <span class="key">"preview_port"</span>: <span class="num">9100</span>
+  <span class="key">"skillId"</span>: <span class="str">"sk_8f3a2b"</span>,
+  <span class="key">"version": <span class="str">"1.0.0"</span></span>
 }</pre>
       </div>
       <table class="inner-table" style="margin-top:12px;">
         <thead><tr><th>字段</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td><code>skill_id</code></td><td>平台分配的 Skill 唯一标识，不可改</td></tr>
-          <tr><td><code>api_key</code></td><td>平台分配的运行时凭证，Skill 调用数据 API 时使用</td></tr>
-          <tr><td><code>preview_port</code></td><td>本地预览端口，首次启动时自动检测可用端口并写入</td></tr>
+          <tr><td><code>skillId</code></td><td>平台分配的 Skill 唯一标识，不可改</td></tr>
+          <tr><td><code>version</code></td><td>当前版本号（SemVer）</td></tr>
+          <tr><td><code>version</code></td><td>当前版本号（SemVer）</td></tr>
         </tbody>
       </table>
       <div class="design-note" style="margin-top:12px;">
-        <strong>设计意图：</strong>本地只保留与项目绑定和本地开发必需的信息，避免本地与后端的数据不一致。Creator 通过对话修改的 Skill 信息（名称、描述、步骤等）直接写入后端，前端展示和运行时均从后端拉取。
+        <strong>设计意图：</strong>本地只保留项目标识和版本号，运行时凭证存于 .env.local（被 .gitignore 忽略）。Creator 通过对话修改的 Skill 信息（名称、描述、步骤等）直接写入后端，前端展示和运行时均从后端拉取。
       </div>
     </div>
 
@@ -1808,7 +1807,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
 - <span class="str">`/minus publish`</span> — 校验、打包、发布
 
 <span class="comment">## Dev Guidelines</span>
-- 项目标识见 .minus.json（Skill ID、API Key）
+- 项目标识见 .minus/skill.json（Skill ID），运行时凭证见 .env.local
 - Skill 业务信息和步骤定义存储在后端，通过 Plugin 管理
 - 测试用例放在 tests/ 目录</pre>
       </div>
@@ -1884,7 +1883,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
       <div class="step-id" style="color:var(--accent);">场景 4</div>
       <h3>在 Skill 子目录中触发</h3>
       <p style="color:var(--text-muted); margin-bottom:12px;"><strong style="color:#fff;">触发：</strong>Creator 把工作目录设在了 <code>~/minus/关键词调研/src/</code> 等子目录</p>
-      <p>Plugin 向上遍历查找 <code>.minus.json</code>，找到则识别项目，但提示修正：</p>
+      <p>Plugin 向上遍历查找 <code>.minus/skill.json</code>，找到则识别项目，但提示修正：</p>
       <div class="conv-mock" style="margin-top:12px;">
         <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>Claude Desktop — Code</span></div>
         <div class="conv-body">
@@ -1938,7 +1937,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
           <td>看到错误和修复建议</td>
         </tr>
         <tr>
-          <td>.minus.json 格式损坏</td>
+          <td>.minus/skill.json 格式损坏</td>
           <td>JSON 解析失败，显示错误信息，建议修复或 Git 恢复。</td>
           <td>看到具体错误</td>
         </tr>
@@ -1964,7 +1963,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
         </tr>
         <tr>
           <td>Creator 手动在新位置<br>创建项目并打开</td>
-          <td>检测到 <code>.minus.json</code> 即视为有效项目，静默追加到 <code>projects.json</code>。</td>
+          <td>检测到 <code>.minus/skill.json</code> 即视为有效项目，静默追加到 <code>projects.json</code>。</td>
           <td>无感知，直接工作</td>
         </tr>
       </tbody>
@@ -1989,7 +1988,7 @@ Use <span class="str">`/minus`</span> to interact with the Minus Creator Plugin.
       </div>
       <div class="principle-card">
         <h4>目录检测为权威</h4>
-        <p><code>.minus.json</code> 存在即有效，<code>projects.json</code> 仅是便利缓存</p>
+        <p><code>.minus/skill.json</code> 存在即有效，<code>projects.json</code> 仅是便利缓存</p>
       </div>
       <div class="principle-card">
         <h4>登录一次性</h4>

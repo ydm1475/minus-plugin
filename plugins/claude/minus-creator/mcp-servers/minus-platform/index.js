@@ -58,7 +58,16 @@ async function apiRequest(method, endpoint, { body, needsAuth = true } = {}) {
   const options = { method, headers };
   if (body) options.body = JSON.stringify(body);
 
-  const response = await fetch(url, options);
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (err) {
+    return {
+      error: true,
+      code: "NETWORK_ERROR",
+      message: `网络连接失败：${err.message}`,
+    };
+  }
 
   const sessionId = extractSessionCookie(response.headers);
 
@@ -98,10 +107,10 @@ const server = new McpServer({
 
 server.tool(
   "auth_vcode",
-  "发送验证码到手机或邮箱（用于注册或登录）",
+  "发送验证码到手机（用于注册或登录）",
   {
-    channel: z.enum(["phone", "email"]).describe("验证码发送渠道"),
-    target: z.string().describe("手机号（E.164 格式如 +8613800000000）或邮箱"),
+    channel: z.enum(["phone"]).describe("验证码发送渠道（仅支持手机）"),
+    target: z.string().describe("手机号（E.164 格式如 +8613800000000）"),
     purpose: z
       .enum(["register", "login", "reset", "bind"])
       .describe("用途"),
@@ -138,8 +147,8 @@ server.tool(
   "auth_register",
   "注册新 Minus 账户（注册即登录）",
   {
-    channel: z.enum(["phone", "email"]).describe("注册通道"),
-    target: z.string().describe("手机号（E.164）或邮箱"),
+    channel: z.enum(["phone"]).describe("注册通道（仅支持手机）"),
+    target: z.string().describe("手机号（E.164 格式如 +8613800000000）"),
     code: z.string().describe("6 位数字验证码"),
     password: z
       .string()
@@ -188,12 +197,12 @@ server.tool(
 
 server.tool(
   "auth_login",
-  "登录 Minus 平台（支持手机/邮箱 + 密码/验证码）",
+  "登录 Minus 平台（支持手机号 + 密码/验证码）",
   {
     grantType: z
-      .enum(["phone_password", "email_password", "phone_code", "email_code"])
+      .enum(["phone_password", "phone_code"])
       .describe("登录方式"),
-    identifier: z.string().describe("手机号（E.164）或邮箱"),
+    identifier: z.string().describe("手机号（E.164 格式如 +8613800000000）"),
     credential: z.string().describe("密码或 6 位验证码"),
     rememberMe: z
       .boolean()
@@ -345,53 +354,8 @@ server.tool(
   }
 );
 
-server.tool(
-  "skill_create",
-  "创建新 Skill（注意：返回的 apiKey 仅此一次，必须妥善保存）",
-  {
-    displayName: z.string().describe("Skill 显示名称"),
-    description: z.string().describe("Skill 描述"),
-    version: z.string().default("1.0.0").describe("版本号（SemVer）"),
-    slug: z
-      .string()
-      .optional()
-      .describe("可读标识（小写字母/数字/下划线/连字符），不传则用 skill_id"),
-  },
-  async ({ displayName, description, version, slug }) => {
-    const body = { displayName, description, version };
-    if (slug) body.slug = slug;
-
-    const result = await apiRequest("POST", "/api/skills", { body });
-
-    if (result.error) {
-      return {
-        content: [
-          { type: "text", text: `创建失败：${result.message}` },
-        ],
-      };
-    }
-
-    const { id, currentVersionId, apiKey } = result.data;
-    return {
-      content: [
-        {
-          type: "text",
-          text: [
-            `Skill 创建成功！`,
-            ``,
-            `  skill_id: ${id}`,
-            `  version_id: ${currentVersionId}`,
-            `  api_key: ${apiKey}`,
-            ``,
-            `⚠️ api_key 仅此一次返回，请立即写入 .minus.json 保存！`,
-            `建议执行：`,
-            `  将 skill_id "${id}" 和 api_key "${apiKey}" 写入当前项目的 .minus.json`,
-          ].join("\n"),
-        },
-      ],
-    };
-  }
-);
+// skill_create 已移除 — 创建 Skill 必须通过 Bash 执行 `create-skill` CLI
+// create-skill 内部会调用 POST /api/skills 注册并生成项目结构
 
 server.tool(
   "skill_endpoint_set",
