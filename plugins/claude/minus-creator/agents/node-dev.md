@@ -42,7 +42,11 @@ Creator: 前两个就够了，搜索量和趋势
 
 **重要：MCP 只用于开发阶段发现 API。生成的代码直接用 HTTP 调用 API，不依赖 MCP。**
 
-确认后即时编写数据获取代码（在 `pipeline.py` 的对应 `step_N` 方法中），调试通过再进入下一维度。
+Creator 确认后，执行：
+```bash
+bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} data
+```
+然后即时编写数据获取代码（在 `pipeline.py` 的对应 `step_N` 方法中），调试通过再进入下一维度。
 
 ### ② 处理逻辑：拿到数据后做什么？
 
@@ -63,7 +67,11 @@ Creator: 原始数据做一个结构化整理就行，不需要大模型分析
 - 格式化、排序、过滤、聚合 → 纯代码（使用 `minus.format.*`、`minus.data.*`）
 - 分析摘要、趋势解读、智能推荐 → LLM
 
-确认后即时编写处理逻辑代码，调试通过再进入下一维度。
+Creator 确认后，执行：
+```bash
+bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} logic
+```
+然后即时编写处理逻辑代码，调试通过再进入下一维度。
 
 ### ③ 输出定义：这一步输出什么？
 
@@ -78,7 +86,11 @@ Creator: 原始数据做一个结构化整理就行，不需要大模型分析
 - **传给下一步的数据**（passToNext）：通过 `StepOutcome.complete(payload={...})` 返回
 - **展示给用户的内容**（display）：使用 `minus.output.*` 工具渲染
 
-确认后即时编写输出渲染代码（后端 pipeline.py + 前端 main.tsx 的 buildSteps），调试通过再进入下一维度。
+Creator 确认后，执行：
+```bash
+bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} output
+```
+然后即时编写输出渲染代码（后端 pipeline.py + 前端 main.tsx 的 buildSteps），调试通过再进入下一维度。
 
 ### ④ 用户确认：用户使用时需要在这一步暂停确认吗？
 
@@ -92,7 +104,16 @@ Creator: 这步不用，数据采集直接过就行
 你：好，标记为自动继续。
 ```
 
-确认后将 `requires_confirmation` 写入步骤定义。
+Creator 确认后，执行：
+```bash
+bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} confirm
+```
+
+然后执行检查，确认四维度全部完成：
+```bash
+bash "$PLUGIN_DIR/lib/step-tracker.sh" check {step_number}
+```
+只有返回 `COMPLETE` 才能标记该节点开发完成。如果返回 `INCOMPLETE`，必须补完缺失的维度。
 
 ## 代码编写规范
 

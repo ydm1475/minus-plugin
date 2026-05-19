@@ -473,6 +473,114 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ step-tracker.sh ═══"
+# ══════════════════════════════════════════════════════
+
+ST="$LIB_DIR/step-tracker.sh"
+
+# Test: fails without arguments
+(
+  OUTPUT=$(bash "$ST" 2>&1 || true)
+  if assert_contains "$OUTPUT" "用法"; then
+    pass "step-tracker: fails without arguments"
+  else
+    fail "step-tracker: fails without arguments" "got: $OUTPUT"
+  fi
+)
+
+# Test: complete and status
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" status 1 2>&1)
+  if assert_contains "$OUTPUT" "✓ 数据需求"; then
+    pass "step-tracker: complete data + status shows done"
+  else
+    fail "step-tracker: complete data + status" "got: $OUTPUT"
+  fi
+)
+
+# Test: must complete in order
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  OUTPUT=$(bash "$ST" complete 1 logic 2>&1 || true)
+  if assert_contains "$OUTPUT" "还未完成"; then
+    pass "step-tracker: enforces dimension order"
+  else
+    fail "step-tracker: enforces dimension order" "got: $OUTPUT"
+  fi
+)
+
+# Test: check returns INCOMPLETE
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" check 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "INCOMPLETE"; then
+    pass "step-tracker: check returns INCOMPLETE when missing dims"
+  else
+    fail "step-tracker: check returns INCOMPLETE" "got: $OUTPUT"
+  fi
+)
+
+# Test: check returns COMPLETE when all done
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  bash "$ST" complete 1 confirm >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" check 1 2>&1)
+  if assert_contains "$OUTPUT" "COMPLETE"; then
+    pass "step-tracker: check returns COMPLETE when all dims done"
+  else
+    fail "step-tracker: check returns COMPLETE" "got: $OUTPUT"
+  fi
+)
+
+# Test: reset clears state
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" reset 1 >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" check 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "INCOMPLETE"; then
+    pass "step-tracker: reset clears state"
+  else
+    fail "step-tracker: reset clears state" "got: $OUTPUT"
+  fi
+)
+
+# Test: list shows progress
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  bash "$ST" complete 1 confirm >/dev/null 2>&1
+  bash "$ST" complete 2 data >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" list 2>&1)
+  if assert_contains "$OUTPUT" "✓ 步骤 1" && assert_contains "$OUTPUT" "◐ 步骤 2"; then
+    pass "step-tracker: list shows mixed progress"
+  else
+    fail "step-tracker: list shows mixed progress" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ generate-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
