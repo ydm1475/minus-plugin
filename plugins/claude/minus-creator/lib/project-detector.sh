@@ -163,6 +163,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "      「第二个问题：拿到用户的输入后，Skill 要分几步完成？每一步做什么？」"
   echo "      第二步确认 → 执行 skill_update 写入步骤 → 问第三个问题："
   echo "      「最后一个问题：Skill 跑完之后，最终给用户看什么结果？」"
+  echo "      「比如一份报告、一个关键词列表、一个评分……」"
   echo "      第三步确认 → 必须执行 bash \"$SCRIPT_DIR/generate-steps.sh\" 生成骨架 → 开始逐节点开发"
   echo "      ⛔ 禁止跳步：每一步必须问 Creator 并等确认，不能把 Creator 的回答当作多步的答案"
   echo "      ⛔ 禁止手写步骤代码：必须用 bash \"$SCRIPT_DIR/generate-steps.sh\" 生成骨架，不要自己手写 pipeline.py 和 main.tsx 的步骤结构"
