@@ -334,7 +334,7 @@ Creator 确认后编写输出渲染代码。
 
 **如果 Creator 说"需要确认"：**
 - 后端：把 `StepOutcome.complete` 改为 `StepOutcome.input_required`
-- 前端：把普通 `render` 改为 `defineWidgetStep({ widget: SelectableTableWidget, confirmedKey: '...' })`
+- 前端：把普通 `render` 改为 `defineWidgetStep({ modal: true, widget: SelectableTableWidget, confirmedKey: '...' })`
 
 **如果 Creator 说"不需要确认，自动继续"：**
 - 后端保持 `StepOutcome.complete`，前端保持普通 `render`，都不改

@@ -75,7 +75,7 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} output
 
 **如果 Creator 说"需要确认"：**
 - 后端：把 `StepOutcome.complete` 改为 `StepOutcome.input_required`
-- 前端：把普通 `render` 改为 `defineWidgetStep({ widget: SelectableTableWidget, confirmedKey: '...' })`
+- 前端：把普通 `render` 改为 `defineWidgetStep({ modal: true, widget: SelectableTableWidget, confirmedKey: '...' })`
 
 **如果 Creator 说"不需要确认，自动继续"：**
 - 后端：保持 `StepOutcome.complete`，不改
