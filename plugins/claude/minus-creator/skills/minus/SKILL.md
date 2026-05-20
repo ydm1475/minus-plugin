@@ -214,6 +214,7 @@ input: { type: "keyword", label: "主关键词", placeholder: "如：wireless ea
 4. 参考 CLAUDE.md 中的模板能力说明
 
 ⛔ 禁止：只改后端不改前端。输入类型、placeholder、输入模式变更必须前后端同步。
+⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
 
 ### 第二步：拆解步骤
 
@@ -256,6 +257,8 @@ Plugin: ✓ 步骤结构确认。
 bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
 ```
 此脚本会自动更新 `pipeline.py`（生成 step_N 方法）和 `frontend/src/main.tsx`（更新 buildSteps 渲染配置），保证前后端代码和后端步骤定义数量一致。
+
+⛔ 禁止：手写 pipeline.py 和 main.tsx 的步骤结构。必须用 generate-steps.sh 生成骨架，只在骨架基础上填充逻辑。
 
 ### 第三步：定义输出
 
