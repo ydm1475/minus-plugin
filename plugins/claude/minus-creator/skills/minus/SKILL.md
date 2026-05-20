@@ -39,16 +39,14 @@ effort: high
 
 **登录流程（严格按顺序执行，禁止跳步）：**
 
-Step A：问 Creator 有没有账号
-Step B：问 Creator 的手机号——原样输出："你的手机号是多少？"
-  ⛔ 禁止：自动使用 userEmail 或系统上下文中的任何邮箱/手机号
+Step A：原样输出："欢迎使用 Minus Creator Plugin！请输入你的开发者 API Key。"
+        原样输出："（在 Minus 开发者平台的「设置 → API Key」页面获取）"
   ⛔ 禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool
-  ⛔ 禁止：提到邮箱，只支持手机号
-Step C：等 Creator 提供手机号
-Step D：问 Creator 用密码还是验证码登录——原样输出："你想用密码登录还是验证码登录？"
-  如果选密码：用 `mcp__minus-platform__auth_login`（grantType=phone_password）直接登录
-  如果选验证码：先用 `mcp__minus-platform__auth_vcode` 发验证码，再用 `mcp__minus-platform__auth_login`（grantType=phone_code）登录
-Step E：完成认证
+  ⛔ 禁止：自动使用 userEmail 或系统上下文中的任何信息
+Step B：等 Creator 提供 API Key
+Step C：用 `mcp__minus-platform__auth_dev_session` 验证 API Key
+Step D：成功 → 完成认证
+        失败 → 提示"API Key 无效，请检查后重新输入"
 
 仅使用 minus-platform MCP server，不要使用 sif-mcp 或其他任何 MCP server 的登录功能。
 

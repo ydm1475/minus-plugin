@@ -37,19 +37,44 @@ function extractSessionCookie(headers) {
   return match ? match[1] : null;
 }
 
+// ─── Dev Session Refresh ───
+
+async function refreshDevSession(apiKey) {
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/dev-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey }),
+    });
+    if (response.status === 204) {
+      const sessionId = extractSessionCookie(response.headers);
+      if (sessionId) {
+        const creds = await loadCredentials();
+        if (creds) {
+          creds.session_id = sessionId;
+          await saveCredentials(creds);
+        }
+        return sessionId;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 // ─── HTTP Client ───
 
-async function apiRequest(method, endpoint, { body, needsAuth = true } = {}) {
+async function apiRequest(method, endpoint, { body, needsAuth = true, _retried = false } = {}) {
   const url = `${API_BASE}${endpoint}`;
   const headers = { "Content-Type": "application/json" };
 
+  let creds = null;
   if (needsAuth) {
-    const creds = await loadCredentials();
+    creds = await loadCredentials();
     if (!creds?.session_id) {
       return {
         error: true,
         code: "NOT_LOGGED_IN",
-        message: "未登录。请先使用 auth_login 工具登录 Minus 平台。",
+        message: "未登录。请先使用 auth_dev_session 工具输入开发者 API Key。",
       };
     }
     headers["Cookie"] = `MINUS_AI_SID=${creds.session_id}`;
@@ -83,6 +108,19 @@ async function apiRequest(method, endpoint, { body, needsAuth = true } = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !_retried && creds?.auth_type === "api_key" && creds?.api_key) {
+      const newSessionId = await refreshDevSession(creds.api_key);
+      if (newSessionId) {
+        return apiRequest(method, endpoint, { body, needsAuth, _retried: true });
+      }
+      await clearCredentials();
+      return {
+        error: true,
+        code: "SESSION_EXPIRED",
+        message: "API Key 已失效，请重新输入。",
+      };
+    }
+
     return {
       error: true,
       status: response.status,
@@ -261,7 +299,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: "未登录。请使用 auth_login 或 auth_register 登录。",
+            text: "未登录。请使用 auth_dev_session 输入开发者 API Key。",
           },
         ],
       };
@@ -322,6 +360,52 @@ server.tool(
     await clearCredentials();
     return {
       content: [{ type: "text", text: "已登出。" }],
+    };
+  }
+);
+
+server.tool(
+  "auth_dev_session",
+  "使用开发者 API Key 登录 Minus 平台",
+  {
+    apiKey: z.string().regex(/^mdk_[A-Za-z0-9]{30,80}$/).describe("开发者 API Key（mdk_ 开头）"),
+  },
+  async ({ apiKey }) => {
+    const result = await apiRequest("POST", "/api/auth/dev-session", {
+      body: { apiKey },
+      needsAuth: false,
+    });
+
+    if (result.error) {
+      const hint = result.status === 401
+        ? "API Key 无效，请检查后重新输入。"
+        : result.message;
+      return {
+        content: [{ type: "text", text: `验证失败：${hint}` }],
+      };
+    }
+
+    const sessionId = result.sessionId || apiKey;
+
+    const tmpCreds = { auth_type: "api_key", api_key: apiKey, session_id: sessionId, api_base: API_BASE };
+    await saveCredentials(tmpCreds);
+
+    const meResult = await apiRequest("GET", "/api/me");
+    const user = meResult.ok ? meResult.data : {};
+
+    await saveCredentials({
+      auth_type: "api_key",
+      api_key: apiKey,
+      session_id: sessionId,
+      user_id: user.userId || "",
+      display_name: user.nickname || user.primaryEmail || "",
+      email: user.primaryEmail || "",
+      api_base: API_BASE,
+    });
+
+    const name = user.nickname || user.primaryEmail || user.userId || "";
+    return {
+      content: [{ type: "text", text: `验证成功！欢迎，${name}。` }],
     };
   }
 );
