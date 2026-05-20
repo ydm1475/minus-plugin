@@ -122,6 +122,7 @@ describe("MCP Server - Tool Registration", () => {
     const result = await client.listTools();
     const names = result.tools.map((t) => t.name).sort();
     assert.deepEqual(names, [
+      "auth_dev_session",
       "auth_login",
       "auth_logout",
       "auth_register",
@@ -287,6 +288,17 @@ describe("MCP Server - Vcode & Register (network errors handled)", () => {
       grantType: "phone_code",
       identifier: "+8613800000001",
       credential: "123456",
+    });
+    const text = result.content[0].text;
+    assert.ok(
+      text.includes("失败") || text.includes("网络连接"),
+      `Expected failure/network message in: ${text}`
+    );
+  });
+
+  it("auth_dev_session should handle connection refused gracefully", async () => {
+    const result = await client.callTool("auth_dev_session", {
+      apiKey: "mdk_" + "a".repeat(40),
     });
     const text = result.content[0].text;
     assert.ok(
