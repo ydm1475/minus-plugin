@@ -128,6 +128,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "  项目识别：.minus/skill.json 存在"
   echo "  前端依赖：$( [ "$NEED_NPM_INSTALL" = "true" ] && echo "需要安装（无 node_modules）" || echo "已就绪" )"
   echo "  后端依赖：$( [ "$NEED_PIP_INSTALL" = "true" ] && echo "需要安装（无 .venv）" || echo "已就绪" )"
+  echo "  插件脚本目录：$SCRIPT_DIR"
   echo "  首次进入：$FIRST_ENTRY"
 
   if [ -f "$PROGRESS_FILE" ]; then
@@ -161,9 +162,9 @@ if [ -f "$MINUS_JSON" ]; then
   echo "      「第二个问题：拿到用户的输入后，Skill 要分几步完成？每一步做什么？」"
   echo "      第二步确认 → 执行 skill_update 写入步骤 → 问第三个问题："
   echo "      「最后一个问题：Skill 跑完之后，最终给用户看什么结果？」"
-  echo "      第三步确认 → 必须执行 generate-steps.sh 生成骨架 → 开始逐节点开发"
+  echo "      第三步确认 → 必须执行 bash \"$SCRIPT_DIR/generate-steps.sh\" 生成骨架 → 开始逐节点开发"
   echo "      ⛔ 禁止跳步：每一步必须问 Creator 并等确认，不能把 Creator 的回答当作多步的答案"
-  echo "      ⛔ 禁止手写步骤代码：必须用 generate-steps.sh 生成骨架，不要自己手写 pipeline.py 和 main.tsx 的步骤结构"
+  echo "      ⛔ 禁止手写步骤代码：必须用 bash \"$SCRIPT_DIR/generate-steps.sh\" 生成骨架，不要自己手写 pipeline.py 和 main.tsx 的步骤结构"
   echo "   e. 逐节点开发时，每个步骤严格按四个维度推进，每次回复最多推进一个维度："
   echo "      ① Creator 确认数据需求 → 写数据获取代码 → 回复末尾原样输出："
   echo "        「数据获取已写好。下一个问题：拿到这些数据之后，怎么处理？」"
