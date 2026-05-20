@@ -129,9 +129,11 @@ Plugin: ✓ 项目已创建！
 **环境初始化（每次进入都执行）：**
 1. 如果无 node_modules，第一个动作执行 `Bash(npm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. 执行 `Bash(npm run dev)` 后台启动开发服务器
-4. 执行 `Bash(open http://localhost:{port})` 自动在浏览器中打开预览
-5. 告知 Creator 预览地址：http://localhost:{port}（不带 /preview）
+3. 先清理可能残留的旧 dev server 进程：
+   `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'npx vite' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
+4. 执行 `Bash(npm run dev)` 后台启动开发服务器
+5. 执行 `Bash(open http://localhost:{port})` 自动在浏览器中打开预览
+6. 告知 Creator 预览地址：http://localhost:{port}（不带 /preview）
 
 **首次进入（.minus/initialized 不存在）：**
 1. 通过 `skill_list` MCP tool 读取后端 Skill 信息
