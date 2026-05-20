@@ -324,10 +324,20 @@ Creator 确认后编写处理逻辑代码。
 
 确认两部分：传给下一步的数据（passToNext）+ 展示给用户的内容（display）。
 Creator 确认后编写输出渲染代码。
+
+⛔ 第③步只写展示代码（普通 render 函数），不要在这一步用 defineWidgetStep。是否需要用户确认是第④步才决定的。
+
 代码写完后，回复末尾必须原样输出：
 「输出已写好。最后一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？还是自动往下走？」
 
-### ④ 用户确认 → 标记节点完成
+### ④ 用户确认 → 根据回答决定交互方式 → 标记节点完成
+
+**如果 Creator 说"需要确认"：**
+- 后端：把 `StepOutcome.complete` 改为 `StepOutcome.input_required`
+- 前端：把普通 `render` 改为 `defineWidgetStep({ widget: SelectableTableWidget, confirmedKey: '...' })`
+
+**如果 Creator 说"不需要确认，自动继续"：**
+- 后端保持 `StepOutcome.complete`，前端保持普通 `render`，都不改
 
 Creator 确认后，标记该节点四维度全部完成，进入下一个节点。
 
