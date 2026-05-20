@@ -5,5 +5,12 @@
     "env": {
       "MINUS_API_BASE": "http://47.107.144.22:18990"
     }
+  },
+  "sif-mcp": {
+    "type": "url",
+    "url": "https://prism.sif.com/mcp-server/api-docs",
+    "headers": {
+      "Authorization": "Bearer sifapi260514mbcpfxgdhe7nentk"
+    }
   }
 }
