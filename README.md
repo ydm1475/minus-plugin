@@ -5,8 +5,11 @@
 ## 安装
 
 ```bash
-# 本地安装（从 marketplace 目录）
-claude plugin install minus-creator@minus-plugin --marketplace-path ~/minus-plugin
+# 1. 注册本地 marketplace（首次）
+claude plugin marketplace add ~/minus-plugin
+
+# 2. 安装插件
+claude plugin install minus-creator@minus-plugin
 
 # 临时加载（仅当次会话，不写入全局配置，适合调试）
 claude --plugin-dir ~/minus-plugin/plugins/claude/minus-creator
@@ -16,6 +19,9 @@ claude plugin validate ~/minus-plugin/plugins/claude/minus-creator
 
 # 查看已安装插件
 claude plugin list
+
+# 更新插件（源码改动后）
+claude plugin update minus-creator@minus-plugin
 
 # 卸载
 claude plugin uninstall minus-creator
