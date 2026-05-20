@@ -306,8 +306,8 @@ Plugin 引导 Creator 按顺序开发每个 pipeline 节点。严格按四个维
 
 ### ① 数据需求 → 确认后写代码 → 原样输出第②个问题
 
-通过 `sif-api-mcp` 的 `search_api_docs` 工具搜索可用数据 API，向 Creator 推荐匹配的接口。
-需要查看接口详情时用 `get_endpoint_details`。Creator 确认后编写数据获取代码。
+读取项目 `.mcp.json` 中配置的数据服务商 MCP（除 `minus-platform` 外的其他 MCP 服务），用其搜索工具发现可用数据 API，向 Creator 推荐匹配的接口。
+需要查看接口详情时用对应的详情查询工具。Creator 确认后编写数据获取代码。
 代码写完后，回复末尾必须原样输出：
 「数据获取已写好。下一个问题：拿到这些数据之后，怎么处理？」
 「比如：直接透传原始数据？做聚合排序？用大模型做分析总结？」

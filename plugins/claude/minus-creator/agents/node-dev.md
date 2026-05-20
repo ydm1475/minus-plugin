@@ -22,12 +22,13 @@ effort: high
 
 ### ① 数据需求 → 确认后写代码 → 原样输出第②个问题
 
-通过数据服务商 MCP 自动发现可用 API，向 Creator 推荐匹配的接口。Creator 不需要自己查 API 文档。
+读取项目 `.mcp.json` 中配置的数据服务商 MCP（除 `minus-platform` 外的其他 MCP 服务），自动发现可用 API，向 Creator 推荐匹配的接口。Creator 不需要自己查 API 文档。
 
 **数据接口发现流程（必须执行，不要跳过）：**
-1. 用 `mcp__sif-api-mcp__search_api_docs` 搜索与当前步骤相关的数据 API
-2. 用 `mcp__sif-api-mcp__get_endpoint_details` 查看推荐接口的参数和返回格式
-3. 向 Creator 展示推荐接口，Creator 确认后再写代码
+1. 读取 `.mcp.json`，找到数据服务商 MCP 服务（排除 `minus-platform`）
+2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
+3. 用该服务的详情查询工具查看推荐接口的参数和返回格式
+4. 向 Creator 展示推荐接口，Creator 确认后再写代码
 ⛔ 禁止：不查 MCP 就直接读本地 SDK 源码猜接口
 ⛔ 禁止：跳过 API 发现直接写 mock 数据
 
