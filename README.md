@@ -26,11 +26,19 @@ bash ~/minus-plugin/plugins/claude/minus-creator/lib/uninstall.sh
 ## 测试
 
 ```bash
-bash ~/minus-plugin/tests/run-all.sh                      # 全部测试（59 个）
+# ── 单元测试 & 集成测试 ──
+bash ~/minus-plugin/tests/run-all.sh                      # 全部单元/集成测试（59 个）
 
 bash ~/minus-plugin/tests/shell-scripts.test.sh           # Shell 脚本单元测试（25 个）
 node --test ~/minus-plugin/tests/mcp-server.test.js       # MCP Server 单元测试（10 个）
 node --test ~/minus-plugin/tests/integration.test.js      # 集成测试 - mock API 完整流程（24 个）
+
+# ── E2E 测试（真实调用 Claude API，需登录态）──
+bash ~/minus-plugin/tests/e2e-dev-flow.sh                 # 开发全流程：三步法 + 四维度
+bash ~/minus-plugin/tests/e2e-dev-flow.sh --phase 1       # 只测三步法（输入→步骤→输出）
+bash ~/minus-plugin/tests/e2e-dev-flow.sh --phase 2       # 只测逐节点四维度（数据→逻辑→输出→确认）
+bash ~/minus-plugin/tests/e2e-dev-flow.sh --phase 3       # 只测结果呈现设计
+E2E_KEEP=1 bash ~/minus-plugin/tests/e2e-dev-flow.sh     # 保留临时项目不删（调试用）
 ```
 
 ## 项目注册表
