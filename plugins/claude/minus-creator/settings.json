@@ -15,7 +15,7 @@
       "Bash(mkdir *)",
       "Bash(cp *)",
       "mcp__minus-platform__*",
-      "mcp__sif-mcp__*"
+      "mcp__sif-api-mcp__*"
     ]
   }
 }

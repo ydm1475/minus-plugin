@@ -48,7 +48,7 @@ Step C：用 `mcp__minus-platform__auth_dev_session` 验证 API Key
 Step D：成功 → 完成认证
         失败 → 提示"API Key 无效，请检查后重新输入"
 
-仅使用 minus-platform MCP server，不要使用 sif-mcp 或其他任何 MCP server 的登录功能。
+仅使用 minus-platform MCP server 的 auth_dev_session 工具登录，不要使用其他任何 MCP server 的登录/认证功能。
 
 ### 2. 已登录 + 无项目（.minus/skill.json 不存在）
 
@@ -306,7 +306,7 @@ Plugin 引导 Creator 按顺序开发每个 pipeline 节点。严格按四个维
 
 ### ① 数据需求 → 确认后写代码 → 原样输出第②个问题
 
-通过 `sif-mcp` 的 `search_api_docs` 工具搜索可用数据 API，向 Creator 推荐匹配的接口。
+通过 `sif-api-mcp` 的 `search_api_docs` 工具搜索可用数据 API，向 Creator 推荐匹配的接口。
 需要查看接口详情时用 `get_endpoint_details`。Creator 确认后编写数据获取代码。
 代码写完后，回复末尾必须原样输出：
 「数据获取已写好。下一个问题：拿到这些数据之后，怎么处理？」
