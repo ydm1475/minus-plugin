@@ -332,15 +332,9 @@ Creator 确认后编写输出渲染代码。
 
 ### ④ 用户确认 → 根据回答决定交互方式 → 标记节点完成
 
-**如果 Creator 说"需要确认"：**
-- 后端：把 `StepOutcome.complete` 改为 `StepOutcome.input_required`
-- 前端根据展示内容选择方案：
-  - 表格数据需要勾选：`defineWidgetStep({ modal: true, widget: SelectableTableWidget, confirmedKey: '...' })`
-  - 数值分档需要调整：`defineWidgetStep({ modal: true, widget: TierSliderWidget, confirmedKey: '...' })`
-  - 纯文本/摘要只需确认：在 `render` 里判断 `ctx.status === 'waiting_user'` 显示确认按钮，点击调用 `ctx.onResolve({})`
+**如果 Creator 说"需要确认"：** 改为交互模式（具体代码方案参照项目 CLAUDE.md 的 SDK 使用规则）
 
-**如果 Creator 说"不需要确认，自动继续"：**
-- 后端保持 `StepOutcome.complete`，前端保持普通 `render`，都不改
+**如果 Creator 说"不需要确认，自动继续"：** 保持不变
 
 Creator 确认后，标记该节点四维度全部完成，进入下一个节点。
 
