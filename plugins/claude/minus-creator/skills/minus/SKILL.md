@@ -6,7 +6,7 @@ description: >
   当检测到当前目录包含 .minus/skill.json 时也建议触发。
 when_to_use: >
   用户提到 Minus、Skill 开发、或当前目录是 Minus Skill 项目时
-allowed-tools: Read Write Edit Bash Agent mcp__minus-platform__*
+allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
 ---

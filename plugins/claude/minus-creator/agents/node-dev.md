@@ -1,7 +1,7 @@
 ---
 name: node-dev
 description: 引导 Creator 开发单个 pipeline 节点（数据需求→处理逻辑→输出→确认）
-tools: Read Write Edit Bash mcp__minus-platform__*
+tools: Read Write Edit Bash mcp__*
 model: inherit
 effort: high
 ---

@@ -1,7 +1,7 @@
 ---
 name: skill-guide
 description: 引导 Creator 完成 Skill 结构设计（输入→步骤→输出三步法）
-tools: Read Write Bash mcp__minus-platform__*
+tools: Read Write Bash mcp__*
 model: inherit
 effort: high
 ---

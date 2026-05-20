@@ -5,7 +5,7 @@ description: >
   "publish"、"上线"、"部署"等意图时触发。
 when_to_use: >
   用户想要发布当前 Skill 到 Minus 平台时
-allowed-tools: Read Write Edit Bash Agent mcp__minus-platform__*
+allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
 ---
