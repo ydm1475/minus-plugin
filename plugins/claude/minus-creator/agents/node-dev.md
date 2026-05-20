@@ -75,8 +75,10 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} output
 
 **如果 Creator 说"需要确认"：**
 - 后端：把 `StepOutcome.complete` 改为 `StepOutcome.input_required`
-- 前端：把普通 `render` 改为 `defineWidgetStep({ modal: true, widget: ..., confirmedKey: '...' })`
-- Widget 根据第③步的展示内容选择：表格数据用 `SelectableTableWidget`，数值分档用 `TierSliderWidget`
+- 前端根据展示内容选择方案：
+  - 表格数据需要勾选：`defineWidgetStep({ modal: true, widget: SelectableTableWidget, confirmedKey: '...' })`
+  - 数值分档需要调整：`defineWidgetStep({ modal: true, widget: TierSliderWidget, confirmedKey: '...' })`
+  - 纯文本/摘要只需确认：在 `render` 里判断 `ctx.status === 'waiting_user'` 显示确认按钮，点击调用 `ctx.onResolve({})`
 
 **如果 Creator 说"不需要确认，自动继续"：**
 - 后端：保持 `StepOutcome.complete`，不改
