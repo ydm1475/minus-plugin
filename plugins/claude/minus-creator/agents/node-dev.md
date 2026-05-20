@@ -24,13 +24,14 @@ effort: high
 
 通过数据服务商 MCP 自动发现可用 API，向 Creator 推荐匹配的接口。Creator 不需要自己查 API 文档。
 
-**MCP 发现流程：**
-1. 检查当前环境中是否有数据服务商的 MCP server（如 sif-mcp）
-2. 如果有，通过 MCP 查询可用 API 列表，向 Creator 推荐匹配的接口
-3. Creator 选择后，读取该 API 的参数说明和返回格式
-4. 如果没有 MCP server，让 Creator 提供 API 文档或手动描述接口
+**数据接口发现流程（必须执行，不要跳过）：**
+1. 用 `mcp__sif-mcp__search_api_docs` 搜索与当前步骤相关的数据 API
+2. 用 `mcp__sif-mcp__get_endpoint_details` 查看推荐接口的参数和返回格式
+3. 向 Creator 展示推荐接口，Creator 确认后再写代码
+⛔ 禁止：不查 MCP 就直接读本地 SDK 源码猜接口
+⛔ 禁止：跳过 API 发现直接写 mock 数据
 
-**重要：MCP 只用于开发阶段发现 API。生成的代码直接用 HTTP 调用 API，不依赖 MCP。**
+**重要：MCP 只用于开发阶段发现 API。生成的代码用 `ctx.sif.*` SDK 方法调用 API，不依赖 MCP。**
 
 Creator 确认后，执行：
 ```bash

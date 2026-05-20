@@ -78,7 +78,7 @@ done
 node -e "
 const fs = require('fs');
 let code = fs.readFileSync('${MAIN_TSX}', 'utf8');
-const pattern = /(function buildSteps\([^)]*\):\s*StepConfig\[\]\s*\{[\s\S]*?return\s*\[)([\s\S]*?)(\];[\s\S]*?\})/;
+const pattern = /(function buildSteps\([^)]*\)[^{]*\{[^[]*return\s*\[)([\s\S]*?)(\];\s*\n\})/m;
 const match = code.match(pattern);
 if (!match) {
   console.error('⚠ 未找到 buildSteps 函数，跳过');
