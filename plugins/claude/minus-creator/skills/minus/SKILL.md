@@ -132,8 +132,9 @@ Plugin: ✓ 项目已创建！
 3. 先清理可能残留的旧 dev server 进程：
    `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'npx vite' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
 4. 执行 `Bash(npm run dev)` 后台启动开发服务器
-5. 执行 `Bash(open http://localhost:{port})` 自动在浏览器中打开预览
-6. 告知 Creator 预览地址：http://localhost:{port}（不带 /preview）
+5. 打开预览（根据客户端类型）：
+   - Desktop 版：只输出预览地址 `http://localhost:{port}`，Desktop 会自动弹出预览面板，不要执行 `open` 命令
+   - CLI 版：执行 `Bash(open http://localhost:{port})` 在浏览器中打开
 
 **首次进入（.minus/initialized 不存在）：**
 1. 通过 `skill_list` MCP tool 读取后端 Skill 信息
@@ -430,7 +431,7 @@ async function executeStep(input, context) {
 - 文件浏览：用 ls 或 tree 命令展示
 
 **通用（不区分客户端）：**
-- 预览测试：始终引导到浏览器
+- 预览测试：Desktop 版输出 URL 自动弹预览面板，CLI 版用 `open` 打开浏览器
 - 斜杠命令：/minus、/minus publish 两端一致
 - 自然语言触发：两端一致
 
