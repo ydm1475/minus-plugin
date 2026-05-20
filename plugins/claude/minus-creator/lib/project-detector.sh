@@ -182,6 +182,12 @@ if [ -f "$MINUS_JSON" ]; then
   echo "   状态 B（所有步骤开发完成但未测试）：建议跑端到端测试"
   echo "   状态 C（测试已通过）：提示可以发布，输入 /minus publish"
   echo "   状态 D（无进度）：报告 ✓ Minus 已就绪 — {Skill名称} v{版本}，引导开始结构设计"
+  echo "7. 如果 Creator 说要「创建新项目」「创建新 Skill」而不是继续开发当前项目："
+  echo "   不要在当前项目目录里创建。引导 Creator："
+  echo "   「当前目录已经是 {当前项目名} 的项目了。要创建新 Skill 请：」"
+  echo "   「1. 新开一个对话」"
+  echo "   「2. 选择 ~/minus/ 文件夹作为工作目录」"
+  echo "   「3. 在新对话里告诉我你要创建的项目名」"
   echo "用通俗语言，不要技术术语。"
   echo "</context>"
 
