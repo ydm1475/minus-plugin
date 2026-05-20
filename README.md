@@ -30,7 +30,7 @@ bash ~/minus-plugin/plugins/claude/minus-creator/lib/uninstall.sh
 bash ~/minus-plugin/tests/run-all.sh                      # 全部单元/集成测试（59 个）
 
 bash ~/minus-plugin/tests/shell-scripts.test.sh           # Shell 脚本单元测试（25 个）
-node --test ~/minus-plugin/tests/mcp-server.test.js       # MCP Server 单元测试（10 个）
+node --test ~/minus-plugin/tests/mcp-server.test.js       # MCP Server 单元测试（11 个）
 node --test ~/minus-plugin/tests/integration.test.js      # 集成测试 - mock API 完整流程（24 个）
 
 # ── E2E 测试（真实调用 Claude API，需登录态）──
