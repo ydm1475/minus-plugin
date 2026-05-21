@@ -462,7 +462,7 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   fi
 )
 
-# Test: Non-first-entry output includes status-aware prompts
+# Test: Non-first-entry output delegates to SKILL.md
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
@@ -472,14 +472,14 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   touch "$TMP/test-project/.minus/initialized"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "状态 A" && assert_contains "$OUTPUT" "状态 D"; then
-    pass "project-detector: non-first-entry includes status-aware prompts"
+  if assert_contains "$OUTPUT" "SKILL.md" && assert_contains "$OUTPUT" "首次进入：false"; then
+    pass "project-detector: non-first-entry delegates to SKILL.md"
   else
-    fail "project-detector: non-first-entry includes status-aware prompts" "got: $OUTPUT"
+    fail "project-detector: non-first-entry delegates to SKILL.md" "got: $OUTPUT"
   fi
 )
 
-# Test: First entry output includes initial framework message
+# Test: First entry output delegates to SKILL.md
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
@@ -488,10 +488,10 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "初始框架" && assert_contains "$OUTPUT" "三步法"; then
-    pass "project-detector: first entry includes initial framework message"
+  if assert_contains "$OUTPUT" "SKILL.md" && assert_contains "$OUTPUT" "首次进入：true"; then
+    pass "project-detector: first entry delegates to SKILL.md"
   else
-    fail "project-detector: first entry includes initial framework message" "got: $OUTPUT"
+    fail "project-detector: first entry delegates to SKILL.md" "got: $OUTPUT"
   fi
 )
 
