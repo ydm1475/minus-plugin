@@ -561,7 +561,7 @@ ST="$LIB_DIR/step-tracker.sh"
   bash "$ST" complete 1 data >/dev/null 2>&1
   bash "$ST" complete 1 logic >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
-  bash "$ST" complete 1 confirm >/dev/null 2>&1
+  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   OUTPUT=$(bash "$ST" check 1 2>&1)
   if assert_contains "$OUTPUT" "COMPLETE"; then
     pass "step-tracker: check returns COMPLETE when all dims done"
@@ -593,7 +593,7 @@ ST="$LIB_DIR/step-tracker.sh"
   bash "$ST" complete 1 data >/dev/null 2>&1
   bash "$ST" complete 1 logic >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
-  bash "$ST" complete 1 confirm >/dev/null 2>&1
+  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   bash "$ST" complete 2 data >/dev/null 2>&1
   OUTPUT=$(bash "$ST" list 2>&1)
   if assert_contains "$OUTPUT" "✓ 步骤 1" && assert_contains "$OUTPUT" "◐ 步骤 2"; then
