@@ -224,14 +224,26 @@ input: { type: "keyword", label: "主关键词", placeholder: "如：wireless ea
 ```
 
 **b) 根据输入类型更新前端代码 `frontend/src/main.tsx`，必须改以下内容：**
-1. **输入组件**：关键词→`validateKeywords`，ASIN→`validateAsins`，文件→`FilePicker`
-2. **placeholder**：找到 `<input>` 的 `placeholder` 属性，改为 Creator 指定的提示语（如"输入主关键词，如 wireless earbuds"）
-3. **输入模式**：如果 Creator 说"只支持多个"，去掉单个输入的逻辑；如果"只支持一个"，去掉批量输入逻辑
-4. 参考 CLAUDE.md 中的模板能力说明
+
+按最小改动原则，只改验证参数和 locale 文案，不碰组件代码：
+
+**输入类型切换**（如 asin→keyword）：只改 `handleSubmit` 中的验证函数调用
+- ASIN：`validateAsins(value)` → 返回 `{ asins: string[] }`
+- 关键词：`validateKeywords(value)` → 返回 `{ keywords: string[] }`
+- 文件：用 `FilePicker` 组件替换 `AmazonSearchBar`
+
+**数量限制**：通过 `validateAsins` / `validateKeywords` 的第二个参数控制，不需要手写检查逻辑
+- 只支持一个：`validateAsins(value, { min: 1, max: 1 })`
+- 只支持多个：`validateAsins(value, { min: 2 })`
+- 都支持（默认）：`validateAsins(value)`
+- 关键词同理：`validateKeywords(value, { min: 1, max: 1 })`
+
+**placeholder**：修改 locale 文件中的 placeholder 文案。
 
 ⛔ 禁止：只改后端不改前端。输入类型、placeholder、输入模式变更必须前后端同步。
 ⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
-⛔ 禁止：删除模板自带的 UI 组件（如 CountrySelect、SearchSubmitButton）除非 Creator 明确要求删除。切换输入类型时只改输入验证相关的部分，保留其他组件不动。
+⛔ 禁止：删除模板自带的 UI 组件（如 AmazonSearchBar、CountrySelect、SearchSubmitButton）除非 Creator 明确要求删除。切换输入类型或数量限制时只改验证逻辑和 locale 文件，保留组件不动。
+⛔ 禁止：把 AmazonSearchBar 替换为原生 textarea 或 input。AmazonSearchBar 是平台组件，placeholder 通过 locale 文件控制，不是通过 HTML 属性。
 
 ### 第二步：拆解步骤
 
