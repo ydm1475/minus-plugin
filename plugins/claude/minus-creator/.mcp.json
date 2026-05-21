@@ -7,7 +7,7 @@
     }
   },
   "sif-api-mcp": {
-    "type": "url",
+    "type": "http",
     "url": "https://prism.sif.com/mcp-server/api-docs",
     "headers": {
       "Authorization": "Bearer sifapi260514mbcpfxgdhe7nentk"

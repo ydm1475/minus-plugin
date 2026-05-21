@@ -74,7 +74,8 @@ PM="$LIB_DIR/projects-manager.sh"
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  OUTPUT=$(bash "$PM" add "my-skill" "/tmp/my-skill" 2>&1)
+  PROJ=$(make_tmp)
+  OUTPUT=$(bash "$PM" add "my-skill" "$PROJ" 2>&1)
   if assert_contains "$OUTPUT" "已注册"; then
     pass "add: registers new project"
   else
@@ -86,8 +87,9 @@ PM="$LIB_DIR/projects-manager.sh"
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  bash "$PM" add "my-skill" "/tmp/my-skill" >/dev/null 2>&1
-  OUTPUT=$(bash "$PM" add "my-skill" "/tmp/my-skill" 2>&1)
+  PROJ=$(make_tmp)
+  bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
+  OUTPUT=$(bash "$PM" add "my-skill" "$PROJ" 2>&1)
   if assert_contains "$OUTPUT" "已存在"; then
     pass "add: duplicate detected"
   else
@@ -95,12 +97,14 @@ PM="$LIB_DIR/projects-manager.sh"
   fi
 )
 
-# Test: list after adding
+# Test: list after adding (use real dirs so list doesn't filter them out)
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  bash "$PM" add "skill-a" "/tmp/skill-a" >/dev/null 2>&1
-  bash "$PM" add "skill-b" "/tmp/skill-b" >/dev/null 2>&1
+  PROJ_A=$(make_tmp)
+  PROJ_B=$(make_tmp)
+  bash "$PM" add "skill-a" "$PROJ_A" >/dev/null 2>&1
+  bash "$PM" add "skill-b" "$PROJ_B" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" list 2>&1)
   if assert_contains "$OUTPUT" "skill-a" && assert_contains "$OUTPUT" "skill-b"; then
     pass "list: shows all added projects"
@@ -109,12 +113,30 @@ PM="$LIB_DIR/projects-manager.sh"
   fi
 )
 
+# Test: list auto-cleans deleted project directories
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  PROJ_ALIVE=$(make_tmp)
+  PROJ_DEAD=$(make_tmp)
+  bash "$PM" add "alive-skill" "$PROJ_ALIVE" >/dev/null 2>&1
+  bash "$PM" add "dead-skill" "$PROJ_DEAD" >/dev/null 2>&1
+  rm -rf "$PROJ_DEAD"
+  OUTPUT=$(bash "$PM" list 2>&1)
+  if assert_contains "$OUTPUT" "alive-skill" && ! assert_contains "$OUTPUT" "dead-skill"; then
+    pass "list: auto-cleans deleted directories"
+  else
+    fail "list: auto-cleans deleted directories" "got: $OUTPUT"
+  fi
+)
+
 # Test: remove a project
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  bash "$PM" add "my-skill" "/tmp/my-skill" >/dev/null 2>&1
-  OUTPUT=$(bash "$PM" remove "/tmp/my-skill" 2>&1)
+  PROJ=$(make_tmp)
+  bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
+  OUTPUT=$(bash "$PM" remove "$PROJ" 2>&1)
   if assert_contains "$OUTPUT" "移除了 1"; then
     pass "remove: removes existing project"
   else
@@ -133,12 +155,13 @@ PM="$LIB_DIR/projects-manager.sh"
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  bash "$PM" add "my-skill" "/tmp/my-skill" >/dev/null 2>&1
+  PROJ=$(make_tmp)
+  bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" find "my-skill" 2>&1)
-  if assert_eq "$OUTPUT" "/tmp/my-skill"; then
+  if assert_eq "$OUTPUT" "$PROJ"; then
     pass "find: returns correct path"
   else
-    fail "find: returns correct path" "expected: /tmp/my-skill, got: $OUTPUT"
+    fail "find: returns correct path" "expected: $PROJ, got: $OUTPUT"
   fi
 )
 
@@ -157,9 +180,10 @@ PM="$LIB_DIR/projects-manager.sh"
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
-  bash "$PM" add "my-skill" "/tmp/my-skill" >/dev/null 2>&1
+  PROJ=$(make_tmp)
+  bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   sleep 1
-  bash "$PM" touch "/tmp/my-skill" >/dev/null 2>&1
+  bash "$PM" touch "$PROJ" >/dev/null 2>&1
   # Just verify no error
   pass "touch: updates without error"
 )
@@ -690,6 +714,93 @@ PYEOF
   fi
 )
 
+# Test: main.tsx buildSteps updated with correct step count and names
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus frontend/src
+  echo '{"skillId":"sk_test"}' > .minus/skill.json
+  cat > pipeline.py << 'PYEOF'
+from minus_ai_sdk import Pipeline, PipelineContext, StepOutcome
+
+class TestPipeline(Pipeline):
+    version = "1.0.0"
+
+    async def step_1(self, ctx: PipelineContext) -> StepOutcome:
+        return StepOutcome.complete(payload={"text": "done"})
+PYEOF
+  cat > frontend/src/main.tsx << 'TSXEOF'
+function buildSteps(t: (k: string, fb?: string) => string): StepConfig[] {
+  return [
+    {
+      render: ({ data }) => (<div>{data.text}</div>),
+    },
+  ];
+}
+TSXEOF
+
+  bash "$GS" "数据采集" "趋势分析" 2>&1 >/dev/null
+
+  MAIN_TSX="frontend/src/main.tsx"
+  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX")
+  if assert_eq "$RENDER_COUNT" "2"; then
+    pass "generate-steps: main.tsx buildSteps has 2 render blocks"
+  else
+    fail "generate-steps: main.tsx buildSteps has 2 render blocks" "expected 2, got $RENDER_COUNT"
+  fi
+
+  if assert_contains "$(cat "$MAIN_TSX")" "数据采集" && assert_contains "$(cat "$MAIN_TSX")" "趋势分析"; then
+    pass "generate-steps: main.tsx contains step names"
+  else
+    fail "generate-steps: main.tsx contains step names" ""
+  fi
+
+  if assert_contains "$(cat "$MAIN_TSX")" "function buildSteps"; then
+    pass "generate-steps: main.tsx preserves buildSteps function"
+  else
+    fail "generate-steps: main.tsx preserves buildSteps function" ""
+  fi
+)
+
+# Test: main.tsx buildSteps works when function body has extra variables (brackets)
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus frontend/src
+  echo '{"skillId":"sk_test"}' > .minus/skill.json
+  cat > pipeline.py << 'PYEOF'
+from minus_ai_sdk import Pipeline, PipelineContext, StepOutcome
+
+class TestPipeline(Pipeline):
+    version = "1.0.0"
+
+    async def step_1(self, ctx: PipelineContext) -> StepOutcome:
+        return StepOutcome.complete(payload={"text": "done"})
+PYEOF
+  cat > frontend/src/main.tsx << 'TSXEOF'
+function buildSteps(t: (k: string, fb?: string) => string): StepConfig[] {
+  const columns = [
+    { key: 'keyword', title: t('col.keyword') },
+  ];
+  return [
+    {
+      render: ({ data }) => (<div>{data.text}</div>),
+    },
+  ];
+}
+TSXEOF
+
+  bash "$GS" "步骤X" "步骤Y" 2>&1 >/dev/null
+
+  MAIN_TSX="frontend/src/main.tsx"
+  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX")
+  if assert_eq "$RENDER_COUNT" "2"; then
+    pass "generate-steps: main.tsx works with extra brackets in function body"
+  else
+    fail "generate-steps: main.tsx works with extra brackets in function body" "expected 2 renders, got $RENDER_COUNT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ agent files ═══"
@@ -760,6 +871,36 @@ DC="$LIB_DIR/detect-client.sh"
     pass "detect-client: returns a value ($OUTPUT)"
   else
     fail "detect-client: returns a value" "empty output"
+  fi
+)
+
+# Test: detects desktop when CLAUDE_CODE_ENTRYPOINT=claude-desktop
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$DC" 2>&1)
+  if assert_eq "$OUTPUT" "desktop"; then
+    pass "detect-client: claude-desktop entrypoint → desktop"
+  else
+    fail "detect-client: claude-desktop entrypoint → desktop" "got: $OUTPUT"
+  fi
+)
+
+# Test: detects cli when CLAUDE_CODE_ENTRYPOINT=cli
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$DC" 2>&1)
+  if assert_eq "$OUTPUT" "cli"; then
+    pass "detect-client: cli entrypoint → cli"
+  else
+    fail "detect-client: cli entrypoint → cli" "got: $OUTPUT"
+  fi
+)
+
+# Test: vscode entrypoint → desktop
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=vscode bash "$DC" 2>&1)
+  if assert_eq "$OUTPUT" "desktop"; then
+    pass "detect-client: vscode entrypoint → desktop"
+  else
+    fail "detect-client: vscode entrypoint → desktop" "got: $OUTPUT"
   fi
 )
 

@@ -78,7 +78,16 @@ fi
 PROJECTS_JSON="$MINUS_GLOBAL/projects.json"
 PROJECT_COUNT=0
 if [ -f "$PROJECTS_JSON" ]; then
-  PROJECT_COUNT=$(node -e "try{const d=JSON.parse(require('fs').readFileSync('$PROJECTS_JSON','utf8'));console.log(d.projects?.length||0)}catch{console.log(0)}" 2>/dev/null)
+  PROJECT_COUNT=$(node -e "
+    const fs=require('fs');
+    try{
+      const d=JSON.parse(fs.readFileSync('$PROJECTS_JSON','utf8'));
+      const before=(d.projects||[]).length;
+      d.projects=(d.projects||[]).filter(p=>fs.existsSync(p.path));
+      if(d.projects.length<before) fs.writeFileSync('$PROJECTS_JSON',JSON.stringify(d,null,2));
+      console.log(d.projects.length);
+    }catch{console.log(0)}
+  " 2>/dev/null)
 fi
 
 # ── projects.json 管理脚本路径 ──

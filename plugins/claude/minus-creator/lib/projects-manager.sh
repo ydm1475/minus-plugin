@@ -29,8 +29,14 @@ case "$1" in
   list)
     ensure_file
     node -e "
-      const d = JSON.parse(require('fs').readFileSync('$PROJECTS_FILE','utf8'));
-      const sorted = (d.projects||[]).sort((a,b) => (b.last_opened||'').localeCompare(a.last_opened||''));
+      const fs = require('fs');
+      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
+      const before = (d.projects||[]).length;
+      d.projects = (d.projects||[]).filter(p => fs.existsSync(p.path));
+      if (d.projects.length < before) {
+        fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2));
+      }
+      const sorted = d.projects.sort((a,b) => (b.last_opened||'').localeCompare(a.last_opened||''));
       sorted.forEach((p,i) => console.log((i+1)+'. '+p.name+'  '+p.path));
       if(!sorted.length) console.log('（无项目）');
     " 2>/dev/null

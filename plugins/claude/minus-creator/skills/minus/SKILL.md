@@ -129,10 +129,15 @@ Plugin: ✓ 项目已创建！
 **环境初始化（每次进入都执行）：**
 1. 如果无 node_modules，第一个动作执行 `Bash(npm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. 先清理可能残留的旧 dev server 进程：
-   `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'npx vite' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
-4. 执行 `Bash(npm run dev)` 后台启动开发服务器
-5. 打开预览（根据客户端类型）：
+3. 检查 dev server 是否已在运行：
+   `Bash(lsof -i :{port} 2>/dev/null | head -3)`
+   - 如果端口已被占用 → dev server 已在跑，跳过启动，直接进入下一步
+   - 如果端口空闲 → 清理残留进程后启动：
+     `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
+     `Bash(npm run dev)` 后台启动开发服务器
+   ⛔ 禁止：kill 用户正在使用的 dev server 进程。如果端口被占用，先确认是不是当前项目的进程。
+   ⛔ 禁止：为了让预览工具接管而 kill 已有的 dev server。
+4. 打开预览（根据客户端类型）：
    - Desktop 版：只输出预览地址 `http://localhost:{port}`，Desktop 会自动弹出预览面板，不要执行 `open` 命令
    - CLI 版：执行 `Bash(open http://localhost:{port})` 在浏览器中打开
 
@@ -226,6 +231,7 @@ input: { type: "keyword", label: "主关键词", placeholder: "如：wireless ea
 
 ⛔ 禁止：只改后端不改前端。输入类型、placeholder、输入模式变更必须前后端同步。
 ⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
+⛔ 禁止：删除模板自带的 UI 组件（如 CountrySelect、SearchSubmitButton）除非 Creator 明确要求删除。切换输入类型时只改输入验证相关的部分，保留其他组件不动。
 
 ### 第二步：拆解步骤
 

@@ -104,6 +104,55 @@ class McpClient {
 
 // ── Test Suite ──
 
+const MCP_JSON = path.resolve(
+  import.meta.dirname,
+  "../plugins/claude/minus-creator/.mcp.json"
+);
+
+const VALID_MCP_TYPES = new Set(["stdio", "http", "sse"]);
+
+describe("MCP Config - .mcp.json validation", () => {
+  let config;
+
+  before(async () => {
+    const raw = await fs.readFile(MCP_JSON, "utf8");
+    config = JSON.parse(raw);
+  });
+
+  it("should be valid JSON with at least one server", () => {
+    assert.ok(Object.keys(config).length > 0, "should have at least one MCP server");
+  });
+
+  it("each server with explicit type should use a valid transport (stdio/http/sse)", () => {
+    for (const [name, server] of Object.entries(config)) {
+      if (server.type) {
+        assert.ok(
+          VALID_MCP_TYPES.has(server.type),
+          `${name}: type "${server.type}" is invalid, must be one of: ${[...VALID_MCP_TYPES].join(", ")}`
+        );
+      }
+    }
+  });
+
+  it("stdio servers should have command field", () => {
+    for (const [name, server] of Object.entries(config)) {
+      if (!server.type || server.type === "stdio") {
+        if (!server.url) {
+          assert.ok(server.command, `${name}: stdio server must have "command" field`);
+        }
+      }
+    }
+  });
+
+  it("http/sse servers should have url field", () => {
+    for (const [name, server] of Object.entries(config)) {
+      if (server.type === "http" || server.type === "sse") {
+        assert.ok(server.url, `${name}: ${server.type} server must have "url" field`);
+      }
+    }
+  });
+});
+
 describe("MCP Server - Tool Registration", () => {
   let client;
 
