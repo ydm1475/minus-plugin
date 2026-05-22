@@ -37,7 +37,7 @@ effort: high
 读取 .minus/skill.json 获取 skillId，然后：
 - 检查所有步骤的代码文件是否存在
 - 检查 package.json 依赖是否完整
-- 运行 `npm install` 确保依赖已安装
+- 运行 `pnpm install` 确保依赖已安装
 - 如果有 TypeScript，确认编译无错误
 
 将校验结果清晰告知 Creator：

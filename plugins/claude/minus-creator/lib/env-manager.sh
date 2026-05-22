@@ -49,7 +49,7 @@ if [ $? -eq 0 ]; then
     if [ "$REASON" = "dependency" ]; then
       echo "<context>"
       echo "[环境管理] 检测到 package.json 变更，需要安装依赖并重启开发服务器。"
-      echo "请执行：npm install && 重启 dev server（端口 $PORT，PID $DEV_PID）"
+      echo "请执行：pnpm install && 重启 dev server（端口 $PORT，PID $DEV_PID）"
       echo "</context>"
     else
       echo "<context>"

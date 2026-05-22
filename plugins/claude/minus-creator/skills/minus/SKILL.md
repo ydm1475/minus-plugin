@@ -152,13 +152,14 @@ cd ~/minus/{项目名称} && claude
    ```
    - 已在运行 → 跳过启动
    - 未运行 → `Bash(npm run dev)` 后台启动
-4. dev server 启动后，检测前端预览端口并打开：
+4. dev server 启动后，检测前端预览端口并告诉 Creator：
    ```bash
    PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
    PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh")
-   bash "$PLUGIN_ROOT/lib/open-preview.sh" $PREVIEW_PORT
+   echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
    ```
    `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
+   脚本输出的 `PREVIEW_URL` 行即为预览地址，**必须原样告诉 Creator**（如「预览地址：http://localhost:5173」）。后续每次让 Creator 去浏览器测试时也要附带这个地址。
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(npm run dev)` 重新启动（SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
