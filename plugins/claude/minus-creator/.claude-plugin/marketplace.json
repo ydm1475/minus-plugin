@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "minus-plugin",
-  "description": "Minus Platform plugins for Claude Code — Skill development, testing, and publishing tools",
+  "name": "minus-creator",
+  "description": "Minus Skill 开发平台 — 帮助 Creator 构建、测试和发布 Skill",
   "owner": {
     "name": "Minus Team",
     "url": "https://minusai.com"
@@ -14,7 +14,7 @@
         "name": "Minus Team"
       },
       "category": "development",
-      "source": "./plugins/claude/minus-creator",
+      "source": ".",
       "homepage": "https://developers.minusai.com"
     }
   ]
