@@ -155,13 +155,18 @@ cd ~/minus/{项目名称} && claude
 4. dev server 启动后，检测前端预览端口并告诉 Creator：
    ```bash
    PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh")
-   echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
+   PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
+   if [ -n "$PREVIEW_PORT" ] && [ "$PREVIEW_PORT" != "DETECT_FAILED" ]; then
+     echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
+   else
+     echo "PREVIEW_DETECT_FAILED"
+   fi
    ```
    `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
-   脚本输出的 `PREVIEW_URL` 行即为预览地址，**必须原样告诉 Creator**（如「预览地址：http://localhost:5173」）。后续每次让 Creator 去浏览器测试时也要附带这个地址。
+   - 输出 `PREVIEW_URL=...` → **必须原样告诉 Creator**（如「预览地址：http://localhost:5173」）。后续每次让 Creator 去浏览器测试时也要附带这个地址。
+   - 输出 `PREVIEW_DETECT_FAILED` → 告诉 Creator 预览端口检测失败，让 Creator 自己从终端日志里找 vite 输出的 Local: http://localhost:xxxx 地址。
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
-   - 执行 `Bash(pnpm dev)` 重新启动（SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
+   - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 
 **首次进入（.minus/initialized 不存在）：**

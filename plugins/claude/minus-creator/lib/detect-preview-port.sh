@@ -63,4 +63,6 @@ for P in $(seq 5173 5180); do
   fi
 done
 
-echo "$FALLBACK"
+# 所有方法均未找到属于当前项目的前端端口
+echo "DETECT_FAILED"
+exit 1
