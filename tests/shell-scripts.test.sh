@@ -411,87 +411,85 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   fi
 )
 
-# Test: Skill project output contains dev server startup instruction
+# Test: Skill project output is lightweight prompt (no auto-execution instructions)
+# 设计变更 [2026-05-22]：SessionStart 只输出轻量提示，不含环境检查详情或自动执行指令
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
-  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "npm run dev"; then
-    pass "project-detector: includes dev server startup instruction"
+  if assert_contains "$OUTPUT" "/minus" && ! assert_contains "$OUTPUT" "npm run dev" 2>/dev/null; then
+    pass "project-detector: Skill project shows lightweight prompt"
   else
-    fail "project-detector: includes dev server startup instruction" "got: $OUTPUT"
+    fail "project-detector: Skill project shows lightweight prompt" "got: $OUTPUT"
   fi
 )
 
-# Test: Skill project without node_modules includes npm install instruction
+# Test: Skill project output does NOT contain auto-execution instructions
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
-  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
+  echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
   echo '{}' > "$TMP/test-project/package.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "需要安装"; then
-    pass "project-detector: detects missing node_modules"
+  if ! assert_contains "$OUTPUT" "即时动作" 2>/dev/null && ! assert_contains "$OUTPUT" "不要等待用户输入" 2>/dev/null; then
+    pass "project-detector: no auto-execution instructions in output"
   else
-    fail "project-detector: detects missing node_modules" "got: $OUTPUT"
+    fail "project-detector: no auto-execution instructions in output" "got: $OUTPUT"
   fi
 )
 
-# Test: Skill project with node_modules shows ready
+# Test: Skill project shows project name from skill.json
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
-  mkdir -p "$TMP/test-project/node_modules"
-  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
-  echo '{}' > "$TMP/test-project/package.json"
+  echo '{"skillId":"sk_abc","name":"我的测试项目"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "已就绪"; then
-    pass "project-detector: node_modules present shows ready"
+  if assert_contains "$OUTPUT" "我的测试项目"; then
+    pass "project-detector: shows project display name"
   else
-    fail "project-detector: node_modules present shows ready" "got: $OUTPUT"
+    fail "project-detector: shows project display name" "got: $OUTPUT"
   fi
 )
 
-# Test: Non-first-entry output delegates to SKILL.md
+# Test: Skill project shows login status
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
   mkdir -p "$TMP/.minus"
+  echo '{"auth_type":"api_key"}' > "$TMP/.minus/credentials.json"
   mkdir -p "$TMP/test-project/.minus"
-  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
-  touch "$TMP/test-project/.minus/initialized"
+  echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "SKILL.md" && assert_contains "$OUTPUT" "首次进入：false"; then
-    pass "project-detector: non-first-entry delegates to SKILL.md"
+  if assert_contains "$OUTPUT" "登录状态：true"; then
+    pass "project-detector: shows logged-in status"
   else
-    fail "project-detector: non-first-entry delegates to SKILL.md" "got: $OUTPUT"
+    fail "project-detector: shows logged-in status" "got: $OUTPUT"
   fi
 )
 
-# Test: First entry output delegates to SKILL.md
+# Test: Non-Minus directory output is lightweight (no login/create flow)
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
   mkdir -p "$TMP/.minus"
-  mkdir -p "$TMP/test-project/.minus"
-  echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
-  cd "$TMP/test-project"
+  mkdir -p "$TMP/random-dir"
+  cd "$TMP/random-dir"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "SKILL.md" && assert_contains "$OUTPUT" "首次进入：true"; then
-    pass "project-detector: first entry delegates to SKILL.md"
+  if assert_contains "$OUTPUT" "/minus" && ! assert_contains "$OUTPUT" "API Key" 2>/dev/null; then
+    pass "project-detector: non-Minus dir shows lightweight prompt"
   else
-    fail "project-detector: first entry delegates to SKILL.md" "got: $OUTPUT"
+    fail "project-detector: non-Minus dir shows lightweight prompt" "got: $OUTPUT"
   fi
 )
 
@@ -948,6 +946,43 @@ OP="$LIB_DIR/open-preview.sh"
     pass "open-preview: respects custom port"
   else
     fail "open-preview: respects custom port" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ detect-preview-port.sh ═══"
+# ══════════════════════════════════════════════════════
+
+DPP="$LIB_DIR/detect-preview-port.sh"
+
+# Test: returns fallback port when no Vite process running
+(
+  OUTPUT=$(bash "$DPP" 2>&1)
+  if [ "$OUTPUT" = "5173" ]; then
+    pass "detect-preview-port: returns default fallback 5173"
+  else
+    fail "detect-preview-port: returns default fallback 5173" "got: $OUTPUT"
+  fi
+)
+
+# Test: respects custom fallback port
+(
+  OUTPUT=$(bash "$DPP" 9999 2>&1)
+  if [ "$OUTPUT" = "9999" ]; then
+    pass "detect-preview-port: respects custom fallback port"
+  else
+    fail "detect-preview-port: respects custom fallback port" "got: $OUTPUT"
+  fi
+)
+
+# Test: output is a number
+(
+  OUTPUT=$(bash "$DPP" 2>&1)
+  if [[ "$OUTPUT" =~ ^[0-9]+$ ]]; then
+    pass "detect-preview-port: output is numeric"
+  else
+    fail "detect-preview-port: output is numeric" "got: $OUTPUT"
   fi
 )
 

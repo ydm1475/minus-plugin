@@ -141,9 +141,10 @@ function createMockApi() {
         return;
       }
 
-      // ── Skills: update ──
-      if (method === "PATCH" && url.match(/^\/api\/skills\/[^/]+$/)) {
-        const skillId = url.split("/")[3];
+      // ── Skills: update draft version ──
+      if (method === "PATCH" && url.match(/^\/api\/skills\/[^/]+\/versions\/[^/]+$/)) {
+        const parts = url.split("/");
+        const skillId = parts[3];
         const skill = state.skills.find((s) => s.id === skillId);
         if (!skill) {
           res.statusCode = 404;
@@ -155,17 +156,17 @@ function createMockApi() {
         return;
       }
 
-      // ── Skills: endpoint set ──
-      if (method === "PUT" && url.match(/^\/api\/admin\/skills\/.+\/endpoint$/)) {
-        const skillId = url.split("/")[4];
+      // ── Skills: get version detail ──
+      if (method === "GET" && url.match(/^\/api\/skills\/[^/]+\/versions\/[^/]+$/)) {
+        const parts = url.split("/");
+        const skillId = parts[3];
         const skill = state.skills.find((s) => s.id === skillId);
         if (!skill) {
           res.statusCode = 404;
           res.end(JSON.stringify({ code: "NOT_FOUND", message: "Skill 不存在" }));
           return;
         }
-        skill.endpointUrl = json.endpointUrl;
-        res.end(JSON.stringify({ version: skill.currentVersionId, endpointUrl: json.endpointUrl }));
+        res.end(JSON.stringify({ ...skill, status: "draft" }));
         return;
       }
 
@@ -471,14 +472,15 @@ describe("Flow 3: 创建 Skill → 设置 Endpoint → 创建 Session", () => {
     assert.ok(skillId, "Should have skillId");
   });
 
-  it("2. 设置 Endpoint", async () => {
-    const r = await client.callTool("skill_endpoint_set", {
+  it("2. 查询版本详情", async () => {
+    const r = await client.callTool("skill_version_get", {
       skillId,
-      endpointUrl: "https://my-skill.example.com",
+      version: "1.0-alpha.1",
     });
     const text = getText(r);
-    assert.ok(text.includes("已更新"), `Expected '已更新' in: ${text}`);
-    assert.ok(text.includes("my-skill.example.com"));
+    const data = JSON.parse(text);
+    assert.ok(data.displayName, `Expected displayName in: ${text}`);
+    assert.equal(data.status, "draft");
   });
 
   it("3. 创建运行 Session", async () => {
@@ -548,6 +550,7 @@ describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
   it("1. 写入输入定义", async () => {
     const r = await client.callTool("skill_update", {
       skillId,
+      version: "1.0-alpha.1",
       updates: {
         input: {
           type: "keyword",
@@ -566,6 +569,7 @@ describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
   it("2. 写入步骤结构", async () => {
     const r = await client.callTool("skill_update", {
       skillId,
+      version: "1.0-alpha.1",
       updates: {
         steps: [
           { stepNumber: 1, stepName: "关键词数据采集", status: "pending" },
@@ -583,6 +587,7 @@ describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
   it("3. 更新步骤状态（节点开发完成）", async () => {
     const r = await client.callTool("skill_update", {
       skillId,
+      version: "1.0-alpha.1",
       updates: {
         steps: [
           { stepNumber: 1, stepName: "关键词数据采集", status: "completed" },
@@ -600,6 +605,7 @@ describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
   it("4. 更新不存在的 Skill 返回错误", async () => {
     const r = await client.callTool("skill_update", {
       skillId: "sk_nonexistent",
+      version: "1.0-alpha.1",
       updates: { displayName: "test" },
     });
     assert.ok(getText(r).includes("失败") || getText(r).includes("不存在"));
@@ -747,7 +753,7 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
     await fs.mkdir(path.join(tmpProject, ".minus"), { recursive: true });
     await fs.writeFile(
       path.join(tmpProject, ".minus", "skill.json"),
-      JSON.stringify({ skillId: "sk_e2e_test", displayName: "E2E Test" })
+      JSON.stringify({ skillId: "sk_e2e_test", name: "E2E Test" })
     );
 
     const PD = path.resolve(
@@ -759,7 +765,8 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
       stdout.includes("当前目录是 Minus Skill 项目"),
       `Expected project detection in: ${stdout}`
     );
-    assert.ok(stdout.includes("sk_e2e_test"));
+    // 轻量提示模式下输出项目名而非 skillId
+    assert.ok(stdout.includes("E2E Test"), `Expected project name in: ${stdout}`);
   });
 
   it("4. 在 Workspace 目录下检测到子项目", async () => {
@@ -932,25 +939,22 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
     );
   });
 
-  it("8. project-detector 环境检查：已登录 + 有 package.json 无 node_modules → 提示安装依赖", async () => {
+  // 设计变更 [2026-05-22]：SessionStart 轻量提示模式，不再输出环境检查详情
+  it("8. project-detector 轻量提示：已登录状态 + 提示输入 /minus", async () => {
     const dirs = await fs.readdir(tmpWorkspace);
     const skillDir = dirs.find((d) => d.includes("测试Skill") || d.startsWith("sk_"));
     const projectPath = path.join(tmpWorkspace, skillDir);
 
-    // scaffold 生成了 package.json 但 fake npm 没有真的装 node_modules
     const PD = path.resolve(
       import.meta.dirname,
       "../plugins/claude/minus-creator/lib/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
-    assert.ok(stdout.includes("已登录"), `Expected 已登录 in: ${stdout}`);
-    assert.ok(
-      stdout.includes("需要安装") || stdout.includes("已就绪"),
-      `Expected dependency status in: ${stdout}`
-    );
+    assert.ok(stdout.includes("登录状态：true"), `Expected 登录状态：true in: ${stdout}`);
+    assert.ok(stdout.includes("/minus"), `Expected /minus prompt in: ${stdout}`);
   });
 
-  it("9. project-detector 环境检查：首次进入标记正确", async () => {
+  it("9. project-detector 轻量提示：不含自动执行指令", async () => {
     const dirs = await fs.readdir(tmpWorkspace);
     const skillDir = dirs.find((d) => d.includes("测试Skill") || d.startsWith("sk_"));
     const projectPath = path.join(tmpWorkspace, skillDir);
@@ -961,8 +965,8 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
     assert.ok(
-      stdout.includes("首次进入：true"),
-      `Expected first entry flag in: ${stdout}`
+      !stdout.includes("即时动作") && !stdout.includes("不要等待用户输入"),
+      `Should not contain auto-execution instructions: ${stdout}`
     );
   });
 });

@@ -104,7 +104,7 @@ cd ~/Desktop/sif-platform-template/packages/create-skill && npm link
 Plugin: 请按以下步骤打开项目：
   1. 新开一个对话
   2. 选择对应项目的文件夹作为工作目录（如 ~/minus/关键词调研/）
-  3. Plugin 会自动激活，输入 /minus 或说"开始"就能进入开发
+  3. 输入 /minus 进入开发
 ```
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
@@ -115,11 +115,11 @@ Plugin: 请按以下步骤打开项目：
 
 1. 新开一个对话
 2. 选择 ~/minus/{项目名称}/ 文件夹作为工作目录
-3. Plugin 会自动激活，输入 /minus 或说"开始"就能进入开发
+3. 输入 /minus 进入开发
 
 用命令行的话直接运行：
 cd ~/minus/{项目名称} && claude
-然后输入 /minus 或说"开始"
+然后输入 /minus
 ```
 
 注意：不要在当前 session 中进入三步法结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
@@ -131,33 +131,36 @@ cd ~/minus/{项目名称} && claude
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
 3. 检查 dev server 是否已在运行：
    ```bash
-   # 第一步：检查端口是否被占用
-   PID=$(lsof -i :{port} -t 2>/dev/null | head -1)
+   # 从 package.json 的 dev script 中提取后端端口
+   BACKEND_PORT=$(node -e "const s=JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.dev||'';const m=s.match(/--port\s+(\d+)/);console.log(m?m[1]:'4001')" 2>/dev/null)
+   PID=$(lsof -i :$BACKEND_PORT -t 2>/dev/null | head -1)
    ```
    - 如果端口空闲（PID 为空）→ 清理残留进程后启动：
      `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
      `Bash(npm run dev)` 后台启动开发服务器
    - 如果端口被占用（PID 非空）→ **必须验证进程归属**：
      ```bash
-     # 第二步：检查占用进程是否属于当前项目
      ps -p $PID -o command= 2>/dev/null | grep -q "$(pwd)"
      ```
      - 包含当前项目路径 → 当前项目的 dev server 已在跑，跳过启动
      - 不包含当前项目路径 → 端口被其他项目占用，用 port-detector.sh 找可用端口：
        ```bash
-       NEW_PORT=$(bash "$PLUGIN_DIR/lib/port-detector.sh" {port})
+       NEW_PORT=$(bash "$PLUGIN_DIR/lib/port-detector.sh" $BACKEND_PORT)
        ```
-       然后用 `PORT=$NEW_PORT npm run dev` 启动，并告知 Creator 实际使用的端口
+       然后用 `PORT=$NEW_PORT npm run dev` 启动
    ⛔ 禁止：端口被占时不验证归属就直接跳过启动
    ⛔ 禁止：kill 其他项目的进程来腾出端口
-4. dev server 启动后，**立刻**执行打开预览（脚本自动判断客户端类型）：
+4. dev server 启动后，**等待 3 秒**让 Vite 完成启动，然后检测前端预览端口并打开：
    ```bash
-   bash "$PLUGIN_DIR/lib/open-preview.sh" {port}
+   sleep 3
+   PREVIEW_PORT=$(bash "$PLUGIN_DIR/lib/detect-preview-port.sh")
+   bash "$PLUGIN_DIR/lib/open-preview.sh" $PREVIEW_PORT
    ```
-   脚本输出 `PREVIEW_URL` 供展示，CLI 版自动打开浏览器，Desktop 版只输出 URL。
+   ⛔ 预览地址是前端 Vite 的端口（默认 5173），不是后端 uvicorn 的端口。
+   ⛔ 禁止：用后端端口（如 4001）作为预览地址。
 
 **首次进入（.minus/initialized 不存在）：**
-1. 通过 `skill_list` MCP tool 读取后端 Skill 信息
+1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
    「你现在看到的是 Skill 的初始框架，包含：」
@@ -166,7 +169,7 @@ cd ~/minus/{项目名称} && claude
    「接下来我们用三步法设计这个 Skill。」
    「第一个问题：用户使用这个 Skill 时，需要提供什么信息？」
    「比如关键词、ASIN、品类……」
-   「还有，这个输入是否支持多个？只支持一个，只支持多个，支持一个和多个」
+   「还有，用户可以输入几个？只能一个、一个或多个、还是至少两个」
 
 **非首次进入 — 根据状态给针对性提示：**
 通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② Memory 中的开发进度。
@@ -219,7 +222,7 @@ Plugin 的角色是**帮 Creator 结构化表达想法**，不是替 Creator 规
 Plugin: 接下来先聊聊这个 Skill 的设计。
        第一个问题：用户使用这个 Skill 时，需要提供什么信息？
        比如关键词、ASIN、品类……
-       还有，这个输入是否支持多个？只支持一个，只支持多个，支持一个和多个
+       还有，用户可以输入几个？只能一个、一个或多个、还是至少两个
 
 Creator: 一个主关键词
 
@@ -276,6 +279,7 @@ Plugin: ✓ 步骤结构确认。
 ```json
 {
   "skillId": "从 .minus/skill.json 读取",
+  "version": "从 .minus/skill.json 读取",
   "updates": {
     "steps": [
       { "stepNumber": 1, "stepName": "关键词数据采集" },

@@ -1,6 +1,10 @@
 #!/bin/bash
 # project-detector.sh
-# SessionStart hook: 初始化 Minus 环境 + 检测当前目录状态
+# SessionStart hook: 初始化 Minus 环境 + 输出轻量提示
+#
+# 设计变更 [2026-05-22]：从"自动执行完整流程"改为"只输出轻量提示"。
+# 原因：自动跑登录/项目选择/创建流程会干扰不想使用 Plugin 的用户。
+# 完整的交互流程（登录、项目选择、环境初始化）由 /minus skill 承担。
 
 # ── 跨平台路径 ──
 OS_TYPE="$(uname -s)"
@@ -26,32 +30,9 @@ MINUS_JSON=".minus/skill.json"
 # ── 前置检查：Node.js 是否可用 ──
 if ! command -v node >/dev/null 2>&1; then
   echo "<context>"
-  echo "Minus Creator Plugin 需要 Node.js，当前环境未安装。"
-  echo ""
+  echo "Minus Creator Plugin 已加载，但需要 Node.js 才能正常工作。"
   echo "当前平台：$PLATFORM"
-  echo ""
-  echo "[指令] 不要等待用户输入，立即自动安装 Node.js："
-  echo ""
-  if [ "$PLATFORM" = "mac" ]; then
-    echo "Mac 安装方案（按优先级尝试）："
-    echo "  1. 如果有 brew → brew install node"
-    echo "  2. 如果没有 brew → 先装 brew：/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"，再 brew install node"
-    echo "  3. 都失败 → 引导 Creator 访问 nodejs.org 下载 .pkg 安装包"
-  elif [ "$PLATFORM" = "windows" ]; then
-    echo "Windows 安装方案（按优先级尝试）："
-    echo "  1. 如果有 winget → winget install OpenJS.NodeJS.LTS"
-    echo "  2. 如果有 choco → choco install nodejs-lts"
-    echo "  3. 都没有 → 引导 Creator 访问 nodejs.org 下载 .msi 安装包，告知"下载后双击安装，一路点下一步即可""
-  else
-    echo "Linux 安装方案（按优先级尝试）："
-    echo "  1. 如果有 apt → curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs"
-    echo "  2. 如果有 yum → curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash - && sudo yum install -y nodejs"
-    echo "  3. 都失败 → 引导 Creator 访问 nodejs.org 下载"
-  fi
-  echo ""
-  echo "安装过程中告知 Creator：「正在准备运行环境，稍等片刻...」"
-  echo "安装完成后：不要让 Creator 重开对话，直接在当前对话中继续正常流程（检测项目、检查登录等）。"
-  echo "安装失败时用通俗语言说明，引导 Creator 访问 nodejs.org 手动安装。手动安装完成后也不需要重开对话，直接继续。"
+  echo "当 Creator 输入 /minus 时，引导安装 Node.js。"
   echo "</context>"
   exit 0
 fi
@@ -102,162 +83,46 @@ if [ -f "$MINUS_JSON" ]; then
   PROJ_NAME=$(basename "$(pwd)")
   bash "$PM" add "$PROJ_NAME" "$(pwd)" >/dev/null 2>&1
   bash "$PM" touch "$(pwd)" >/dev/null 2>&1
-  PROJECT_INFO=$(cat "$MINUS_JSON" 2>/dev/null)
-  PROGRESS_FILE=".claude/memory/minus-progress.md"
 
-  # 首次进入检测：后端步骤为空 + 无初始页面标记
-  FIRST_ENTRY="false"
-  if [ ! -f ".minus/initialized" ]; then
-    FIRST_ENTRY="true"
-  fi
-
-  # ── 环境检查 ──
-  AUTH_OK="false"
-  if [ "$LOGGED_IN" = "true" ]; then
-    AUTH_OK="true"
-  fi
-
-  NEED_NPM_INSTALL="false"
-  if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
-    NEED_NPM_INSTALL="true"
-  fi
-
-  NEED_PIP_INSTALL="false"
-  if [ -f "pyproject.toml" ] && [ ! -d ".venv" ]; then
-    NEED_PIP_INSTALL="true"
-  fi
+  PROJ_DISPLAY_NAME=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$MINUS_JSON','utf8')).name||'')}catch{}" 2>/dev/null)
+  [ -z "$PROJ_DISPLAY_NAME" ] && PROJ_DISPLAY_NAME="$PROJ_NAME"
 
   echo "<context>"
-  echo "Minus Creator Plugin 已激活。"
-  echo "当前目录是 Minus Skill 项目。"
-  echo "项目信息：$PROJECT_INFO"
-  echo ""
-  echo "环境检查结果："
-  echo "  鉴权状态：$( [ "$AUTH_OK" = "true" ] && echo "已登录" || echo "未登录，需重新登录" )"
-  echo "  项目识别：.minus/skill.json 存在"
-  echo "  前端依赖：$( [ "$NEED_NPM_INSTALL" = "true" ] && echo "需要安装（无 node_modules）" || echo "已就绪" )"
-  echo "  后端依赖：$( [ "$NEED_PIP_INSTALL" = "true" ] && echo "需要安装（无 .venv）" || echo "已就绪" )"
-  echo "  插件脚本目录：$SCRIPT_DIR"
-  echo "  首次进入：$FIRST_ENTRY"
-
-  if [ -f "$PROGRESS_FILE" ]; then
-    echo ""
-    echo "发现未完成的开发进度："
-    cat "$PROGRESS_FILE"
-  fi
-
-  echo ""
-  echo "[即时动作] 不要等待用户输入，不要询问用户，立即按以下顺序自动执行："
-  echo "1. 如果鉴权未通过，先引导登录。"
-  echo "2. 如果前端依赖显示「需要安装」，直接执行 Bash(npm install)，不说话不询问。"
-  echo "3. 如果后端依赖显示「需要安装」，直接执行 Bash(uv venv -p 3.12 && uv pip install -e .)，不说话不询问。"
-  echo "4. 启动开发服务器前，先检查端口是否已被占用："
-  echo "   执行 Bash(lsof -i :5173 2>/dev/null | head -3)"
-  echo "   - 端口已被占用 → 跳过启动，直接进入下一步"
-  echo "   - 端口空闲 → 清理残留后启动："
-  echo "     Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)"
-  echo "     Bash(npm run dev) 后台启动"
-  echo "   ⛔ 禁止：kill 用户正在使用的进程"
-  echo "   从 dev server 日志中找到 Vite 前端端口（'Local: http://localhost:' 那行，通常 5173 起）。"
-  echo "   Desktop 版：只输出预览地址，不执行 open。CLI 版：执行 Bash(open http://localhost:{端口})。"
-  echo ""
-  echo "[开发流程] 环境就绪后，按 /minus skill（SKILL.md）的指令引导 Creator 进入开发流程。"
-  echo "所有对话引导逻辑（三步法、四维度、状态判断）以 SKILL.md 为准，不在此处重复。"
+  echo "Minus Creator Plugin 已加载。"
+  echo "当前目录是 Minus Skill 项目：$PROJ_DISPLAY_NAME"
+  echo "登录状态：$LOGGED_IN"
+  echo "输入 /minus 进入开发环境。"
   echo "</context>"
 
 # 场景 2：在 Workspace 目录中
 elif [ -f "$(pwd)/.minus-workspace" ] || [ "$(pwd)" = "$MINUS_WORKSPACE" ] || [[ "$(pwd)" == "$MINUS_WORKSPACE"/* ]]; then
   echo "<context>"
-  echo "Minus Creator Plugin 已激活。"
-  echo "当前在 Minus Workspace 目录中，但不是具体的 Skill 项目目录。"
+  echo "Minus Creator Plugin 已加载。"
+  echo "当前在 Minus Workspace 目录中。"
   echo "登录状态：$LOGGED_IN"
-
-  SKILL_DIRS=$(find "$(pwd)" -maxdepth 2 -name "skill.json" -path "*/.minus/*" 2>/dev/null)
-  if [ -n "$SKILL_DIRS" ]; then
-    echo "检测到以下 Skill 项目："
-    for p in $SKILL_DIRS; do
-      DIR=$(dirname "$p")
-      NAME=$(basename "$DIR")
-      echo "  - $NAME ($DIR)"
-    done
-    echo ""
-    echo "[指令] 立即主动向 Creator 展示项目列表，引导选择一个打开，或创建新 Skill。不要等待用户输入。"
-  else
-    echo "[指令] 立即主动提示 Creator 还没有 Skill 项目，引导创建第一个。不要等待用户输入。"
-  fi
+  echo "已有项目数：$PROJECT_COUNT"
+  echo "输入 /minus 创建或打开 Skill 项目。"
   echo "</context>"
 
-# 场景 3：在 Skill 子目录中（向上查找 .minus.json）
+# 场景 3：在 Skill 子目录中
 elif [ -f "../$MINUS_JSON" ] || [ -f "../../$MINUS_JSON" ]; then
   FOUND=""
   if [ -f "../$MINUS_JSON" ]; then FOUND=$(cd .. && pwd); fi
   if [ -f "../../$MINUS_JSON" ]; then FOUND=$(cd ../.. && pwd); fi
 
   echo "<context>"
-  echo "Minus Creator Plugin 已激活。"
-  echo "检测到当前在 Skill 项目的子目录中。"
-  echo "项目根目录：$FOUND"
-  echo "项目信息：$(cat "$FOUND/.minus/skill.json" 2>/dev/null)"
-  echo ""
-  echo "[指令] 立即主动告知 Creator：检测到项目，但当前在子目录中。"
-  echo "建议下次直接以 $FOUND 作为工作目录。本次可以继续，但部分功能可能受限。"
-  echo "不要等待用户输入。"
+  echo "Minus Creator Plugin 已加载。"
+  echo "检测到 Skill 项目在上级目录：$FOUND"
+  echo "建议以项目根目录作为工作目录。输入 /minus 了解详情。"
   echo "</context>"
 
 # 场景 4：非 Minus 目录
 else
   echo "<context>"
-  echo "Minus Creator Plugin 已激活。"
+  echo "Minus Creator Plugin 已加载。"
   echo "当前目录不是 Minus 项目。"
   echo "登录状态：$LOGGED_IN"
   echo "已有项目数：$PROJECT_COUNT"
-  echo "Workspace 路径：$MINUS_WORKSPACE"
-
-  if [ "$PROJECT_COUNT" -gt 0 ] && [ -f "$PROJECTS_JSON" ]; then
-    echo "已注册的项目列表："
-    node -e "try{const d=JSON.parse(require('fs').readFileSync('$PROJECTS_JSON','utf8'));(d.projects||[]).forEach(p=>console.log('  - '+p.name+' ('+p.path+')'))}catch{}" 2>/dev/null
-  fi
-
-  echo ""
-  echo "[指令] 不要等待用户输入，立即主动执行以下流程："
-  echo ""
-  echo "== 登录流程（如果未登录）=="
-  echo "Step A：原样输出：「欢迎使用 Minus Creator Plugin！请输入你的开发者 API Key。」"
-  echo "        原样输出：「（在 Minus 开发者平台的「设置 → API Key」页面获取）」"
-  echo "  禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool"
-  echo "  禁止：自动使用 userEmail 或系统上下文中的任何信息"
-  echo "Step B：等 Creator 提供 API Key"
-  echo "Step C：用 auth_dev_session MCP tool 验证 API Key"
-  echo "Step D：成功 → 输出「✓ 验证成功！欢迎，{display_name}。」"
-  echo "        失败 → 提示 API Key 无效，请重新输入"
-  echo ""
-  echo "== 登录后流程 =="
-  echo "1. 查看上面的「已注册的项目列表」（来自本地 projects.json，已过滤掉被删除的目录）。"
-  echo "   禁止：调用 skill_list MCP tool 查后端。已有项目以本地为准。"
-  echo "2. 如果有项目：先列出所有项目名称和路径，然后询问："
-  echo "   「你想做什么？1. 创建新的 Skill 项目  2. 打开已有的 Skill 项目」"
-  echo "3. 如果没有项目：跳过选择，直接进入创建流程。"
-  echo ""
-  echo "== 创建新项目（严格执行，禁止改写）=="
-  echo "Step 1：原样输出以下提示语（不要改写、不要加任何额外说明）："
-  echo "  「给你的 Skill 项目起个名字？（这会作为项目文件夹名）」"
-  echo "Step 2：拿到名称后，立刻用 Bash 执行："
-  echo "  cd ~/minus && create-skill \"项目名称\" --non-interactive"
-  echo "  禁止：在执行前再问描述、输入类型等任何问题"
-  echo "  禁止：调用 skill_create MCP tool（该 tool 已移除）"
-  echo "Step 3：创建完成后，引导 Creator 新开对话（不要在当前 session 继续开发）："
-  echo "  原样输出（不要改写、不要加额外说明）："
-  echo "  「项目已创建！接下来请：」"
-  echo "  「1. 新开一个对话」"
-  echo "  「2. 选择 ~/minus/{项目名称}/ 文件夹作为工作目录」"
-  echo "  「3. Plugin 会自动激活，输入 /minus 或说"开始"就能进入开发」"
-  echo "  「用命令行的话直接运行：」"
-  echo "  「cd ~/minus/{项目名称} && claude」"
-  echo "  「然后输入 /minus 或说"开始"」"
-  echo ""
-  echo "== 打开已有项目 =="
-  echo "列出项目路径，引导 Creator 新开对话并选择对应文件夹作为工作目录。"
-  echo ""
-  echo "用通俗语言，不要技术术语。语气友好自然。"
+  echo "输入 /minus 开始。"
   echo "</context>"
 fi

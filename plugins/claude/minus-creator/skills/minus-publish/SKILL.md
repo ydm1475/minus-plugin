@@ -57,18 +57,14 @@ effort: high
 
 ### Step 3：版本号确认
 
-- 使用 `skill_list` 查询当前 Skill 信息
-- 告知 Creator 当前已发布的版本
-- 询问新版本号
-- 建议遵循版本号规范：
-  - 小改动（修 bug、调样式）：0.1.0 → 0.1.1
-  - 新功能：0.1.0 → 0.2.0
-  - 大版本：0.x → 1.0.0
+- 使用 `skill_version_get` 查询当前草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
+- 告知 Creator 当前版本状态
+- 版本号由后端管理（create-skill 时已分配，如 1.0-alpha.1），不需要 Creator 手动指定
 
-### Step 4：打包上传
+### Step 4：提交审核
 
-- 使用 `skill_endpoint_set` 更新 Skill 的 endpoint
-- 确认发布成功
+- 发布流程待后端 submit/release API 对接后完善
+- 确认提交结果
 - 告知 Creator 发布结果
 
 ## 发布成功后

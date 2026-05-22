@@ -1502,8 +1502,11 @@
       <ul>
         <li>加载 <code>CLAUDE.md</code></li>
         <li>加载项目级 Memory</li>
-        <li>识别到 Minus Creator Plugin 已安装</li>
+        <li>SessionStart hook 输出轻量提示：「Minus Creator Plugin 已加载，输入 /minus 进入开发环境」</li>
       </ul>
+      <!-- 设计变更 [2026-05-22]：SessionStart 从自动执行完整流程改为只输出一行提示。
+           原因：Creator 打开项目目录不一定要用 Plugin，自动跑流程会干扰其他用途。
+           完整的环境检查和开发流程由 Step 3.2 的 /minus 触发。 -->
     </div>
 
     <!-- 3.2 -->

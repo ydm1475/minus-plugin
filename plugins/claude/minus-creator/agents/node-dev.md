@@ -175,7 +175,7 @@ async def step_N(self, ctx: PipelineContext) -> StepOutcome:
 
 1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
 2. 告诉 Creator 重新输入数据跑一遍流程来测试效果（刷新页面不会重新执行 pipeline，必须重新输入）
-3. 用 `skill_update` 更新后端步骤状态为 completed
+3. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
 4. 保存进度到 Memory
 5. 询问是否继续开发下一个步骤
 

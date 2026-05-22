@@ -16,7 +16,7 @@ effort: high
 你：接下来先聊聊这个 Skill 的设计。
     第一个问题：用户使用这个 Skill 时，需要提供什么信息？
     比如关键词、ASIN、品类……
-    还有，这个输入是否支持多个？只支持一个，只支持多个，支持一个和多个
+    还有，用户可以输入几个？只能一个、一个或多个、还是至少两个
 
 Creator: 一个主关键词
 
@@ -33,7 +33,8 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 **a) 用 `skill_update` 将输入定义写入后端（只传 input 字段，不要改其他字段）：**
 ```json
 {
-  "skillId": "当前项目的 skillId",
+  "skillId": "从 .minus/skill.json 读取",
+  "version": "从 .minus/skill.json 读取",
   "updates": {
     "input": {
       "type": "keyword",
@@ -76,7 +77,8 @@ Creator: 差不多就这样
 确认后立即用 `skill_update` 将步骤结构写入后端：
 ```json
 {
-  "skillId": "当前项目的 skillId",
+  "skillId": "从 .minus/skill.json 读取",
+  "version": "从 .minus/skill.json 读取",
   "updates": {
     "steps": [
       { "stepNumber": 1, "stepName": "关键词数据采集", "status": "pending" },

@@ -443,17 +443,20 @@ server.tool(
 
 server.tool(
   "skill_update",
-  `更新 Skill 信息（PATCH /api/skills/{skillId}）。
+  `编辑草稿版本（PATCH /api/skills/{skillId}/versions/{version}）。
+仅 status=draft 的版本可编辑，否则返回 409。
 可更新字段：displayName(string)、description(string)、iconFileId(string)、steps(array)、useCases(array)、tags(array)。
 steps 格式：[{ stepNumber: 1, stepName: "步骤名" }, ...]，stepNumber 从 1 严格递增。
 部分更新：字段缺失则不修改，传值则覆盖。
+skillId 和 version 从 .minus/skill.json 读取。
 API 文档见 .claude/api/openapi-bundled.yaml`,
   {
-    skillId: z.string().describe("Skill ID"),
-    updates: z.record(z.unknown()).describe("要更新的字段，格式参照 PATCH /api/skills/{skillId} 的 requestBody"),
+    skillId: z.string().describe("Skill ID（如 skl_xxx）"),
+    version: z.string().describe("版本号（如 1.0-alpha.1），从 .minus/skill.json 读取"),
+    updates: z.record(z.unknown()).describe("要更新的字段，格式参照 PATCH /api/skills/{skillId}/versions/{version} 的 requestBody"),
   },
-  async ({ skillId, updates }) => {
-    const result = await apiRequest("PATCH", `/api/skills/${skillId}`, {
+  async ({ skillId, version, updates }) => {
+    const result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version}`, {
       body: updates,
     });
 
@@ -469,31 +472,32 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
       content: [
         {
           type: "text",
-          text: `Skill 已更新。`,
+          text: `Skill 草稿已更新（${version}）。`,
         },
       ],
     };
   }
 );
 
+// skill_endpoint_set 已移除 — PUT /api/admin/skills/{skillId}/endpoint 接口已下线
+
 server.tool(
-  "skill_endpoint_set",
-  "更新 Skill 当前版本的 endpoint URL（管理员接口）",
+  "skill_version_get",
+  `获取草稿版本详情（GET /api/skills/{skillId}/versions/{version}）。
+返回完整元数据：displayName、description、steps、useCases、tags、status、endpointUrl 等。
+仅作者或 admin 可调用。
+API 文档见 .claude/api/openapi-bundled.yaml`,
   {
-    skillId: z.string().describe("Skill ID"),
-    endpointUrl: z.string().describe("容器后端地址（http:// 或 https://）"),
+    skillId: z.string().describe("Skill ID（如 skl_xxx）"),
+    version: z.string().describe("版本号（如 1.0-alpha.1），从 .minus/skill.json 读取"),
   },
-  async ({ skillId, endpointUrl }) => {
-    const result = await apiRequest(
-      "PUT",
-      `/api/admin/skills/${skillId}/endpoint`,
-      { body: { endpointUrl } }
-    );
+  async ({ skillId, version }) => {
+    const result = await apiRequest("GET", `/api/skills/${skillId}/versions/${version}`);
 
     if (result.error) {
       return {
         content: [
-          { type: "text", text: `更新 endpoint 失败：${result.message}` },
+          { type: "text", text: `查询失败：${result.message}` },
         ],
       };
     }
@@ -502,7 +506,7 @@ server.tool(
       content: [
         {
           type: "text",
-          text: `Endpoint 已更新：${result.data.version} → ${endpointUrl}`,
+          text: JSON.stringify(result.data, null, 2),
         },
       ],
     };

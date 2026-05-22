@@ -214,11 +214,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_30
+              required: &ref_26
                 - channel
                 - target
                 - purpose
-              properties: &ref_31
+              properties: &ref_27
                 channel:
                   type: string
                   enum:
@@ -298,11 +298,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_32
+              required: &ref_28
                 - channel
                 - target
                 - code
-              properties: &ref_33
+              properties: &ref_29
                 channel:
                   type: string
                   enum:
@@ -337,10 +337,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_34
+                required: &ref_30
                   - userId
                   - personalTeamId
-                properties: &ref_35
+                properties: &ref_31
                   userId:
                     type: string
                     description: 新创建的用户 ID
@@ -385,11 +385,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_36
+              required: &ref_32
                 - grantType
                 - identifier
                 - credential
-              properties: &ref_37
+              properties: &ref_33
                 grantType:
                   type: string
                   enum:
@@ -426,10 +426,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_38
+                required: &ref_34
                   - userId
                   - currentTeamId
-                properties: &ref_39
+                properties: &ref_35
                   userId:
                     type: string
                     description: 用户 ID
@@ -521,7 +521,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_40
+                required: &ref_36
                   - userId
                   - nickname
                   - locale
@@ -530,7 +530,7 @@ paths:
                   - phoneRequired
                   - identities
                   - currentTeam
-                properties: &ref_41
+                properties: &ref_37
                   userId:
                     type: string
                     description: 用户 ID
@@ -586,12 +586,12 @@ paths:
                     description: 已绑定的 identity 列表
                     items:
                       type: object
-                      required: &ref_42
+                      required: &ref_38
                         - id
                         - type
                         - value
                         - verifiedAt
-                      properties: &ref_43
+                      properties: &ref_39
                         id:
                           type: string
                           description: identity 记录 ID
@@ -614,13 +614,13 @@ paths:
                           example: 1745000000000
                   currentTeam:
                     type: object
-                    required: &ref_44
+                    required: &ref_40
                       - id
                       - name
                       - plan
                       - role
                       - isPersonal
-                    properties: &ref_45
+                    properties: &ref_41
                       id:
                         type: string
                         description: team ID
@@ -682,7 +682,7 @@ paths:
             schema:
               type: object
               description: 任意字段，至少一个；**未传字段不动**——前端无需为不修改的字段反传旧值
-              properties: &ref_52
+              properties: &ref_48
                 nickname:
                   type: string
                   minLength: 1
@@ -718,7 +718,7 @@ paths:
           content: *ref_4
         '403':
           description: 已登录账户尚未绑定手机号；前端引导用户跳"绑定手机号"页面
-          content: &ref_102
+          content: &ref_116
             application/json:
               schema:
                 type: object
@@ -761,9 +761,9 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_53
+                required: &ref_49
                   - status
-                properties: &ref_54
+                properties: &ref_50
                   status:
                     type: string
                     enum:
@@ -785,9 +785,9 @@ paths:
                   apiKey:
                     oneOf:
                       - type: object
-                        required: &ref_55
+                        required: &ref_51
                           - prefix
-                        properties: &ref_56
+                        properties: &ref_52
                           prefix:
                             type: string
                             pattern: ^mdk_[0-9A-Za-z]{8}$
@@ -1014,9 +1014,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_57
+              required: &ref_53
                 - status
-              properties: &ref_58
+              properties: &ref_54
                 status:
                   type: string
                   enum:
@@ -1036,10 +1036,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_59
+                required: &ref_55
                   - userId
                   - status
-                properties: &ref_60
+                properties: &ref_56
                   userId:
                     type: string
                     pattern: ^usr_[0-9A-Za-z]{24}$
@@ -1171,10 +1171,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_46
+              required: &ref_42
                 - oldPassword
                 - newPassword
-              properties: &ref_47
+              properties: &ref_43
                 oldPassword:
                   type: string
                   description: 旧密码明文。如 `users.password_hash=NULL`（仅验证码注册账户）则必须传空字符串，否则返 400
@@ -1227,12 +1227,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_48
+              required: &ref_44
                 - channel
                 - target
                 - code
                 - newPassword
-              properties: &ref_49
+              properties: &ref_45
                 channel:
                   type: string
                   enum:
@@ -1299,11 +1299,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_50
+              required: &ref_46
                 - channel
                 - target
                 - code
-              properties: &ref_51
+              properties: &ref_47
                 channel:
                   type: string
                   enum:
@@ -1347,14 +1347,14 @@ paths:
                 type: array
                 items:
                   type: object
-                  required: &ref_11
+                  required: &ref_8
                     - id
                     - displayName
                     - description
                     - version
                     - useCases
                     - tags
-                  properties: &ref_12
+                  properties: &ref_9
                     id:
                       type: string
                       description: skill ID（`skl_xxx`），亦作 URL 路由 `/skill/{skillId}` 的 routing key
@@ -1398,10 +1398,10 @@ paths:
                       items:
                         type: object
                         description: 出参形态 — 含 code + label，label 按用户 locale fallback
-                        required: &ref_8
+                        required: &ref_13
                           - code
                           - label
-                        properties: &ref_9
+                        properties: &ref_14
                           code:
                             type: string
                             example: amazon
@@ -1417,17 +1417,176 @@ paths:
         '401':
           description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
           content: *ref_4
-  /api/me/skills/{skillId}:
+  /api/me/skills/{skillId}/related:
     get:
       tags:
         - Skill
-      summary: 获取某 skill 的完整详情
+      summary: 获取当前 Skill 的关联推荐列表
+      description: '`GET /api/me/skills/{skillId}/related`'
+      operationId: listRelatedSkills
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: *ref_8
+                  properties: *ref_9
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+  /api/skills:
+    post:
+      tags:
+        - Skill
+      summary: 创建 Skill(首版本,落草稿)
       description: |
-        `GET /api/me/skills/{skillId}`
+        `POST /api/skills`
 
-        返回 skill 当前生效版本的完整元数据（含 steps / useCases / tags）。v1.0 不做用户维度权限校验，
-        只要 skill `status=active` 且当前版本 `status` 为 `published` 或 `deprecated` 即可访问。
-      operationId: getMySkillDetail
+        任意登录用户自助创建 skill。系统强制首版本 `version='1.0-alpha.1'` + `status='draft'`;`skills.current_version_id=NULL`(未上架前),`current_draft_version_id` 指向新草稿。`apiKey` 仅响应里返一次。完整生命周期见 [skill-version-lifecycle.md](../../../docs/1.0/skill-version-lifecycle.md)。
+      operationId: createSkill
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                POST /api/skills 入参。**不接受** `version` 字段;系统强制首版本 `1.0-alpha.1` + status=draft。
+              required: &ref_59
+                - displayName
+              properties: &ref_60
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 显示名(默认中文),trim 后 1-200 字
+                  example: 关键词调研
+                description:
+                  type: string
+                  maxLength: 5000
+                  description: skill 描述(默认中文),最多 5000 字
+                  example: AI 驱动的关键词自动化调研,30秒出结果
+                iconFileId:
+                  type: string
+                  description: 图标文件 ID(file_xxx),必须是当前用户上传且未删除的文件
+                steps:
+                  type: array
+                  maxItems: 20
+                  description: 步骤数组,默认 []
+                  items:
+                    type: object
+                    required: &ref_11
+                      - stepNumber
+                      - stepName
+                    properties: &ref_12
+                      stepNumber:
+                        type: integer
+                        minimum: 1
+                        description: 步骤号，从 1 开始严格递增
+                        example: 1
+                      stepName:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                        description: 步骤名（按用户 locale fallback）
+                        example: 提取核心关键词
+                  default: []
+                useCases:
+                  type: array
+                  maxItems: 8
+                  description: 适用场景文本数组,默认 []
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                  default: []
+                tags:
+                  type: array
+                  maxItems: 10
+                  description: 标签对象数组 [{code}, ...],默认 []
+                  items:
+                    type: object
+                    description: 入参形态 — 引用一个已存在的标签，仅含 code
+                    required: &ref_17
+                      - code
+                    properties: &ref_18
+                      code:
+                        type: string
+                        pattern: ^[a-z][a-z0-9_]*$
+                        minLength: 2
+                        maxLength: 50
+                        example: amazon
+                  default: []
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                description: POST /api/skills 响应。首草稿 status=draft。
+                required: &ref_61
+                  - id
+                  - draftVersionId
+                  - draftVersion
+                  - status
+                  - apiKey
+                properties: &ref_62
+                  id:
+                    type: string
+                    description: 新创建的 skill ID
+                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                  draftVersionId:
+                    type: string
+                    description: 首草稿版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  draftVersion:
+                    type: string
+                    description: 固定为 `"1.0-alpha.1"`
+                    example: 1.0-alpha.1
+                  status:
+                    type: string
+                    enum:
+                      - draft
+                    description: 固定为 `"draft"`
+                    example: draft
+                  apiKey:
+                    type: string
+                    description: skill 容器调平台 `/skill-api/**` 用的 key;**仅此一次返回**,后续无接口可再查
+                    example: ska_5k8Zt7QhZ3kR9mVx2yNpEw
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+  /api/skills/{skillId}:
+    get:
+      tags:
+        - Skill
+      summary: 用户视角获取 skill 详情(永远 PUBLISHED)
+      description: |
+        `GET /api/skills/{skillId}`
+
+        返回当前 PUBLISHED 版本的完整元数据。永远只返 PUBLISHED;作者想看草稿/灰度版走 `GET /api/skills/{skillId}/versions/{version}`。`current_version_id=NULL`(尚未上架首版本)时返 404。
+      operationId: getSkillDetail
       security:
         - minusAiSid: []
         - developerApiKey: []
@@ -1446,7 +1605,7 @@ paths:
               schema:
                 type: object
                 description: skill 详情接口响应（含完整 steps / useCases / tags）
-                required: &ref_17
+                required: &ref_57
                   - id
                   - currentVersionId
                   - version
@@ -1455,7 +1614,7 @@ paths:
                   - steps
                   - useCases
                   - tags
-                properties: &ref_18
+                properties: &ref_58
                   id:
                     type: string
                     description: skill ID（`skl_xxx`），亦作 URL 路由 routing key
@@ -1493,21 +1652,8 @@ paths:
                     description: 步骤数组，按 stepNumber 升序展示；默认 []
                     items:
                       type: object
-                      required: &ref_13
-                        - stepNumber
-                        - stepName
-                      properties: &ref_14
-                        stepNumber:
-                          type: integer
-                          minimum: 1
-                          description: 步骤号，从 1 开始严格递增
-                          example: 1
-                        stepName:
-                          type: string
-                          minLength: 1
-                          maxLength: 200
-                          description: 步骤名（按用户 locale fallback）
-                          example: 提取核心关键词
+                      required: *ref_11
+                      properties: *ref_12
                   useCases:
                     type: array
                     maxItems: 8
@@ -1526,8 +1672,8 @@ paths:
                     items:
                       type: object
                       description: 出参形态 — 含 code + label，label 按用户 locale fallback
-                      required: *ref_8
-                      properties: *ref_9
+                      required: *ref_13
+                      properties: *ref_14
                     example:
                       - code: amazon
                         label: 亚马逊
@@ -1539,13 +1685,19 @@ paths:
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
-  /api/me/skills/{skillId}/related:
+  /api/skills/{skillId}/versions:
     get:
       tags:
         - Skill
-      summary: 获取当前 Skill 的关联推荐列表
-      description: '`GET /api/me/skills/{skillId}/related`'
-      operationId: listRelatedSkills
+      summary: 列出某 skill 的所有版本(作者视角)
+      description: |
+        `GET /api/skills/{skillId}/versions`
+
+        返回该 skill 全部版本(含所有 status),按 createdAt 倒序。仅 author 或 admin 可调,其他用户 403。支持 cursor/limit 分页。
+      operationId: listSkillVersions
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
       parameters:
         - name: skillId
           in: path
@@ -1553,236 +1705,120 @@ paths:
           schema:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 不透明翻页游标,首次请求不传
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: 每页条数,默认 20,最大 100
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  required: *ref_11
-                  properties: *ref_12
-        '401':
-          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
-          content: *ref_4
-        '404':
-          description: 资源不存在或无权访问
-          content: *ref_10
-  /api/skills:
-    post:
-      tags:
-        - Skill
-      summary: 创建 Skill
-      description: |
-        `POST /api/skills`
-
-        任意登录用户自助创建 skill。同事务写入 `skills` + `skill_versions` 首版本，首版本 `status='published'` 直接上架。鉴权复用 `MINUS_AI_SID` cookie，新建 skill 的 `author_id` 强制 = 当前登录 user_id（不接受外部传入）。
-      operationId: createSkill
-      security:
-        - minusAiSid: []
-        - developerApiKey: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: &ref_61
-                - displayName
-              properties: &ref_62
-                displayName:
-                  type: string
-                  minLength: 1
-                  maxLength: 200
-                  description: 显示名（默认中文），trim 后 1-200 字
-                  example: 关键词调研
-                version:
-                  type: string
-                  pattern: ^\d+\.\d+\.\d+$
-                  default: 1.0.0
-                  description: SemVer 版本号；不传则默认 1.0.0
-                  example: 1.0.0
-                description:
-                  type: string
-                  maxLength: 5000
-                  description: skill 描述（默认中文），最多 5000 字
-                  example: AI 驱动的关键词自动化调研，30秒出结果
-                iconFileId:
-                  type: string
-                  description: 图标文件 ID（file_xxx），必须是当前用户上传且未删除的文件
-                steps:
-                  type: array
-                  maxItems: 20
-                  description: 步骤数组，默认 []；每条 {stepNumber, stepName}，stepNumber 从 1 严格递增
+                type: object
+                description: GET /api/skills/{skillId}/versions 响应
+                required: &ref_69
+                  - items
+                  - pageInfo
+                properties: &ref_70
                   items:
+                    type: array
+                    items:
+                      type: object
+                      description: 作者视角 - 列表项(摘要)
+                      required: &ref_67
+                        - id
+                        - version
+                        - status
+                        - displayName
+                        - iconUrl
+                        - createdAt
+                        - updatedAt
+                      properties: &ref_68
+                        id:
+                          type: string
+                          description: 版本 ID
+                          example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                        version:
+                          type: string
+                          description: 完整版本号字符串
+                          example: 1.0-alpha.1
+                        status:
+                          type: string
+                          enum: &ref_16
+                            - draft
+                            - pending
+                            - rejected
+                            - approved
+                            - published
+                            - deprecated
+                            - disabled
+                          description: |
+                            skill 版本状态。
+                            - draft: 编辑中,作者可改
+                            - pending: 已提审,等待 admin 审核
+                            - rejected: admin 已驳回,含 reason;不可变快照,作者可调 POST /api/skills/{id}/versions 同号 alpha.N+1 继续
+                            - approved: 审核通过 + 已部署生产环境,仅 author 可访问预览
+                            - published: 全平台所有用户可见
+                            - deprecated: 被新版本替代,老 session 仍可回放
+                            - disabled: admin 强制下架,gateway 直接拒绝
+                        displayName:
+                          type: string
+                          description: 按用户 locale fallback
+                          example: 关键词调研
+                        iconUrl:
+                          type: string
+                          format: uri
+                          description: 完整 URL,无 icon 时默认占位
+                          example: https://cdn.sif.com/skills/keyword-research/icon.png
+                        createdAt:
+                          type: integer
+                          format: int64
+                          description: 创建时间戳(毫秒)
+                          example: 1745280000000
+                        updatedAt:
+                          type: integer
+                          format: int64
+                          description: 最近状态变更时间戳(毫秒)
+                          example: 1745280000000
+                        publishedAt:
+                          type:
+                            - integer
+                            - 'null'
+                          format: int64
+                          description: 仅 PUBLISHED 行有值,其他 null
+                        rejectReason:
+                          type:
+                            - string
+                            - 'null'
+                          description: 仅 REJECTED 行有值,其他 null
+                  pageInfo:
                     type: object
-                    required: *ref_13
-                    properties: *ref_14
-                  default: []
-                useCases:
-                  type: array
-                  maxItems: 8
-                  description: 适用场景文本数组，默认 []；每条 1-50 字，自动去重 + trim 空白
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 50
-                  default: []
-                tags:
-                  type: array
-                  maxItems: 10
-                  description: 标签对象数组 [{code}, ...]，默认 []；每个 code 必须在 skill_tags 字典且 status=active
-                  items:
-                    type: object
-                    description: 入参形态 — 引用一个已存在的标签，仅含 code
-                    required: &ref_15
-                      - code
-                    properties: &ref_16
-                      code:
+                    required:
+                      - hasMore
+                    properties:
+                      nextCursor:
                         type: string
-                        pattern: ^[a-z][a-z0-9_]*$
-                        minLength: 2
-                        maxLength: 50
-                        example: amazon
-                  default: []
-      responses:
-        '201':
-          description: 创建成功
-          content:
-            application/json:
-              schema:
-                type: object
-                required: &ref_63
-                  - id
-                  - currentVersionId
-                  - version
-                  - apiKey
-                properties: &ref_64
-                  id:
-                    type: string
-                    description: 新创建的 skill ID
-                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-                  currentVersionId:
-                    type: string
-                    description: 首版本 ID
-                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
-                  version:
-                    type: string
-                    description: 实际落库的版本号（含默认 1.0.0 兜底）
-                    example: 1.0.0
-                  apiKey:
-                    type: string
-                    description: skill 容器调平台 `/skill-api/**` 用的 key；**仅此一次返回**，后续无接口可再查
-                    example: ska_5k8Zt7QhZ3kR9mVx2yNpEw
-        '400':
-          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
-          content: *ref_2
-        '401':
-          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
-          content: *ref_4
-        '409':
-          description: 资源状态冲突，无法执行操作
-          content: &ref_27
-            application/json:
-              schema:
-                type: object
-                required: *ref_0
-                properties: *ref_1
-              example:
-                code: CONFLICT
-                message: Session is currently running
-  /api/skills/{skillId}:
-    patch:
-      tags:
-        - Skill
-      summary: 更新 skill 当前版本元数据（不开新版本号）
-      description: |
-        `PATCH /api/skills/{skillId}`
-
-        修改 `skills.current_version_id` 指向的那一行 `skill_versions` 的可编辑字段；
-        **不创建新版本号**，适用改错字 / 调展示。部分更新：字段缺失则不修改；传 null 视为非法。
-        老 session 锁定该版本会跟着展示更新——1.0 阶段可接受。
-        鉴权：当前 user 必须是 `skills.author_id` 或 admin 白名单。
-      operationId: patchSkill
-      security:
-        - minusAiSid: []
-        - developerApiKey: []
-      parameters:
-        - name: skillId
-          in: path
-          required: true
-          schema:
-            type: string
-          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              description: |
-                PATCH /api/skills/{skillId} 入参。部分更新：字段缺失则不修改；字段传值则覆盖式更新。
-                传 null 一律视为非法（返 400）；至少传一个字段（minProperties: 1），否则 400 EMPTY_BODY。
-              minProperties: 1
-              properties: &ref_65
-                displayName:
-                  type: string
-                  minLength: 1
-                  maxLength: 200
-                  description: 显示名（默认中文），trim 后 1-200 字
-                description:
-                  type: string
-                  maxLength: 5000
-                  description: skill 描述（默认中文），最多 5000 字；空字符串合法 = 清空
-                iconFileId:
-                  type: string
-                  description: 文件 ID，不支持传 null 清空（admin 接口兜底）
-                steps:
-                  type: array
-                  maxItems: 20
-                  items:
-                    type: object
-                    required: *ref_13
-                    properties: *ref_14
-                  description: 覆盖式替换；传 [] 表示清空
-                useCases:
-                  type: array
-                  maxItems: 8
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 50
-                  description: 覆盖式替换；传 [] 表示清空
-                tags:
-                  type: array
-                  maxItems: 10
-                  items:
-                    type: object
-                    description: 入参形态 — 引用一个已存在的标签，仅含 code
-                    required: *ref_15
-                    properties: *ref_16
-                  description: 覆盖式替换；传 [] 表示清空
-      responses:
-        '200':
-          description: 更新后的完整详情（结构同 GET /api/me/skills/{skillId}）
-          content:
-            application/json:
-              schema:
-                type: object
-                description: skill 详情接口响应（含完整 steps / useCases / tags）
-                required: *ref_17
-                properties: *ref_18
-        '400':
-          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
-          content: *ref_2
+                        description: 下一页 cursor;最后一页时省略
+                      hasMore:
+                        type: boolean
+                        description: 是否还有更多页
         '401':
           description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: &ref_19
+          content: &ref_15
             application/json:
               schema:
                 type: object
@@ -1794,28 +1830,18 @@ paths:
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
-        '409':
-          description: skill 尚未设置 current_version_id，无法使用默认版本 path
-          content: &ref_20
-            application/json:
-              schema:
-                type: object
-                required: *ref_0
-                properties: *ref_1
-              example:
-                code: NO_CURRENT_VERSION
-                message: Skill has no current version published yet
-  /api/skills/{skillId}/versions:
     post:
       tags:
         - Skill
-      summary: 创建 skill 新版本（升级）
+      summary: 草稿版本升级 / 基于驳回稿继续(开新草稿)
       description: |
         `POST /api/skills/{skillId}/versions`
 
-        同事务：INSERT 新版本（未传字段从当前版本继承） + UPDATE 老版本 `status='deprecated'`
-        + UPDATE `skills.current_version_id` 切换到新版本。version 不传则基于当前版本 patch +1。
-        鉴权：author 本人或 admin 白名单。
+        两种用法,同一接口:
+        - **开新一轮迭代**:基于当前 PUBLISHED 版本,新版本号 = `X.Y-alpha.1`(传 `version="X.Y"`)或系统默认 minor +1
+        - **基于驳回稿继续**:传 `version` 与最新 REJECTED 行同 `X.Y`,或不传 version 时若最新 REJECTED 与当前 PUBLISHED 同号系统自动继续 → 新版本号 = `X.Y-alpha.{K+1}`,元数据从 REJECTED 行复制
+
+        要求 skill 已有 PUBLISHED 行且无 active 行(DRAFT/PENDING/APPROVED;REJECTED 不算 active 可继续)。
       operationId: createSkillVersion
       security:
         - minusAiSid: []
@@ -1828,90 +1854,46 @@ paths:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               description: |
-                POST /api/skills/{skillId}/versions 入参。全部字段选填；未传字段从当前版本完整复制；
-                显式传值（含 []）即覆盖；不允许传 null。
-              properties: &ref_66
+                POST /api/skills/{skillId}/versions 入参。`bumpType` 由系统按 version 计算;不传 version 默认 minor +1。
+              properties: &ref_63
                 version:
                   type: string
-                  pattern: ^\d+\.\d+\.\d+$
-                  description: SemVer 版本号；不传则基于当前版本 patch +1（1.0.0 → 1.0.1）；传了必须严格大于当前版本且不冲突历史版本号
-                displayName:
-                  type: string
-                  minLength: 1
-                  maxLength: 200
-                  description: 显示名；不传则继承当前版本
-                description:
-                  type: string
-                  maxLength: 5000
-                  description: skill 描述；不传则继承当前版本
-                iconFileId:
-                  type: string
-                  description: 图标文件 ID；不传则继承当前版本
-                steps:
-                  type: array
-                  maxItems: 20
-                  description: 步骤数组；不传则继承当前版本，传值（含 []）即覆盖
-                  items:
-                    type: object
-                    required: *ref_13
-                    properties: *ref_14
-                useCases:
-                  type: array
-                  maxItems: 8
-                  description: 适用场景文本数组；不传则继承当前版本
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 50
-                tags:
-                  type: array
-                  maxItems: 10
-                  description: 标签对象数组 [{code}, ...]；不传则继承当前版本
-                  items:
-                    type: object
-                    description: 入参形态 — 引用一个已存在的标签，仅含 code
-                    required: *ref_15
-                    properties: *ref_16
+                  pattern: ^[1-9]\d*\.\d+$
+                  description: 仅 `major.minor` 两段格式(不含 alpha 后缀);不传则系统默认 minor +1。系统统一拼 `X.Y-alpha.K`,K 由系统计算
+                  example: '1.1'
       responses:
         '201':
-          description: 新版本创建成功
+          description: 新草稿创建成功
           content:
             application/json:
               schema:
                 type: object
-                required: &ref_67
-                  - id
-                  - currentVersionId
-                  - version
-                  - previousVersionId
-                  - previousVersion
-                properties: &ref_68
-                  id:
+                description: POST /api/skills/{skillId}/versions 响应。新建草稿版本。
+                required: &ref_64
+                  - draftVersionId
+                  - draftVersion
+                  - status
+                properties: &ref_65
+                  draftVersionId:
                     type: string
-                    description: skill ID（路径上的 skillId 原样回传）
-                    example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-                  currentVersionId:
-                    type: string
-                    description: 新版本 ID
+                    description: 新草稿版本 ID
                     example: sv_NewVersionId123456789012
-                  version:
+                  draftVersion:
                     type: string
-                    description: 实际落库的新版本号（含 patch +1 兜底）
-                    example: 1.0.1
-                  previousVersionId:
+                    description: 新草稿完整版本号,如 `"1.1-alpha.1"`
+                    example: 1.1-alpha.1
+                  status:
                     type: string
-                    description: 老版本 ID（已被改为 deprecated）
-                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
-                  previousVersion:
-                    type: string
-                    description: 老版本号（已被改为 deprecated）
-                    example: 1.0.0
+                    enum:
+                      - draft
+                    description: 固定为 `"draft"`
+                    example: draft
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -1920,13 +1902,470 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
         '409':
-          description: skill 尚未设置 current_version_id，无法使用默认版本 path
-          content: *ref_20
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: &ref_21
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: ACTIVE_DRAFT_EXISTS
+                message: This skill already has an active draft/pending/approved row
+  /api/skills/{skillId}/versions/{version}:
+    get:
+      tags:
+        - Skill
+      summary: 获取单版本详情(作者视角)
+      description: |
+        `GET /api/skills/{skillId}/versions/{version}`
+
+        按 (skill_id, version) 唯一索引查 skill_versions,返回完整元数据 + status + reject reason + endpoint_url(仅 APPROVED/PUBLISHED 时可见)。
+      operationId: getSkillVersionDetail
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 完整版本号字符串,如 `"1.0-alpha.1"` 或 `"1.0"`
+          example: 1.0-alpha.1
+      responses:
+        '200':
+          description: 版本详情
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: &ref_19
+                  - id
+                  - version
+                  - status
+                  - displayName
+                  - description
+                  - iconUrl
+                  - steps
+                  - useCases
+                  - tags
+                  - createdAt
+                  - updatedAt
+                properties: &ref_20
+                  id:
+                    type: string
+                    description: 版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  version:
+                    type: string
+                    description: 完整版本号
+                    example: 1.0-alpha.1
+                  status:
+                    type: string
+                    enum: *ref_16
+                    description: |
+                      skill 版本状态。
+                      - draft: 编辑中,作者可改
+                      - pending: 已提审,等待 admin 审核
+                      - rejected: admin 已驳回,含 reason;不可变快照,作者可调 POST /api/skills/{id}/versions 同号 alpha.N+1 继续
+                      - approved: 审核通过 + 已部署生产环境,仅 author 可访问预览
+                      - published: 全平台所有用户可见
+                      - deprecated: 被新版本替代,老 session 仍可回放
+                      - disabled: admin 强制下架,gateway 直接拒绝
+                  displayName:
+                    type: string
+                    example: 关键词调研
+                  description:
+                    type: string
+                    example: AI 驱动的关键词自动化调研
+                  iconFileId:
+                    type:
+                      - string
+                      - 'null'
+                    example: file_8YzLqRtVwXxNpMcAbDeFgHiJkO
+                  iconUrl:
+                    type: string
+                    format: uri
+                    example: https://cdn.sif.com/skills/keyword-research/icon.png
+                  steps:
+                    type: array
+                    maxItems: 20
+                    items:
+                      type: object
+                      required: *ref_11
+                      properties: *ref_12
+                  useCases:
+                    type: array
+                    maxItems: 8
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 50
+                  tags:
+                    type: array
+                    maxItems: 10
+                    items:
+                      type: object
+                      description: 出参形态 — 含 code + label，label 按用户 locale fallback
+                      required: *ref_13
+                      properties: *ref_14
+                  createdAt:
+                    type: integer
+                    format: int64
+                    example: 1745280000000
+                  updatedAt:
+                    type: integer
+                    format: int64
+                    example: 1745280000000
+                  publishedAt:
+                    type:
+                      - integer
+                      - 'null'
+                    format: int64
+                    description: 仅 PUBLISHED 行有值
+                  rejectReason:
+                    type:
+                      - string
+                      - 'null'
+                    description: 仅 REJECTED 行有值
+                  endpointUrl:
+                    type:
+                      - string
+                      - 'null'
+                    description: 仅 APPROVED / PUBLISHED 行可见
+                    example: https://prod.skill-foo.minus.ai
+                  sourcePackageFileId:
+                    type:
+                      - string
+                      - 'null'
+                    description: 提审时上传的源码包文件 ID(files.id);DRAFT 期 NULL,提审后填入;admin 通过 `GET /api/admin/skills/{skillId}/versions/{version}/source-package` 下载
+                    example: file_8YzLqRtVwXxNpMcAbDeFgHiJkO
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+    patch:
+      tags:
+        - Skill
+      summary: 编辑草稿
+      description: |
+        `PATCH /api/skills/{skillId}/versions/{version}`
+
+        UPDATE 指定 skill_versions 行(仅含请求体字段)。仅 status=draft 行可改;否则 409。
+      operationId: patchSkillVersion
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                PATCH /api/skills/{skillId}/versions/{version} 入参。仅 status=draft 行可改。
+                部分更新:字段缺失则不修改;字段传值则覆盖式更新;传 null 一律视为非法。
+              minProperties: 1
+              properties: &ref_66
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 显示名,trim 后 1-200 字
+                description:
+                  type: string
+                  maxLength: 5000
+                  description: skill 描述,最多 5000 字;空字符串合法 = 清空
+                iconFileId:
+                  type: string
+                  description: 文件 ID
+                steps:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: *ref_11
+                    properties: *ref_12
+                  description: 覆盖式替换;传 [] 表示清空
+                useCases:
+                  type: array
+                  maxItems: 8
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                  description: 覆盖式替换;传 [] 表示清空
+                tags:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    description: 入参形态 — 引用一个已存在的标签，仅含 code
+                    required: *ref_17
+                    properties: *ref_18
+                  description: 覆盖式替换;传 [] 表示清空
+      responses:
+        '200':
+          description: 更新后的版本详情
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: *ref_19
+                properties: *ref_20
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+    delete:
+      tags:
+        - Skill
+      summary: 删除草稿
+      description: |
+        `DELETE /api/skills/{skillId}/versions/{version}`
+
+        DELETE 该 skill_versions 行 + `skills.current_draft_version_id` → NULL。alpha 号被消耗不释放。仅 status=draft 行可删。
+      operationId: deleteSkillVersion
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.1
+      responses:
+        '204':
+          description: 删除成功
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+  /api/skills/{skillId}/versions/{version}/submit:
+    post:
+      tags:
+        - Skill
+      summary: 提审(附源代码包,multipart)
+      description: |
+        `POST /api/skills/{skillId}/versions/{version}/submit`
+
+        作者完成草稿编辑,附本地打包好的源代码 zip,提交审核。同事务:
+        1. 写 `files` 行(biz_type=skill_source_package),实际内容存 OSS
+        2. UPDATE `skill_versions.source_package_file_id` + `status` → pending
+        3. UPDATE `skills.current_draft_version_id` → NULL
+        4. INSERT `skill_reviews(action='submit')`
+
+        admin 审核界面通过 `GET /api/admin/skills/{skillId}/versions/{version}/source-package` 下载源码包审查。
+      operationId: submitSkillVersion
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - sourcePackage
+              properties:
+                sourcePackage:
+                  type: string
+                  format: binary
+                  description: 源代码 zip 文件。Content-Type 必须为 `application/zip` 或 `application/x-zip-compressed`;大小 ≤ 50MB
+      responses:
+        '200':
+          description: 已提审
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: *ref_19
+                properties: *ref_20
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+  /api/skills/{skillId}/versions/{version}/release:
+    post:
+      tags:
+        - Skill
+      summary: 上架(APPROVED → PUBLISHED)
+      description: |
+        `POST /api/skills/{skillId}/versions/{version}/release`
+
+        author 自助上架。同事务:INSERT 新 PUBLISHED 行(version 去 alpha 后缀)+ 老 PUBLISHED 行 → deprecated + UPDATE `skills.current_version_id` → 新行 + UPDATE `skills.preview_version_id` → NULL + INSERT `skill_reviews(action='release')` + 短信通知 author。
+      operationId: releaseSkillVersion
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.3
+      responses:
+        '200':
+          description: 上架成功
+          content:
+            application/json:
+              schema:
+                type: object
+                description: POST /api/skills/{skillId}/versions/{version}/release 响应
+                required: &ref_71
+                  - publishedVersion
+                  - publishedVersionId
+                properties: &ref_72
+                  publishedVersion:
+                    type: string
+                    description: 新 PUBLISHED 行版本号(已去掉 alpha 后缀)
+                    example: '1.0'
+                  publishedVersionId:
+                    type: string
+                    description: 新 PUBLISHED 行 ID
+                    example: sv_NewPublished123456
+                  previousVersion:
+                    type: string
+                    description: 老 PUBLISHED 版本号(若有,已变为 deprecated)
+                    example: 0.x
+                  previousVersionId:
+                    type: string
+                    description: 老 PUBLISHED 行 ID(若有)
+                    example: sv_OldPublished123456
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
   /api/skills/{skillId}/related:
     put:
       tags:
@@ -1935,7 +2374,7 @@ paths:
       description: |
         `PUT /api/skills/{skillId}/related`
 
-        内部接口，不暴露给前端 UI。覆盖式更新：同事务先删除该 skill 的所有现存推荐关系，再按入参顺序重新插入；`display_order` 由数组下标决定（0..N-1）。`items: []` 合法，等价于清空。禁止自引用（items 中不可包含路径 skillId 自身）。鉴权同 createSkill：`MINUS_AI_SID` + admin 白名单。
+        内部接口,不暴露给前端 UI。覆盖式更新:同事务先删除该 skill 的所有现存推荐关系,再按入参顺序重新插入。`items: []` 合法,等价于清空。禁止自引用(items 中不可包含路径 skillId 自身)。鉴权:`MINUS_AI_SID` + admin 白名单。
       operationId: updateSkillRelated
       parameters:
         - name: skillId
@@ -1950,9 +2389,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_72
+              required: &ref_86
                 - items
-              properties: &ref_73
+              properties: &ref_87
                 items:
                   type: array
                   description: 下游 skill ID 数组，顺序即前端展示顺序；空数组合法（语义=清空所有推荐）
@@ -1965,15 +2404,15 @@ paths:
                     - skl_AbCdEfGhIjKlMnOpQrStUv
       responses:
         '200':
-          description: 更新成功，返回新的关联推荐列表
+          description: 更新成功,返回新的关联推荐列表
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: object
-                  required: *ref_11
-                  properties: *ref_12
+                  required: *ref_8
+                  properties: *ref_9
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -1982,20 +2421,154 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
-  /api/admin/skills/{skillId}/endpoint:
-    put:
+  /api/admin/skill-versions:
+    get:
       tags:
         - Skill
-      summary: 更新 Skill 当前版本 endpoint
+      summary: admin 待审/已审版本列表
       description: |
-        `PUT /api/admin/skills/{skillId}/endpoint`
+        `GET /api/admin/skill-versions`
 
-        管理员接口，不暴露给前端 UI。写入 `skill_versions.endpoint_url`，事务 commit 后失效 gateway Redis 缓存 key（`skill:{skillId}`、`skill:version:{skillId}:{version}`），gateway 下次 cache miss 即拿到新 endpoint，无需重启。作用于 `skills.current_version_id` 指向的版本；若 `current_version_id IS NULL` 返 409。鉴权：`MINUS_AI_SID` + admin 白名单。
-      operationId: setSkillCurrentEndpoint
+        按 status 过滤 skill_versions,跨 skill 拉平。仅 admin 可调,且必须 cookie session(dev key 调用拦截 403 FORBIDDEN_AUTH_METHOD)。
+      operationId: listAdminSkillVersions
+      security:
+        - minusAiSid: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - disabled
+            default: pending
+          description: 状态过滤,默认 pending
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GET /api/admin/skill-versions 响应
+                required: &ref_81
+                  - items
+                  - pageInfo
+                properties: &ref_82
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      description: admin 待审/已审列表项
+                      required: &ref_79
+                        - id
+                        - skillId
+                        - version
+                        - status
+                        - displayName
+                        - iconUrl
+                        - authorId
+                        - authorPhone
+                        - submittedAt
+                        - updatedAt
+                      properties: &ref_80
+                        id:
+                          type: string
+                          description: 版本 ID
+                          example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                        skillId:
+                          type: string
+                          description: 所属 skill ID
+                          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+                        version:
+                          type: string
+                          description: 完整版本号
+                          example: 1.0-alpha.1
+                        status:
+                          type: string
+                          enum: *ref_16
+                          description: |
+                            skill 版本状态。
+                            - draft: 编辑中,作者可改
+                            - pending: 已提审,等待 admin 审核
+                            - rejected: admin 已驳回,含 reason;不可变快照,作者可调 POST /api/skills/{id}/versions 同号 alpha.N+1 继续
+                            - approved: 审核通过 + 已部署生产环境,仅 author 可访问预览
+                            - published: 全平台所有用户可见
+                            - deprecated: 被新版本替代,老 session 仍可回放
+                            - disabled: admin 强制下架,gateway 直接拒绝
+                        displayName:
+                          type: string
+                          example: 关键词调研
+                        iconUrl:
+                          type: string
+                          format: uri
+                          example: https://cdn.sif.com/skills/keyword-research/icon.png
+                        authorId:
+                          type: string
+                          description: 作者 user ID
+                          example: usr_5k8Zt7QhZ3kR9mVx2yNpEw
+                        authorPhone:
+                          type: string
+                          description: 作者手机号(便于审核沟通)
+                          example: '+8613800138000'
+                        submittedAt:
+                          type: integer
+                          format: int64
+                          description: 提审时间戳(毫秒)
+                          example: 1745280000000
+                        updatedAt:
+                          type: integer
+                          format: int64
+                          example: 1745280000000
+                  pageInfo:
+                    type: object
+                    required:
+                      - hasMore
+                    properties:
+                      nextCursor:
+                        type: string
+                      hasMore:
+                        type: boolean
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
+  /api/admin/skills/{skillId}/versions/{version}/approve:
+    post:
+      tags:
+        - Skill
+      summary: admin 审核通过
+      description: |
+        `POST /api/admin/skills/{skillId}/versions/{version}/approve`
+
+        UPDATE status → approved + 写 endpoint_url + UPDATE `skills.preview_version_id` → 此行 + INSERT `skill_reviews(action='approve')` + 短信通知 author。要求 status=pending。仅 admin + cookie session。
+      operationId: approveSkillVersion
+      security:
+        - minusAiSid: []
       parameters:
         - name: skillId
           in: path
@@ -2003,42 +2576,40 @@ paths:
           schema:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.1
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: &ref_21
+              description: POST /api/admin/skills/{skillId}/versions/{version}/approve 入参
+              required: &ref_73
                 - endpointUrl
-              properties: &ref_22
+              properties: &ref_74
                 endpointUrl:
                   type: string
-                  description: 容器后端地址，必须以 `http://` 或 `https://` 开头；空字符串等价于清空（将 `endpoint_url` 置 NULL）
-                  example: http://skill-keyword-research:9001
+                  description: 容器后端地址,必须以 `http://` 或 `https://` 开头;admin 在 ops 平台部署后填入
+                  example: https://prod.skill-foo.minus.ai
+                comment:
+                  type: string
+                  maxLength: 2000
+                  description: 审核备注(选填),写入 `skill_reviews.reason`
       responses:
         '200':
-          description: 更新成功
+          description: 审核通过
           content:
             application/json:
               schema:
                 type: object
-                required: &ref_23
-                  - skillVersionId
-                  - version
-                properties: &ref_24
-                  skillVersionId:
-                    type: string
-                    description: 被更新的 skill 版本 ID
-                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
-                  version:
-                    type: string
-                    description: SemVer 版本号
-                    example: 1.0.0
-                  endpointUrl:
-                    type: string
-                    description: 写入后的 endpoint 地址；若置 NULL（清空）则此字段省略
-                    example: http://skill-keyword-research:9001
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: *ref_19
+                properties: *ref_20
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -2047,22 +2618,31 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
         '409':
-          description: skill 尚未设置 current_version_id，无法使用默认版本 path
-          content: *ref_20
-    delete:
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+  /api/admin/skills/{skillId}/versions/{version}/reject:
+    post:
       tags:
         - Skill
-      summary: 清空 Skill 当前版本 endpoint
+      summary: admin 审核驳回
       description: |
-        `DELETE /api/admin/skills/{skillId}/endpoint`
+        `POST /api/admin/skills/{skillId}/versions/{version}/reject`
 
-        将 `skill_versions.endpoint_url` 置为 NULL，语义同 PUT 传空字符串。失效同一组 Redis key。
-      operationId: clearSkillCurrentEndpoint
+        UPDATE status → rejected + INSERT `skill_reviews(action='reject', reason)` + 短信通知 author。要求 status=pending。仅 admin + cookie session。
+      operationId: rejectSkillVersion
+      security:
+        - minusAiSid: []
       parameters:
         - name: skillId
           in: path
@@ -2070,62 +2650,38 @@ paths:
           schema:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-      responses:
-        '204':
-          description: 清空成功
-        '401':
-          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
-          content: *ref_4
-        '403':
-          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
-        '404':
-          description: 资源不存在或无权访问
-          content: *ref_10
-        '409':
-          description: skill 尚未设置 current_version_id，无法使用默认版本 path
-          content: *ref_20
-  /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint:
-    put:
-      tags:
-        - Skill
-      summary: 更新 Skill 指定版本 endpoint
-      description: |
-        `PUT /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint`
-
-        管理员接口。`{skillVersion}` 为 SemVer 字符串（如 `1.0.0`），按 `(skill_id, version)` 唯一索引查 `skill_versions`。写入 `endpoint_url` 并失效 Redis 缓存，无需重启 gateway。鉴权：`MINUS_AI_SID` + admin 白名单。
-      operationId: setSkillVersionEndpoint
-      parameters:
-        - name: skillId
+        - name: version
           in: path
           required: true
           schema:
             type: string
-          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-        - name: skillVersion
-          in: path
-          required: true
-          schema:
-            type: string
-          description: SemVer 版本号，如 1.0.0
-          example: 1.0.0
+          example: 1.0-alpha.1
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: *ref_21
-              properties: *ref_22
+              description: POST /api/admin/skills/{skillId}/versions/{version}/reject 入参
+              required: &ref_75
+                - reason
+              properties: &ref_76
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: 驳回原因
+                  example: 步骤说明不清晰,请补充说明 stepNumber 3 的具体含义
       responses:
         '200':
-          description: 更新成功
+          description: 驳回成功
           content:
             application/json:
               schema:
                 type: object
-                required: *ref_23
-                properties: *ref_24
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: *ref_19
+                properties: *ref_20
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -2134,19 +2690,31 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
-    delete:
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+  /api/admin/skills/{skillId}/versions/{version}/disable:
+    post:
       tags:
         - Skill
-      summary: 清空 Skill 指定版本 endpoint
+      summary: admin 强制下架
       description: |
-        `DELETE /api/admin/skills/{skillId}/versions/{skillVersion}/endpoint`
+        `POST /api/admin/skills/{skillId}/versions/{version}/disable`
 
-        将指定版本的 `endpoint_url` 置为 NULL，失效同一组 Redis key。
-      operationId: clearSkillVersionEndpoint
+        UPDATE status → disabled + 若是 `skills.current_version_id` 则置 NULL + Gateway 缓存失效 + INSERT `skill_reviews(action='disable', reason)`。仅作用于 approved/published/deprecated 行。仅 admin + cookie session。
+      operationId: disableSkillVersion
+      security:
+        - minusAiSid: []
       parameters:
         - name: skillId
           in: path
@@ -2154,22 +2722,99 @@ paths:
           schema:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
-        - name: skillVersion
+        - name: version
           in: path
           required: true
           schema:
             type: string
-          description: SemVer 版本号，如 1.0.0
-          example: 1.0.0
+          example: '1.0'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: POST /api/admin/skills/{skillId}/versions/{version}/disable 入参
+              required: &ref_77
+                - reason
+              properties: &ref_78
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: 下架原因(违规 / 安全问题等)
+                  example: 违反平台内容政策
       responses:
-        '204':
-          description: 清空成功
+        '200':
+          description: 下架成功
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+                required: *ref_19
+                properties: *ref_20
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
         '401':
           description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_10
+        '409':
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
+  /api/admin/skills/{skillId}/versions/{version}/source-package:
+    get:
+      tags:
+        - Skill
+      summary: admin 下载提审源码包
+      description: |
+        `GET /api/admin/skills/{skillId}/versions/{version}/source-package`
+
+        admin 审核工作台点击「下载源码」按钮。读 `skill_versions.source_package_file_id` → 按 file_id 生成 OSS 临时签名 URL(有效期 10 分钟,带 `response-content-disposition`)→ 302 重定向。仅 admin + cookie session。
+      operationId: downloadSkillVersionSourcePackage
+      security:
+        - minusAiSid: []
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1.0-alpha.1
+      responses:
+        '302':
+          description: 重定向到 OSS 临时签名 URL,客户端跟随后直接从 OSS 下载 zip
+          headers:
+            Location:
+              description: OSS 临时签名 URL(query 含 `response-content-disposition`,使浏览器存为原始 zip 文件名)
+              schema:
+                type: string
+                format: uri
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_4
+        '403':
+          description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
@@ -2197,8 +2842,8 @@ paths:
                 items:
                   type: object
                   description: 出参形态 — 含 code + label，label 按用户 locale fallback
-                  required: *ref_8
-                  properties: *ref_9
+                  required: *ref_13
+                  properties: *ref_14
               example:
                 - code: amazon
                   label: 亚马逊
@@ -2239,13 +2884,13 @@ paths:
                 items:
                   type: object
                   description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
-                  required: &ref_25
+                  required: &ref_22
                     - code
                     - label
                     - status
                     - createdAt
                     - updatedAt
-                  properties: &ref_26
+                  properties: &ref_23
                     code:
                       type: string
                       description: 业务 key 兼主键，跨环境稳定；一旦创建不可改
@@ -2276,7 +2921,7 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
     post:
       tags:
         - SkillTag
@@ -2289,22 +2934,22 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_69
+              required: &ref_83
                 - code
                 - label
-              properties: &ref_70
+              properties: &ref_84
                 code:
                   type: string
                   pattern: ^[a-z][a-z0-9_]*$
                   minLength: 2
                   maxLength: 50
-                  description: 业务 key，跨环境稳定；一旦创建不可改
+                  description: 业务 key 兼主键；一旦创建不可改；小写字母 / 数字 / 下划线，首字符必须为字母
                   example: amazon
                 label:
                   type: string
                   minLength: 1
                   maxLength: 100
-                  description: 默认中文显示名；i18n 走 translations 后续维护
+                  description: 默认中文显示名（其他语言走 translations 表）
                   example: 亚马逊
       responses:
         '201':
@@ -2314,8 +2959,8 @@ paths:
               schema:
                 type: object
                 description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
-                required: *ref_25
-                properties: *ref_26
+                required: *ref_22
+                properties: *ref_23
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -2324,10 +2969,16 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '409':
-          description: 资源状态冲突，无法执行操作
-          content: *ref_27
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
   /api/admin/skill-tags/{code}:
     patch:
       tags:
@@ -2354,16 +3005,15 @@ paths:
             schema:
               type: object
               description: |
-                部分更新语义：字段缺失则不修改；传 null 一律视为非法（返 400）。
-                至少要传一个字段，否则 400 EMPTY_BODY。
-                code 不可改；想换 code 只能 DELETE 后 POST 新建。
+                PATCH /api/admin/skill-tags/{code} 入参。仅允许改 label / status，**不允许改 code**。
+                部分更新：字段缺失则不修改；至少传一个字段（minProperties: 1）。
               minProperties: 1
-              properties: &ref_71
+              properties: &ref_85
                 label:
                   type: string
                   minLength: 1
                   maxLength: 100
-                  description: 默认中文显示名，trim 后 1-100 字
+                  description: 默认中文显示名
                 status:
                   type: string
                   enum:
@@ -2378,8 +3028,8 @@ paths:
               schema:
                 type: object
                 description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
-                required: *ref_25
-                properties: *ref_26
+                required: *ref_22
+                properties: *ref_23
         '400':
           description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
           content: *ref_2
@@ -2388,7 +3038,7 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
@@ -2419,17 +3069,23 @@ paths:
           content: *ref_4
         '403':
           description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-          content: *ref_19
+          content: *ref_15
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
-  /api/me/skills/{skillId}/sessions:
+  /api/skills/{skillId}/versions/{version}/sessions:
     post:
       tags:
         - Session
-      summary: 开启新 Session
-      description: '`POST /api/me/skills/{skillId}/sessions`'
+      summary: 开启新 Session(锁定使用的 skill 版本)
+      description: |
+        `POST /api/skills/{skillId}/versions/{version}/sessions`
+
+        创建 session 并锁定使用的 `{version}` 版本。普通用户传 PUBLISHED 版本号;dev key + author 可传 APPROVED 灰度版本号预览;其他状态版本 404。
       operationId: createSession
+      security:
+        - minusAiSid: []
+        - developerApiKey: []
       parameters:
         - name: skillId
           in: path
@@ -2437,6 +3093,12 @@ paths:
           schema:
             type: string
           example: skl_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+          example: '1.0'
       requestBody:
         required: true
         content:
@@ -2449,7 +3111,7 @@ paths:
                 entryParams:
                   type: object
                   additionalProperties: true
-                  description: Skill 自定义入参，平台不校验结构，透传给 Skill 容器
+                  description: Skill 自定义入参,平台不校验结构,透传给 Skill 容器
                   example:
                     marketplace: US
                     asin: B01NBNDC1T
@@ -2462,17 +3124,31 @@ paths:
                 type: object
                 required:
                   - id
+                  - skillVersionId
+                  - skillVersion
                 properties:
                   id:
                     type: string
                     description: 新创建的 session ID
                     example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+                  skillVersionId:
+                    type: string
+                    description: 锁定的版本 ID
+                    example: sv_5k8Zt7QhZ3kR9mVx2yNpEw
+                  skillVersion:
+                    type: string
+                    description: 锁定的版本号字符串(回显路径上的 version)
+                    example: '1.0'
+        '400':
+          description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
+          content: *ref_2
         '401':
           description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
           content: *ref_4
         '404':
           description: 资源不存在或无权访问
           content: *ref_10
+  /api/me/skills/{skillId}/sessions:
     get:
       tags:
         - Session
@@ -2491,14 +3167,14 @@ paths:
           required: false
           schema:
             type: string
-          description: 不透明翻页游标，首次请求不传；值来自上一页响应的 nextCursor，原样回传即可（服务端内部编码了 lastActiveAt 和 session id，keyset pagination）
+          description: 不透明翻页游标,首次请求不传;值来自上一页响应的 nextCursor,原样回传即可(服务端内部编码了 lastActiveAt 和 session id,keyset pagination)
         - name: limit
           in: query
           required: false
           schema:
             type: integer
             default: 20
-          description: 每页条数，默认 20
+          description: 每页条数,默认 20
       responses:
         '200':
           description: 成功
@@ -2506,16 +3182,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_76
+                required: &ref_90
                   - items
                   - hasMore
-                properties: &ref_77
+                properties: &ref_91
                   items:
                     type: array
                     description: session 摘要列表，按 lastActiveAt 倒序
                     items:
                       type: object
-                      required: &ref_74
+                      required: &ref_88
                         - id
                         - createdAt
                         - lastActiveAt
@@ -2523,7 +3199,7 @@ paths:
                         - pipelineStatus
                         - skillVersion
                         - isLatestVersion
-                      properties: &ref_75
+                      properties: &ref_89
                         id:
                           type: string
                           description: session ID
@@ -2610,7 +3286,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_80
+                required: &ref_94
                   - id
                   - createdAt
                   - skillId
@@ -2618,7 +3294,7 @@ paths:
                   - skillVersion
                   - isLatestVersion
                   - messages
-                properties: &ref_81
+                properties: &ref_95
                   id:
                     type: string
                     description: session ID
@@ -2653,14 +3329,14 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: &ref_78
+                      required: &ref_92
                         - id
                         - sequence
                         - role
                         - messageType
                         - payload
                         - createdAt
-                      properties: &ref_79
+                      properties: &ref_93
                         id:
                           type: string
                           description: message ID
@@ -2720,11 +3396,11 @@ paths:
                             - title: SkillEntered
                               type: object
                               description: skill_entered — 进入或切换 skill
-                              required: &ref_82
+                              required: &ref_96
                                 - skillId
                                 - skillVersionId
                                 - entryParams
-                              properties: &ref_83
+                              properties: &ref_97
                                 skillId:
                                   type: string
                                   description: 进入的 skill ID
@@ -2748,9 +3424,9 @@ paths:
                             - title: StepInputSubmitted
                               type: object
                               description: step_input_submitted — 用户提交确认面板
-                              required: &ref_84
+                              required: &ref_98
                                 - stepNumber
-                              properties: &ref_85
+                              properties: &ref_99
                                 stepNumber:
                                   type: integer
                                   description: 对应的 pipeline 步骤序号
@@ -2761,7 +3437,7 @@ paths:
                             - title: UserText
                               type: object
                               description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
-                              properties: &ref_86
+                              properties: &ref_100
                                 data:
                                   type: object
                                   additionalProperties: true
@@ -2769,7 +3445,7 @@ paths:
                             - title: AssistantText
                               type: object
                               description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
-                              properties: &ref_87
+                              properties: &ref_101
                                 data:
                                   type: object
                                   additionalProperties: true
@@ -2777,7 +3453,7 @@ paths:
                             - title: PipelineStart
                               type: object
                               description: pipeline_start — pipeline 开始
-                              properties: &ref_88
+                              properties: &ref_102
                                 data:
                                   type: object
                                   additionalProperties: true
@@ -2785,9 +3461,9 @@ paths:
                             - title: StepStart
                               type: object
                               description: step_start — 步骤开始
-                              required: &ref_89
+                              required: &ref_103
                                 - stepNumber
-                              properties: &ref_90
+                              properties: &ref_104
                                 stepNumber:
                                   type: integer
                                   description: 当前步骤序号
@@ -2798,9 +3474,9 @@ paths:
                             - title: StepComplete
                               type: object
                               description: step_complete — 步骤完成
-                              required: &ref_91
+                              required: &ref_105
                                 - stepNumber
-                              properties: &ref_92
+                              properties: &ref_106
                                 stepNumber:
                                   type: integer
                                   description: 完成的步骤序号
@@ -2811,9 +3487,9 @@ paths:
                             - title: StepInputRequired
                               type: object
                               description: step_input_required — 等待用户输入确认面板
-                              required: &ref_93
+                              required: &ref_107
                                 - stepNumber
-                              properties: &ref_94
+                              properties: &ref_108
                                 stepNumber:
                                   type: integer
                                   description: 需要用户确认的步骤序号
@@ -2824,7 +3500,7 @@ paths:
                             - title: PipelineComplete
                               type: object
                               description: pipeline_complete — 全部步骤完成
-                              properties: &ref_95
+                              properties: &ref_109
                                 data:
                                   type: object
                                   additionalProperties: true
@@ -2832,9 +3508,9 @@ paths:
                             - title: PipelineError
                               type: object
                               description: pipeline_error — pipeline 执行出错
-                              required: &ref_96
+                              required: &ref_110
                                 - reason
-                              properties: &ref_97
+                              properties: &ref_111
                                 reason:
                                   type: string
                                   description: 错误原因码
@@ -2879,8 +3555,14 @@ paths:
           description: 资源不存在或无权访问
           content: *ref_10
         '409':
-          description: 资源状态冲突，无法执行操作
-          content: *ref_27
+          description: |
+            资源状态冲突,无法执行操作。`code` 可为:
+            `CONFLICT` (session 运行中不可删) /
+            `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+            `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+            `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+            `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+          content: *ref_21
   /api/me/sessions:
     delete:
       tags:
@@ -3206,7 +3888,7 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               type: object
-              required: &ref_98
+              required: &ref_112
                 - grant_type
                 - code
                 - redirect_uri
@@ -3216,7 +3898,7 @@ paths:
               description: |
                 `POST /oauth/token` 的 form body（`application/x-www-form-urlencoded`）。
                 字段名遵循 RFC 6749 snake_case 命名（**与本文档其他接口的 camelCase 不同**）。
-              properties: &ref_99
+              properties: &ref_113
                 grant_type:
                   type: string
                   enum:
@@ -3255,7 +3937,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_100
+                required: &ref_114
                   - access_token
                   - token_type
                   - expires_in
@@ -3264,7 +3946,7 @@ paths:
                   `POST /oauth/token` 200 响应（`application/json`），按 [RFC 6749 §5.1](https://datatracker.ietf.org/doc/html/rfc6749#section-5.1)。
                   字段名遵循 OAuth snake_case 命名。
                   **故意不返** `refresh_token`（1.0 简化：session 过期 SDK 重走 OAuth flow）和 OIDC `id_token`（1.0 不上 OIDC，user info 走 `GET /api/me`）。
-                properties: &ref_101
+                properties: &ref_115
                   access_token:
                     type: string
                     description: Spring Session sid，**与 `MINUS_AI_SID` cookie 值完全相同**。SDK 拿到后写入本机域 cookie，后续业务调用浏览器自动带 cookie
@@ -3295,12 +3977,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_28
+                required: &ref_24
                   - error
                 description: |
                   OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
                   **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
-                properties: &ref_29
+                properties: &ref_25
                   error:
                     type: string
                     enum:
@@ -3349,11 +4031,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: *ref_28
+                required: *ref_24
                 description: |
                   OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
                   **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
-                properties: *ref_29
+                properties: *ref_25
               example:
                 error: invalid_client
                 error_description: client authentication failed
@@ -3363,11 +4045,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: *ref_28
+                required: *ref_24
                 description: |
                   OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
                   **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
-                properties: *ref_29
+                properties: *ref_25
               example:
                 error: server_error
                 error_description: internal server error
@@ -3415,260 +4097,311 @@ components:
   schemas:
     SendVcodeRequest:
       type: object
+      required: *ref_26
+      properties: *ref_27
+    RegisterRequest:
+      type: object
+      required: *ref_28
+      properties: *ref_29
+    RegisterResponse:
+      type: object
       required: *ref_30
       properties: *ref_31
-    RegisterRequest:
+    LoginRequest:
       type: object
       required: *ref_32
       properties: *ref_33
-    RegisterResponse:
+    LoginResponse:
       type: object
       required: *ref_34
       properties: *ref_35
-    LoginRequest:
+    MeResponse:
       type: object
       required: *ref_36
       properties: *ref_37
-    LoginResponse:
+    IdentitySummary:
       type: object
       required: *ref_38
       properties: *ref_39
-    MeResponse:
+    CurrentTeamSummary:
       type: object
       required: *ref_40
       properties: *ref_41
-    IdentitySummary:
+    ChangePasswordRequest:
       type: object
       required: *ref_42
       properties: *ref_43
-    CurrentTeamSummary:
+    ResetPasswordRequest:
       type: object
       required: *ref_44
       properties: *ref_45
-    ChangePasswordRequest:
+    BindIdentityRequest:
       type: object
       required: *ref_46
       properties: *ref_47
-    ResetPasswordRequest:
-      type: object
-      required: *ref_48
-      properties: *ref_49
-    BindIdentityRequest:
-      type: object
-      required: *ref_50
-      properties: *ref_51
     UpdateMeRequest:
       type: object
       description: 任意字段，至少一个；**未传字段不动**——前端无需为不修改的字段反传旧值
-      properties: *ref_52
+      properties: *ref_48
     DeveloperResponse:
       type: object
-      required: *ref_53
-      properties: *ref_54
+      required: *ref_49
+      properties: *ref_50
     DeveloperApiKeyPrefix:
       type: object
-      required: *ref_55
-      properties: *ref_56
+      required: *ref_51
+      properties: *ref_52
     ApiKeyResponse:
       type: object
       required: *ref_5
       properties: *ref_6
     AdminPatchDeveloperRequest:
       type: object
-      required: *ref_57
-      properties: *ref_58
+      required: *ref_53
+      properties: *ref_54
     AdminPatchDeveloperResponse:
       type: object
-      required: *ref_59
-      properties: *ref_60
+      required: *ref_55
+      properties: *ref_56
     SkillStep:
-      type: object
-      required: *ref_13
-      properties: *ref_14
-    SkillTagRef:
-      type: object
-      description: 入参形态 — 引用一个已存在的标签，仅含 code
-      required: *ref_15
-      properties: *ref_16
-    SkillTag:
-      type: object
-      description: 出参形态 — 含 code + label，label 按用户 locale fallback
-      required: *ref_8
-      properties: *ref_9
-    SkillListItem:
       type: object
       required: *ref_11
       properties: *ref_12
+    SkillTagRef:
+      type: object
+      description: 入参形态 — 引用一个已存在的标签，仅含 code
+      required: *ref_17
+      properties: *ref_18
+    SkillTag:
+      type: object
+      description: 出参形态 — 含 code + label，label 按用户 locale fallback
+      required: *ref_13
+      properties: *ref_14
+    SkillListItem:
+      type: object
+      required: *ref_8
+      properties: *ref_9
     SkillDetail:
       type: object
       description: skill 详情接口响应（含完整 steps / useCases / tags）
-      required: *ref_17
-      properties: *ref_18
+      required: *ref_57
+      properties: *ref_58
     CreateSkillRequest:
       type: object
-      required: *ref_61
-      properties: *ref_62
+      description: |
+        POST /api/skills 入参。**不接受** `version` 字段;系统强制首版本 `1.0-alpha.1` + status=draft。
+      required: *ref_59
+      properties: *ref_60
     CreateSkillResponse:
       type: object
-      required: *ref_63
-      properties: *ref_64
-    UpdateSkillRequest:
-      type: object
-      description: |
-        PATCH /api/skills/{skillId} 入参。部分更新：字段缺失则不修改；字段传值则覆盖式更新。
-        传 null 一律视为非法（返 400）；至少传一个字段（minProperties: 1），否则 400 EMPTY_BODY。
-      minProperties: 1
-      properties: *ref_65
+      description: POST /api/skills 响应。首草稿 status=draft。
+      required: *ref_61
+      properties: *ref_62
     CreateSkillVersionRequest:
       type: object
       description: |
-        POST /api/skills/{skillId}/versions 入参。全部字段选填；未传字段从当前版本完整复制；
-        显式传值（含 []）即覆盖；不允许传 null。
-      properties: *ref_66
+        POST /api/skills/{skillId}/versions 入参。`bumpType` 由系统按 version 计算;不传 version 默认 minor +1。
+      properties: *ref_63
     CreateSkillVersionResponse:
       type: object
+      description: POST /api/skills/{skillId}/versions 响应。新建草稿版本。
+      required: *ref_64
+      properties: *ref_65
+    PatchSkillVersionRequest:
+      type: object
+      description: |
+        PATCH /api/skills/{skillId}/versions/{version} 入参。仅 status=draft 行可改。
+        部分更新:字段缺失则不修改;字段传值则覆盖式更新;传 null 一律视为非法。
+      minProperties: 1
+      properties: *ref_66
+    SkillVersionStatus:
+      type: string
+      enum: *ref_16
+      description: |
+        skill 版本状态。
+        - draft: 编辑中,作者可改
+        - pending: 已提审,等待 admin 审核
+        - rejected: admin 已驳回,含 reason;不可变快照,作者可调 POST /api/skills/{id}/versions 同号 alpha.N+1 继续
+        - approved: 审核通过 + 已部署生产环境,仅 author 可访问预览
+        - published: 全平台所有用户可见
+        - deprecated: 被新版本替代,老 session 仍可回放
+        - disabled: admin 强制下架,gateway 直接拒绝
+    SkillVersionListItem:
+      type: object
+      description: 作者视角 - 列表项(摘要)
       required: *ref_67
       properties: *ref_68
+    SkillVersionListResponse:
+      type: object
+      description: GET /api/skills/{skillId}/versions 响应
+      required: *ref_69
+      properties: *ref_70
+    SkillVersionDetail:
+      type: object
+      description: GET /api/skills/{skillId}/versions/{version} 响应(作者视角)
+      required: *ref_19
+      properties: *ref_20
+    ReleaseSkillVersionResponse:
+      type: object
+      description: POST /api/skills/{skillId}/versions/{version}/release 响应
+      required: *ref_71
+      properties: *ref_72
+    ApproveSkillVersionRequest:
+      type: object
+      description: POST /api/admin/skills/{skillId}/versions/{version}/approve 入参
+      required: *ref_73
+      properties: *ref_74
+    RejectSkillVersionRequest:
+      type: object
+      description: POST /api/admin/skills/{skillId}/versions/{version}/reject 入参
+      required: *ref_75
+      properties: *ref_76
+    DisableSkillVersionRequest:
+      type: object
+      description: POST /api/admin/skills/{skillId}/versions/{version}/disable 入参
+      required: *ref_77
+      properties: *ref_78
+    AdminSkillVersionListItem:
+      type: object
+      description: admin 待审/已审列表项
+      required: *ref_79
+      properties: *ref_80
+    AdminSkillVersionListResponse:
+      type: object
+      description: GET /api/admin/skill-versions 响应
+      required: *ref_81
+      properties: *ref_82
     SkillTagAdminView:
       type: object
       description: admin 视角的完整 tag（label 不做 locale fallback，返回主表默认中文）
-      required: *ref_25
-      properties: *ref_26
+      required: *ref_22
+      properties: *ref_23
     CreateSkillTagRequest:
       type: object
-      required: *ref_69
-      properties: *ref_70
+      required: *ref_83
+      properties: *ref_84
     UpdateSkillTagRequest:
       type: object
       description: |
-        部分更新语义：字段缺失则不修改；传 null 一律视为非法（返 400）。
-        至少要传一个字段，否则 400 EMPTY_BODY。
-        code 不可改；想换 code 只能 DELETE 后 POST 新建。
+        PATCH /api/admin/skill-tags/{code} 入参。仅允许改 label / status，**不允许改 code**。
+        部分更新：字段缺失则不修改；至少传一个字段（minProperties: 1）。
       minProperties: 1
-      properties: *ref_71
-    UpdateSkillEndpointRequest:
-      type: object
-      required: *ref_21
-      properties: *ref_22
-    UpdateSkillEndpointResponse:
-      type: object
-      required: *ref_23
-      properties: *ref_24
+      properties: *ref_85
     UpdateSkillRelatedRequest:
       type: object
-      required: *ref_72
-      properties: *ref_73
+      required: *ref_86
+      properties: *ref_87
     SessionSummary:
       type: object
-      required: *ref_74
-      properties: *ref_75
+      required: *ref_88
+      properties: *ref_89
     SessionListResponse:
       type: object
-      required: *ref_76
-      properties: *ref_77
+      required: *ref_90
+      properties: *ref_91
     SessionMessage:
       type: object
-      required: *ref_78
-      properties: *ref_79
+      required: *ref_92
+      properties: *ref_93
     SessionDetail:
       type: object
-      required: *ref_80
-      properties: *ref_81
+      required: *ref_94
+      properties: *ref_95
     PayloadSkillEntered:
       title: SkillEntered
       type: object
       description: skill_entered — 进入或切换 skill
-      required: *ref_82
-      properties: *ref_83
+      required: *ref_96
+      properties: *ref_97
     PayloadStepInputSubmitted:
       title: StepInputSubmitted
       type: object
       description: step_input_submitted — 用户提交确认面板
-      required: *ref_84
-      properties: *ref_85
+      required: *ref_98
+      properties: *ref_99
     PayloadUserText:
       title: UserText
       type: object
       description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
-      properties: *ref_86
+      properties: *ref_100
     PayloadAssistantText:
       title: AssistantText
       type: object
       description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段，payload 仅含扩展数据
-      properties: *ref_87
+      properties: *ref_101
     PayloadPipelineStart:
       title: PipelineStart
       type: object
       description: pipeline_start — pipeline 开始
-      properties: *ref_88
+      properties: *ref_102
     PayloadStepStart:
       title: StepStart
       type: object
       description: step_start — 步骤开始
-      required: *ref_89
-      properties: *ref_90
+      required: *ref_103
+      properties: *ref_104
     PayloadStepComplete:
       title: StepComplete
       type: object
       description: step_complete — 步骤完成
-      required: *ref_91
-      properties: *ref_92
+      required: *ref_105
+      properties: *ref_106
     PayloadStepInputRequired:
       title: StepInputRequired
       type: object
       description: step_input_required — 等待用户输入确认面板
-      required: *ref_93
-      properties: *ref_94
+      required: *ref_107
+      properties: *ref_108
     PayloadPipelineComplete:
       title: PipelineComplete
       type: object
       description: pipeline_complete — 全部步骤完成
-      properties: *ref_95
+      properties: *ref_109
     PayloadPipelineError:
       title: PipelineError
       type: object
       description: pipeline_error — pipeline 执行出错
-      required: *ref_96
-      properties: *ref_97
+      required: *ref_110
+      properties: *ref_111
     ErrorResponse:
       type: object
       required: *ref_0
       properties: *ref_1
     OAuthTokenRequest:
       type: object
-      required: *ref_98
+      required: *ref_112
       description: |
         `POST /oauth/token` 的 form body（`application/x-www-form-urlencoded`）。
         字段名遵循 RFC 6749 snake_case 命名（**与本文档其他接口的 camelCase 不同**）。
-      properties: *ref_99
+      properties: *ref_113
     OAuthTokenResponse:
       type: object
-      required: *ref_100
+      required: *ref_114
       description: |
         `POST /oauth/token` 200 响应（`application/json`），按 [RFC 6749 §5.1](https://datatracker.ietf.org/doc/html/rfc6749#section-5.1)。
         字段名遵循 OAuth snake_case 命名。
         **故意不返** `refresh_token`（1.0 简化：session 过期 SDK 重走 OAuth flow）和 OIDC `id_token`（1.0 不上 OIDC，user info 走 `GET /api/me`）。
-      properties: *ref_101
+      properties: *ref_115
     OAuthErrorResponse:
       type: object
-      required: *ref_28
+      required: *ref_24
       description: |
         OAuth 错误响应（[RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2)），格式 `{ error, error_description, error_uri }`。
         **与项目其他接口的 ErrorResponse 不同**——OAuth endpoint 唯一例外，让标准 OAuth client lib 开箱兼容。
-      properties: *ref_29
+      properties: *ref_25
   responses:
     Unauthorized:
       description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
       content: *ref_4
     PhoneRequired:
       description: 已登录账户尚未绑定手机号；前端引导用户跳"绑定手机号"页面
-      content: *ref_102
+      content: *ref_116
     IdentityTaken:
       description: 注册或绑定时手机号/邮箱已被其他账户占用（不暴露具体属于谁）
       content: *ref_7
     Forbidden:
       description: 当前用户无操作权限（如非 admin 调用 `/api/skills` 写接口）
-      content: *ref_19
+      content: *ref_15
     BadRequest:
       description: 请求参数错误，`code` 可为 `FILE_TOO_LARGE` / `UNSUPPORTED_FORMAT` / `VALIDATION_ERROR`
       content: *ref_2
@@ -3676,11 +4409,25 @@ components:
       description: 资源不存在或无权访问
       content: *ref_10
     Conflict:
-      description: 资源状态冲突，无法执行操作
-      content: *ref_27
-    NoCurrentVersion:
-      description: skill 尚未设置 current_version_id，无法使用默认版本 path
-      content: *ref_20
+      description: |
+        资源状态冲突,无法执行操作。`code` 可为:
+        `CONFLICT` (session 运行中不可删) /
+        `NO_PUBLISHED_BASE` (草稿升级要求该 skill 有 PUBLISHED 行) /
+        `ACTIVE_DRAFT_EXISTS` (该 skill 已存在活跃行) /
+        `NOT_EDITABLE` / `NOT_DELETABLE` / `NOT_SUBMITTABLE` /
+        `NOT_RELEASABLE` / `NOT_APPROVABLE` / `NOT_REJECTABLE` / `NOT_DISABLABLE` (状态机不允许此动作)
+      content: *ref_21
+    ForbiddenAuthMethod:
+      description: 当前凭据类型不允许调用此接口(如 dev key 调 admin 审核接口必须 cookie session)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: FORBIDDEN_AUTH_METHOD
+            message: This endpoint requires cookie session authentication
     QuotaExceeded:
       description: 套餐额度耗尽（月度/总量限制），`code` 为 `QUOTA_EXCEEDED`
       content:

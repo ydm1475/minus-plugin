@@ -180,9 +180,9 @@ describe("MCP Server - Tool Registration", () => {
       "file_upload",
       "session_create",
       "session_list",
-      "skill_endpoint_set",
       "skill_list",
       "skill_update",
+      "skill_version_get",
     ]);
   });
 
