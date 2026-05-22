@@ -99,13 +99,13 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 - 向平台注册 Skill（获得 skillId 和 apiKey）
 - 在 ~/minus/{项目名称}/ 下生成完整项目结构（前后端代码、配置文件、.minus/skill.json）
 - 创建 Python 虚拟环境并安装后端依赖
-- 安装前端 npm 依赖
+- 安装前端依赖
 
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
 
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 ```bash
-cd ~/Desktop/sif-platform-template/packages/create-skill && npm link
+cd ~/Desktop/sif-platform-template/packages/create-skill && pnpm link --global
 ```
 
 **如果选"打开已有"：引导新开对话并打开项目文件夹**
@@ -136,7 +136,7 @@ cd ~/minus/{项目名称} && claude
 ### 3. 已登录 + 有项目（进入开发环境）
 
 **环境初始化（每次进入都执行）：**
-1. 如果无 node_modules，第一个动作执行 `Bash(npm install)`，不说话不询问
+1. 如果无 node_modules，第一个动作执行 `Bash(pnpm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
 3. 启动 dev server：
    ```bash
@@ -151,7 +151,7 @@ cd ~/minus/{项目名称} && claude
    fi
    ```
    - 已在运行 → 跳过启动
-   - 未运行 → `Bash(npm run dev)` 后台启动
+   - 未运行 → `Bash(pnpm dev)` 后台启动
 4. dev server 启动后，检测前端预览端口并告诉 Creator：
    ```bash
    PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
@@ -161,7 +161,7 @@ cd ~/minus/{项目名称} && claude
    `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
    脚本输出的 `PREVIEW_URL` 行即为预览地址，**必须原样告诉 Creator**（如「预览地址：http://localhost:5173」）。后续每次让 Creator 去浏览器测试时也要附带这个地址。
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
-   - 执行 `Bash(npm run dev)` 重新启动（SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
+   - 执行 `Bash(pnpm dev)` 重新启动（SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 
 **首次进入（.minus/initialized 不存在）：**
