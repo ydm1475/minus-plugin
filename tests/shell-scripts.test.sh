@@ -380,8 +380,7 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   fi
 )
 
-# Test: Skill project output is lightweight prompt (no auto-execution instructions)
-# 设计变更 [2026-05-22]：SessionStart 只输出轻量提示，不含环境检查详情或自动执行指令
+# Test: Skill project output triggers auto-load of minus skill
 (
   TMP=$(make_tmp)
   export HOME="$TMP"
@@ -390,10 +389,10 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "/minus" && ! assert_contains "$OUTPUT" "npm run dev" 2>/dev/null; then
-    pass "project-detector: Skill project shows lightweight prompt"
+  if assert_contains "$OUTPUT" "自动触发" && ! assert_contains "$OUTPUT" "npm run dev" 2>/dev/null; then
+    pass "project-detector: Skill project auto-triggers minus skill"
   else
-    fail "project-detector: Skill project shows lightweight prompt" "got: $OUTPUT"
+    fail "project-detector: Skill project auto-triggers minus skill" "got: $OUTPUT"
   fi
 )
 

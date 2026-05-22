@@ -91,3 +91,19 @@ code = code.replace(pattern, '\$1' + newSteps + '\$3');
 fs.writeFileSync('${MAIN_TSX}', code);
 console.log('✓ ${MAIN_TSX} 已更新 ${STEP_COUNT} 个步骤渲染');
 " 2>&1
+
+# ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
+echo "$STEP_COUNT" > .minus/total-steps
+
+# ── 输出 node-dev.md 指令（硬编码注入，不依赖 agent 自觉去 Read）──
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+NODE_DEV="$SCRIPT_DIR/../agents/node-dev.md"
+if [ -f "$NODE_DEV" ]; then
+  echo ""
+  echo "═══════════════════════════════════════════════════════"
+  echo "  骨架已生成。接下来逐节点开发，必须严格按以下流程执行："
+  echo "═══════════════════════════════════════════════════════"
+  echo ""
+  # 去掉 frontmatter，只输出正文
+  sed '1,/^---$/{ /^---$/!d; /^---$/d; }; /^---$/,/^---$/d' "$NODE_DEV"
+fi

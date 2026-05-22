@@ -91,7 +91,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "Minus Creator Plugin 已加载。"
   echo "当前目录是 Minus Skill 项目：$PROJ_DISPLAY_NAME"
   echo "登录状态：$LOGGED_IN"
-  echo "输入 /minus 进入开发环境。"
+  echo "[自动触发] 检测到 Skill 项目，必须立即调用 Skill 工具执行 minus-creator:minus，不要等用户输入。"
   echo "</context>"
 
 # 场景 2：在 Workspace 目录中

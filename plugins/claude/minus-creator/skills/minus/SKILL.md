@@ -330,14 +330,12 @@ Plugin: ✓ 输出定义确认。
 
 ## 逐节点开发（Step 4.2）
 
-Plugin 引导 Creator 按顺序开发每个 pipeline 节点。**四维度的具体流程、提问话术、代码模板统一定义在 `agents/node-dev.md` 中，此处不重复。**
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤X"、"开发步骤X"等），都必须先 Read node-dev.md 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
 
-调用方式：对每个待开发的节点，启动 node-dev agent 并传入当前步骤编号。
+Plugin 引导 Creator 按顺序开发每个 pipeline 节点。
 
-核心原则（详见 CLAUDE.md 设计原则）：
-- 四个维度只收集意图，不写代码；全部确认后一次性生成
-- 最后一步由 `step-tracker.sh is-last` 硬编码判断，自动跳过维度④
-- 表格推荐用 `SelectableTableWidget`
+**调用方式：** 进入节点开发前，用 Read 工具读取插件根目录下的 `agents/node-dev.md`（完整路径：`{PLUGIN_ROOT}/agents/node-dev.md`，PLUGIN_ROOT 见上方动态检测结果），然后**在当前对话中**严格按其中定义的四维度流程执行。
+⛔ 禁止启动子 agent（Agent 工具），因为子 agent 无法与 Creator 多轮对话。
 
 **节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，保存进度到 Memory，进入下一个节点。
 

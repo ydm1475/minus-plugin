@@ -81,3 +81,67 @@ FRONTEND_TEMPLATE=readonly
 # 后端使用 StepOutcome.complete(payload={...})
 TEMPLATE
 fi
+
+# ── 数据契约：各步骤的 payload 字段 ──
+
+echo ""
+echo "═══ 数据契约（前后步骤联动检查）═══"
+
+if [ -f "pipeline.py" ]; then
+  # 提取每个步骤的 payload 字段
+  node -e "
+const fs = require('fs');
+const code = fs.readFileSync('pipeline.py', 'utf8');
+const stepPattern = /async def step_(\d+)\([\s\S]*?(?=async def step_|\Z)/g;
+const steps = [...code.matchAll(/async def step_(\d+)\([^)]*\)[\s\S]*?(?=\n    async def step_|\$)/gm)];
+
+// 提取 entry_params 使用的字段
+const entryParams = [...code.matchAll(/ctx\.entry_params\.get\(['\"](\w+)['\"]/g)].map(m => m[1]);
+if (entryParams.length > 0) {
+  console.log('输入字段(entry_params): ' + [...new Set(entryParams)].join(', '));
+}
+
+// 提取每个步骤的 payload 输出字段
+const payloads = [...code.matchAll(/step_(\d+)[\s\S]*?payload=\{([^}]*)\}/g)];
+for (const m of payloads) {
+  const stepNum = m[1];
+  const fields = [...m[2].matchAll(/['\"](\w+)['\"]\s*:/g)].map(f => f[1]);
+  if (fields.length > 0) {
+    console.log('步骤 ' + stepNum + ' 输出: { ' + fields.join(', ') + ' }');
+  }
+}
+
+// 提取 previous_payload / previous_outputs 的引用
+const prevRefs = [...code.matchAll(/ctx\.(previous_payload|previous_outputs)[\s\S]*?\.get\(['\"]?(\w+)['\"]?/g)];
+for (const m of prevRefs) {
+  console.log('跨步骤引用: ctx.' + m[1] + ' → ' + m[2]);
+}
+" 2>/dev/null || echo "(pipeline.py 解析失败，请手动检查数据契约)"
+
+  echo ""
+  echo "⚠️ 生成代码后，必须检查："
+  echo "  1. 当前步骤的 payload 字段名 → 下一步是否正确读取"
+  echo "  2. 上一步的 payload 字段名 → 当前步骤是否正确引用"
+  echo "  3. 多值输入字段（如 keywords）→ 是否做了 split 遍历"
+fi
+
+# ── SDK PipelineContext 可用属性 ──
+
+echo ""
+echo "═══ SDK PipelineContext 可用属性 ═══"
+
+CTX_FILE=$(find .venv -path "*/minus_ai_sdk/pipeline/context.py" 2>/dev/null | head -1)
+if [ -n "$CTX_FILE" ] && [ -f "$CTX_FILE" ]; then
+  # 提取类属性和方法签名
+  node -e "
+const fs = require('fs');
+const code = fs.readFileSync('$CTX_FILE', 'utf8');
+const attrs = [...code.matchAll(/^\s{4}(\w+)\s*[:=]/gm)].map(m => m[1]).filter(a => !a.startsWith('_'));
+const methods = [...code.matchAll(/^\s{4}(?:async )?def (\w+)\(/gm)].map(m => m[1]).filter(m => !m.startsWith('_'));
+const props = [...code.matchAll(/@property[\s\S]*?def (\w+)\(/gm)].map(m => m[1]);
+if (props.length > 0) console.log('属性: ' + props.join(', '));
+if (methods.length > 0) console.log('方法: ' + methods.join(', '));
+" 2>/dev/null || echo "(SDK context.py 解析失败)"
+else
+  echo "(未找到 SDK PipelineContext 源码，请先 uv pip install -e .)"
+fi
