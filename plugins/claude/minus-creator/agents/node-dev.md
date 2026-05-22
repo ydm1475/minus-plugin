@@ -176,7 +176,7 @@ defineWidgetStep<SelectableTableProps, SelectableRow[]>({
   confirmedKey: 'xxx',
 }),
 ```
-⛔ 禁止手写 HTML `<table>`。所有表格统一用 `SelectableTableWidget`。
+表格优先用 `SelectableTableWidget`（内置选中、分页、排序）。特殊布局需求除外。
 
 **表格展示（需要交互）— 用 defineWidgetStep（默认弹框）：**
 ```typescript
@@ -192,7 +192,6 @@ defineWidgetStep<SelectableTableProps, SelectableRow[]>({
   confirmedKey: 'selectedXxx',
 }),
 ```
-SDK 默认 interactive widget 使用弹框。不写 `modal` = 弹框，写 `modal: false` 才是 inline。
 
 **非表格展示（摘要/卡片等）：**
 用普通 `render` 函数。如果需要交互，在 `render` 里判断 `ctx.status === 'waiting_user'` 显示确认按钮。

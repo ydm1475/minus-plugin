@@ -50,8 +50,6 @@ echo "IS_LAST=$IS_LAST"
 if [ "$CONFIRM_MODE" = "interactive" ]; then
   cat << 'TEMPLATE'
 FRONTEND_TEMPLATE=interactive
-# SDK 默认 interactive widget 使用弹框（不写 modal = 弹框，写 modal: false 才 inline）
-#
 # defineWidgetStep<SelectableTableProps, SelectableRow[]>({
 #   widget: SelectableTableWidget,
 #   props: ({ data }) => ({
