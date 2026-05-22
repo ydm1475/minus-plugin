@@ -120,7 +120,8 @@ Creator: 可以
 2. 确认 `skill_update` 已将 input 和 steps 写入后端
 3. 执行 Bash 命令生成步骤骨架代码（**必须执行**）：
    ```bash
-   bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
+   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+   bash "$PLUGIN_ROOT/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
    ```
    ⛔ 禁止手写 pipeline.py 和 main.tsx 的步骤结构，必须用 generate-steps.sh 生成
 4. 询问 Creator 是否开始开发第一个步骤

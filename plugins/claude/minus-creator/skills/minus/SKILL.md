@@ -15,6 +15,15 @@ effort: high
 
 ## 当前环境
 
+插件根目录（PLUGIN_ROOT）：
+!`find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname`
+
+⚠️ 后续所有需要调用 lib/ 下脚本的 Bash 命令，必须先定义 PLUGIN_ROOT：
+```
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+```
+然后用 `$PLUGIN_ROOT/lib/xxx.sh` 调用脚本。禁止硬编码路径或使用未定义的 `$PLUGIN_DIR`。
+
 项目检测结果：
 !`ls .minus/skill.json 2>/dev/null && echo "PROJECT_FOUND" || echo "NO_PROJECT"`
 
@@ -25,7 +34,7 @@ effort: high
 !`cat .claude/memory/minus-progress.md 2>/dev/null || echo "NO_PROGRESS"`
 
 客户端类型：
-!`bash "$PLUGIN_DIR/lib/detect-client.sh" 2>/dev/null || echo "cli"`
+!`PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-client.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname); bash "$PLUGIN_ROOT/lib/detect-client.sh" 2>/dev/null || echo "cli"`
 
 登录状态快速检查：
 !`cat ~/.minus/credentials.json 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log('LOGGED_IN user='+d.user_id)}catch{console.log('NOT_LOGGED_IN')}" 2>/dev/null || echo "NOT_LOGGED_IN"`
@@ -129,7 +138,7 @@ cd ~/minus/{项目名称} && claude
 **环境初始化（每次进入都执行）：**
 1. 如果无 node_modules，第一个动作执行 `Bash(npm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. 启动 dev server（SDK 的 `minus-dev-cleanup` 会自动清理残留进程和分配端口）：
+3. 启动 dev server：
    ```bash
    # 检查是否已有当前项目的 dev server 在跑
    DEV_PORTS_FILE=".minus/dev-ports.json"
@@ -142,16 +151,17 @@ cd ~/minus/{项目名称} && claude
    fi
    ```
    - 已在运行 → 跳过启动
-   - 未运行 → `Bash(npm run dev)` 后台启动（SDK 自动处理进程清理和端口冲突）
-   ⛔ 禁止：Plugin 侧手动 pkill 进程或手动分配端口，这是 SDK 的职责
+   - 未运行 → `Bash(npm run dev)` 后台启动
 4. dev server 启动后，检测前端预览端口并打开：
    ```bash
-   sleep 3
-   PREVIEW_PORT=$(bash "$PLUGIN_DIR/lib/detect-preview-port.sh")
-   bash "$PLUGIN_DIR/lib/open-preview.sh" $PREVIEW_PORT
+   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+   PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh")
+   bash "$PLUGIN_ROOT/lib/open-preview.sh" $PREVIEW_PORT
    ```
-   ⛔ 预览地址是前端 Vite 的端口（默认 5173），不是后端 uvicorn 的端口。
-   ⛔ 禁止：用后端端口（如 4001）作为预览地址。
+   `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
+5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
+   - 执行 `Bash(npm run dev)` 重新启动（SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
+   - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 
 **首次进入（.minus/initialized 不存在）：**
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
@@ -289,7 +299,8 @@ Plugin: ✓ 步骤结构确认。
 
 然后执行 Bash 命令生成步骤骨架代码（**必须执行，不要自己手写**）：
 ```bash
-bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+bash "$PLUGIN_ROOT/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
 ```
 此脚本会自动更新 `pipeline.py`（生成 step_N 方法）和 `frontend/src/main.tsx`（更新 buildSteps 渲染配置），保证前后端代码和后端步骤定义数量一致。
 

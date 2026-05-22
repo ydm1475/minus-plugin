@@ -8,6 +8,14 @@ effort: high
 
 你是 Minus 节点开发引导助手。你的任务是帮 Creator 完成一个 pipeline 步骤的具体开发。
 
+## 插件路径
+
+所有 Bash 命令中使用 lib/ 下脚本时，必须先定义 PLUGIN_ROOT：
+```bash
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/step-tracker.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+```
+然后用 `$PLUGIN_ROOT/lib/xxx.sh` 调用。禁止使用未定义的 `$PLUGIN_ROOT`。
+
 ## 任务
 
 引导 Creator 按顺序确认当前 pipeline 节点的四个维度意图，**全部确认后一次性生成代码**。
@@ -39,7 +47,7 @@ effort: high
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} data
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
 ```
 然后进入维度②。如果 Creator 之前的回复已覆盖维度②意图，跳过提问直接标记。否则原样输出（每行独立，不合并）：
 
@@ -57,12 +65,12 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} data
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} logic
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic
 ```
 
 然后**先判断是否为最后一步**：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" is-last {step_number}
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 ```
 
 **如果是最后一步（返回 YES）**，原样输出：
@@ -91,17 +99,17 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" is-last {step_number}
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} output
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} output
 ```
 
 然后**再次判断是否为最后一步**：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" is-last {step_number}
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 ```
 
 **如果是最后一步（返回 YES）→ 跳过维度④**，直接执行：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} confirm auto
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
 ```
 然后进入「阶段二：一次性生成代码」。
 
@@ -125,7 +133,7 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} confirm auto
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} confirm interactive
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm interactive
 ```
 然后执行门禁检查进入阶段二。
 
@@ -133,7 +141,7 @@ bash "$PLUGIN_DIR/lib/step-tracker.sh" complete {step_number} confirm interactiv
 
 ⛔ **进入阶段二前必须执行门禁检查**，门禁不通过则不能写任何代码：
 ```bash
-bash "$PLUGIN_DIR/lib/generate-node-code.sh" {step_number}
+bash "$PLUGIN_ROOT/lib/generate-node-code.sh" {step_number}
 ```
 此脚本会检查四维度是否全部 COMPLETE，并输出 `CONFIRM_MODE`（auto/interactive）和前端代码模板。
 - 如果输出 `GATE_PASSED` → 可以开始写代码

@@ -927,7 +927,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # Test: returns fallback port when no Vite process running
 (
-  OUTPUT=$(bash "$DPP" 2>&1)
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
   if [ "$OUTPUT" = "5173" ]; then
     pass "detect-preview-port: returns default fallback 5173"
   else
@@ -937,7 +937,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # Test: respects custom fallback port
 (
-  OUTPUT=$(bash "$DPP" 9999 2>&1)
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 9999 2>&1)
   if [ "$OUTPUT" = "9999" ]; then
     pass "detect-preview-port: respects custom fallback port"
   else
@@ -947,11 +947,41 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # Test: output is a number
 (
-  OUTPUT=$(bash "$DPP" 2>&1)
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
   if [[ "$OUTPUT" =~ ^[0-9]+$ ]]; then
     pass "detect-preview-port: output is numeric"
   else
     fail "detect-preview-port: output is numeric" "got: $OUTPUT"
+  fi
+)
+
+# Test: reads port from dev-ports.json (without verify — no real server)
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=1 bash "$DPP" 2>&1)
+  # 没有真实 server 跑在 5199，所以 verify 会失败，应该 fallback
+  if [ "$OUTPUT" = "5173" ]; then
+    pass "detect-preview-port: falls back when dev-ports.json port is unreachable"
+  else
+    fail "detect-preview-port: falls back when dev-ports.json port is unreachable" "got: $OUTPUT"
+  fi
+)
+
+# Test: DETECT_PORT_MAX_WAIT env controls polling duration
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  START=$(date +%s)
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
+  END=$(date +%s)
+  ELAPSED=$((END - START))
+  if [ "$ELAPSED" -lt 3 ]; then
+    pass "detect-preview-port: MAX_WAIT=0 skips polling"
+  else
+    fail "detect-preview-port: MAX_WAIT=0 skips polling" "took ${ELAPSED}s"
   fi
 )
 
