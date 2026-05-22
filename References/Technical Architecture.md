@@ -96,7 +96,7 @@ minus-creator-plugin/
 │
 ├── lib/
 │   ├── context-manager.sh           # 上下文容量检查脚本
-│   ├── port-detector.sh             # 可用端口检测脚本
+│   ├── detect-preview-port.sh       # 前端预览端口检测脚本
 │   ├── project-detector.sh          # 项目状态检测脚本
 │   └── progress-saver.sh            # 进度保存到 Memory 脚本
 │

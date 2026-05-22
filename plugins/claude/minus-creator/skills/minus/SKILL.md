@@ -129,28 +129,22 @@ cd ~/minus/{项目名称} && claude
 **环境初始化（每次进入都执行）：**
 1. 如果无 node_modules，第一个动作执行 `Bash(npm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. 检查 dev server 是否已在运行：
+3. 启动 dev server（SDK 的 `minus-dev-cleanup` 会自动清理残留进程和分配端口）：
    ```bash
-   # 从 package.json 的 dev script 中提取后端端口
-   BACKEND_PORT=$(node -e "const s=JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.dev||'';const m=s.match(/--port\s+(\d+)/);console.log(m?m[1]:'4001')" 2>/dev/null)
-   PID=$(lsof -i :$BACKEND_PORT -t 2>/dev/null | head -1)
+   # 检查是否已有当前项目的 dev server 在跑
+   DEV_PORTS_FILE=".minus/dev-ports.json"
+   if [ -f "$DEV_PORTS_FILE" ]; then
+     BACKEND_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend||'')" 2>/dev/null)
+     if [ -n "$BACKEND_PORT" ] && lsof -i :$BACKEND_PORT -t >/dev/null 2>&1; then
+       echo "dev server already running on port $BACKEND_PORT"
+       # 跳过启动
+     fi
+   fi
    ```
-   - 如果端口空闲（PID 为空）→ 清理残留进程后启动：
-     `Bash(pkill -f 'uvicorn server:app' 2>/dev/null; pkill -f 'concurrently' 2>/dev/null; sleep 1)`
-     `Bash(npm run dev)` 后台启动开发服务器
-   - 如果端口被占用（PID 非空）→ **必须验证进程归属**：
-     ```bash
-     ps -p $PID -o command= 2>/dev/null | grep -q "$(pwd)"
-     ```
-     - 包含当前项目路径 → 当前项目的 dev server 已在跑，跳过启动
-     - 不包含当前项目路径 → 端口被其他项目占用，用 port-detector.sh 找可用端口：
-       ```bash
-       NEW_PORT=$(bash "$PLUGIN_DIR/lib/port-detector.sh" $BACKEND_PORT)
-       ```
-       然后用 `PORT=$NEW_PORT npm run dev` 启动
-   ⛔ 禁止：端口被占时不验证归属就直接跳过启动
-   ⛔ 禁止：kill 其他项目的进程来腾出端口
-4. dev server 启动后，**等待 3 秒**让 Vite 完成启动，然后检测前端预览端口并打开：
+   - 已在运行 → 跳过启动
+   - 未运行 → `Bash(npm run dev)` 后台启动（SDK 自动处理进程清理和端口冲突）
+   ⛔ 禁止：Plugin 侧手动 pkill 进程或手动分配端口，这是 SDK 的职责
+4. dev server 启动后，检测前端预览端口并打开：
    ```bash
    sleep 3
    PREVIEW_PORT=$(bash "$PLUGIN_DIR/lib/detect-preview-port.sh")

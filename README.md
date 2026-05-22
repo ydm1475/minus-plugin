@@ -5,8 +5,8 @@
 ## 安装
 
 ```bash
-# 1. 注册本地 marketplace（首次）
-claude plugin marketplace add ~/minus-plugin
+# 1. 注册本地 marketplace（首次，路径指向 plugins/ 目录）
+claude plugin marketplace add ~/minus-plugin/plugins
 
 # 2. 安装插件
 claude plugin install minus-creator@minus-plugin
@@ -66,8 +66,6 @@ bash $PM touch "/路径"                      # 更新最后打开时间
 ```bash
 LIB=~/minus-plugin/plugins/claude/minus-creator/lib
 
-bash $LIB/port-detector.sh                 # 检测可用端口（默认 9100 起）
-bash $LIB/port-detector.sh 8000            # 自定义起始端口
 bash $LIB/project-detector.sh              # 检测当前目录类型
 bash $LIB/detect-client.sh                 # 检测客户端类型（cli / desktop）
 bash $LIB/context-manager.sh check         # 上下文计数检查（Skill 项目目录下）

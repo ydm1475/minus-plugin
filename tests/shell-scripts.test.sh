@@ -190,37 +190,6 @@ PM="$LIB_DIR/projects-manager.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
-echo "═══ port-detector.sh ═══"
-# ══════════════════════════════════════════════════════
-
-PD="$LIB_DIR/port-detector.sh"
-
-# Test: finds an available port
-(
-  OUTPUT=$(bash "$PD" 2>&1)
-  if [ -n "$OUTPUT" ] && [ "$OUTPUT" -eq "$OUTPUT" ] 2>/dev/null; then
-    if [ "$OUTPUT" -ge 9100 ] && [ "$OUTPUT" -le 9200 ]; then
-      pass "port-detector: returns valid port ($OUTPUT)"
-    else
-      fail "port-detector: returns valid port" "got: $OUTPUT (out of range)"
-    fi
-  else
-    fail "port-detector: returns numeric port" "got: $OUTPUT"
-  fi
-)
-
-# Test: custom start port
-(
-  OUTPUT=$(bash "$PD" 8000 2>&1)
-  if [ -n "$OUTPUT" ] && [ "$OUTPUT" -ge 8000 ]; then
-    pass "port-detector: respects custom start port ($OUTPUT)"
-  else
-    fail "port-detector: respects custom start port" "got: $OUTPUT"
-  fi
-)
-
-# ══════════════════════════════════════════════════════
-echo ""
 echo "═══ context-manager.sh ═══"
 # ══════════════════════════════════════════════════════
 

@@ -34,12 +34,18 @@ needs_restart() {
 
 REASON=$(needs_restart)
 if [ $? -eq 0 ]; then
-  # 检测运行中的 dev server
-  DEV_PID=$(lsof -ti :9100 2>/dev/null || lsof -ti :3000 2>/dev/null || lsof -ti :5173 2>/dev/null)
+  DEV_PORTS_FILE=".minus/dev-ports.json"
+  DEV_PID=""
+  PORT=""
+
+  if [ -f "$DEV_PORTS_FILE" ]; then
+    PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend||'')" 2>/dev/null)
+    if [ -n "$PORT" ]; then
+      DEV_PID=$(lsof -i :"$PORT" -t 2>/dev/null | head -1)
+    fi
+  fi
 
   if [ -n "$DEV_PID" ]; then
-    PORT=$(lsof -Pan -p "$DEV_PID" -i 2>/dev/null | grep LISTEN | awk '{print $9}' | cut -d: -f2 | head -1)
-
     if [ "$REASON" = "dependency" ]; then
       echo "<context>"
       echo "[环境管理] 检测到 package.json 变更，需要安装依赖并重启开发服务器。"
