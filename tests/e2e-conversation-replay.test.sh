@@ -151,12 +151,12 @@ else
   fail "第 1 步四维度全部完成应 COMPLETE" "COMPLETE" "$CHECK_AFTER_CONFIRM"
 fi
 
-# TC-R06: 维度④确认"需要确认" → 验证 node-dev.md 说明 SDK 默认弹框
-# SDK 已改为默认弹框，不写 modal = 弹框，写 modal: false 才 inline
-if grep -q "默认.*弹框" "$NODE_DEV"; then
-  pass "node-dev.md 说明 SDK 默认弹框（不需要显式 modal: true）"
+# TC-R06: 维度④确认"需要确认" → 验证 node-dev.md 引导查 SDK 文档
+# 具体组件行为（如弹框默认值）由 SDK 文档定义，Plugin 不复制
+if grep -q "查.*SDK.*文档\|查项目 CLAUDE.md\|查.*开发手册" "$NODE_DEV"; then
+  pass "node-dev.md 引导查 SDK 文档获取组件用法"
 else
-  fail "node-dev.md 应说明 SDK 默认弹框" "包含默认弹框说明" "未找到"
+  fail "node-dev.md 应引导查 SDK 文档" "包含查文档引导" "未找到"
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -234,12 +234,12 @@ else
   fail "BUG-2 修复验证：提问模板应有空行分隔" ">0 空行" "$LINE_COUNT 空行"
 fi
 
-# TC-R14: 验证纯展示表格禁止手写 HTML（BUG-5）
+# TC-R14: 验证纯展示禁止手写 HTML/JSX（BUG-5）
 # 旧对话中第 2 步用了手写 HotAsinTable，新规范应禁止
-if grep -q "禁止手写 HTML" "$NODE_DEV"; then
-  pass "BUG-5 修复验证：node-dev.md 禁止手写 HTML table"
+if grep -q "禁止手写 inline HTML/JSX" "$NODE_DEV"; then
+  pass "BUG-5 修复验证：node-dev.md 禁止手写 inline HTML/JSX"
 else
-  fail "BUG-5 修复验证：应禁止手写 HTML table" "包含禁止规则" "未找到"
+  fail "BUG-5 修复验证：应禁止手写 inline HTML/JSX" "包含禁止规则" "未找到"
 fi
 
 # TC-R15: 验证代码只在所有维度确认后一次性生成（BUG-7 + BUG-8）
@@ -285,11 +285,11 @@ else
   fail "硬编码门禁：全部完成应输出 GATE_PASSED" "GATE_PASSED + interactive" "$GATE_RESULT2"
 fi
 
-# TC-R20: generate-node-code.sh 输出的 interactive 模板说明默认弹框
-if echo "$GATE_RESULT2" | grep -q "默认.*弹框"; then
-  pass "硬编码模板：interactive 模式说明 SDK 默认弹框"
+# TC-R20: generate-node-code.sh 输出的 interactive 模板引导查 SDK 文档
+if echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
+  pass "硬编码模板：interactive 模式正确标记 CONFIRM_MODE"
 else
-  fail "硬编码模板：interactive 模式应说明默认弹框" "包含默认弹框说明" "未找到"
+  fail "硬编码模板：应输出 CONFIRM_MODE=interactive" "包含 CONFIRM_MODE" "未找到"
 fi
 
 # TC-R16: 验证整个流程的 step-tracker 状态正确

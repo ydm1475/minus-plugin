@@ -28,7 +28,7 @@ effort: high
 **数据接口发现流程（进入维度①时立即执行，不要先问 Creator）：**
 1. 读取 `.mcp.json`，找到数据服务商 MCP 服务（排除 `minus-platform`）
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
-3. 用该服务的详情查询工具查看推荐接口的参数和返回格式
+3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**。不要只看第一个结果就决定
 4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），Creator 确认后标记完成
 
 ⛔ 禁止：先问 Creator "用什么接口"、"数据从哪来"、"你有特定的数据源吗"
@@ -163,43 +163,18 @@ async def step_N(self, ctx: PipelineContext) -> StepOutcome:
 
 ### 前端代码（frontend/src/main.tsx）
 
-根据维度③（展示类型）和维度④（是否交互）选择方案：
+根据维度③（展示类型）和维度④（是否交互）选择组件。**具体组件的 props 和用法，查项目 CLAUDE.md 里列出的 SDK 开发手册**，不要凭记忆写。
 
-**表格展示（不需要交互 / 最后一步）— 用 defineWidgetStep readonly 模式：**
-```typescript
-defineWidgetStep<SelectableTableProps, SelectableRow[]>({
-  widget: SelectableTableWidget,
-  props: ({ data }) => ({
-    dataSource: (data.xxx as SelectableRow[]) ?? [],
-    columns: [...],
-  }),
-  confirmedKey: 'xxx',
-}),
-```
-表格优先用 `SelectableTableWidget`（内置选中、分页、排序）。特殊布局需求除外。
-
-**表格展示（需要交互）— 用 defineWidgetStep（默认弹框）：**
-```typescript
-defineWidgetStep<SelectableTableProps, SelectableRow[]>({
-  widget: SelectableTableWidget,
-  props: ({ data }) => ({
-    dataSource: (data.xxx as SelectableRow[]) ?? [],
-    columns: [...],
-  }),
-  interactiveProps: () => ({
-    primaryAction: { label: t('...confirm...') },
-  }),
-  confirmedKey: 'selectedXxx',
-}),
-```
-
-**非表格展示（摘要/卡片等）：**
-用普通 `render` 函数。如果需要交互，在 `render` 里判断 `ctx.status === 'waiting_user'` 显示确认按钮。
+选择原则：
+- **纯展示表格**（不需要交互）→ 用 display widget。⛔ 禁止用 interactive widget 做纯展示——它在 auto-complete 步骤会显示空
+- **需要用户勾选确认的表格** → 用 interactive widget
+- **最后一步的最终输出**（摘要、下载文件等）→ 模板已内置 CompletionPanel，不需要前端代码，只需后端 payload 返回对应字段。⛔ 禁止手写 inline HTML/JSX 实现摘要或下载
+- **非表格展示**（摘要/卡片等，非最后一步）→ 用普通 `render` 函数
 
 ### 代码生成后
 
 1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
-2. 告诉 Creator 可以刷新浏览器查看效果
+2. 告诉 Creator 重新输入数据跑一遍流程来测试效果（刷新页面不会重新执行 pipeline，必须重新输入）
 3. 用 `skill_update` 更新后端步骤状态为 completed
 4. 保存进度到 Memory
 5. 询问是否继续开发下一个步骤

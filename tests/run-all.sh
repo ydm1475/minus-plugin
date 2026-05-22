@@ -24,6 +24,23 @@ else
   echo ""
 fi
 
+# ── E2E Conversation Replay Tests ──
+echo "▶ E2E Conversation Replay Tests"
+echo "────────────────────"
+
+for e2e_test in "$SCRIPT_DIR"/e2e-conversation-replay*.test.sh; do
+  [ -f "$e2e_test" ] || continue
+  echo "  Running $(basename "$e2e_test")..."
+  if bash "$e2e_test"; then
+    echo ""
+  else
+    FAILED=1
+    echo ""
+    echo "  ⚠ $(basename "$e2e_test") failed"
+    echo ""
+  fi
+done
+
 # ── MCP Server Tests ──
 echo "▶ MCP Server Tests (Unit)"
 echo "────────────────────"

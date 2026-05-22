@@ -104,7 +104,7 @@ cd ~/Desktop/sif-platform-template/packages/create-skill && npm link
 Plugin: 请按以下步骤打开项目：
   1. 新开一个对话
   2. 选择对应项目的文件夹作为工作目录（如 ~/minus/关键词调研/）
-  3. Plugin 会自动激活，直接开始工作
+  3. Plugin 会自动激活，输入 /minus 或说"开始"就能进入开发
 ```
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
@@ -115,10 +115,11 @@ Plugin: 请按以下步骤打开项目：
 
 1. 新开一个对话
 2. 选择 ~/minus/{项目名称}/ 文件夹作为工作目录
-3. Plugin 会自动激活，你直接开始工作就行
+3. Plugin 会自动激活，输入 /minus 或说"开始"就能进入开发
 
 用命令行的话直接运行：
 cd ~/minus/{项目名称} && claude
+然后输入 /minus 或说"开始"
 ```
 
 注意：不要在当前 session 中进入三步法结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
@@ -149,9 +150,11 @@ cd ~/minus/{项目名称} && claude
        然后用 `PORT=$NEW_PORT npm run dev` 启动，并告知 Creator 实际使用的端口
    ⛔ 禁止：端口被占时不验证归属就直接跳过启动
    ⛔ 禁止：kill 其他项目的进程来腾出端口
-4. 打开预览（根据客户端类型）：
-   - Desktop 版：只输出预览地址 `http://localhost:{port}`，Desktop 会自动弹出预览面板，不要执行 `open` 命令
-   - CLI 版：执行 `Bash(open http://localhost:{port})` 在浏览器中打开
+4. dev server 启动后，**立刻**执行打开预览（脚本自动判断客户端类型）：
+   ```bash
+   bash "$PLUGIN_DIR/lib/open-preview.sh" {port}
+   ```
+   脚本输出 `PREVIEW_URL` 供展示，CLI 版自动打开浏览器，Desktop 版只输出 URL。
 
 **首次进入（.minus/initialized 不存在）：**
 1. 通过 `skill_list` MCP tool 读取后端 Skill 信息
@@ -297,9 +300,8 @@ bash "$PLUGIN_DIR/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤
 ### 第三步：定义输出
 
 ```
-Plugin: 最后一个问题：所有步骤都跑完之后，最终给用户看什么结果？
-       比如一份报告、一个关键词列表、一个评分……
-       （注意：这里问的是最终汇总结果，不是每一步各自的输出）
+Plugin: 所有步骤跑完后，你想额外给用户展示什么？
+       比如一句话总结运行结果、一个可下载的文件、还是不需要额外的东西
 
 Creator: 推荐词列表是主要的，再加上竞争度的评分，最好还有一段总结
 

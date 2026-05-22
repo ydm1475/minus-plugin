@@ -905,6 +905,53 @@ DC="$LIB_DIR/detect-client.sh"
 )
 
 # ══════════════════════════════════════════════════════
+echo ""
+echo "═══ open-preview.sh ═══"
+# ══════════════════════════════════════════════════════
+
+OP="$LIB_DIR/open-preview.sh"
+
+# Test: fails without port argument
+(
+  OUTPUT=$(bash "$OP" 2>&1 || true)
+  if assert_contains "$OUTPUT" "用法"; then
+    pass "open-preview: fails without port argument"
+  else
+    fail "open-preview: fails without port argument" "got: $OUTPUT"
+  fi
+)
+
+# Test: CLI mode outputs URL and CLIENT=cli
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$OP" 5173 2>&1 || true)
+  if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:5173" && assert_contains "$OUTPUT" "CLIENT=cli"; then
+    pass "open-preview: CLI mode outputs URL and client type"
+  else
+    fail "open-preview: CLI mode outputs URL and client type" "got: $OUTPUT"
+  fi
+)
+
+# Test: Desktop mode outputs URL and CLIENT=desktop, no open command
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$OP" 5173 2>&1)
+  if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:5173" && assert_contains "$OUTPUT" "CLIENT=desktop"; then
+    pass "open-preview: Desktop mode outputs URL without opening browser"
+  else
+    fail "open-preview: Desktop mode outputs URL without opening browser" "got: $OUTPUT"
+  fi
+)
+
+# Test: custom port
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$OP" 9100 2>&1 || true)
+  if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:9100"; then
+    pass "open-preview: respects custom port"
+  else
+    fail "open-preview: respects custom port" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════
 
