@@ -168,6 +168,10 @@ cd ~/minus/{项目名称} && claude
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
+6. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
+   - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重启前后端 dev server
+   - 重新检测预览端口（步骤 4）
+   - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
 **首次进入（.minus/initialized 不存在）：**
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）

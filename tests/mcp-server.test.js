@@ -182,7 +182,9 @@ describe("MCP Server - Tool Registration", () => {
       "session_list",
       "skill_list",
       "skill_update",
+      "skill_version_create",
       "skill_version_get",
+      "skill_version_submit",
     ]);
   });
 
@@ -353,6 +355,37 @@ describe("MCP Server - Vcode & Register (network errors handled)", () => {
     assert.ok(
       text.includes("失败") || text.includes("网络连接"),
       `Expected failure/network message in: ${text}`
+    );
+  });
+
+  it("skill_version_create should handle connection refused gracefully", async () => {
+    // Need fake credentials for this tool (uses apiRequest which checks auth)
+    const credDir = path.join(tmpHome, ".minus");
+    await fs.mkdir(credDir, { recursive: true });
+    await fs.writeFile(
+      path.join(credDir, "credentials.json"),
+      JSON.stringify({ session_id: "fake_sid", auth_type: "api_key", api_key: "mdk_" + "a".repeat(40) })
+    );
+    const result = await client.callTool("skill_version_create", {
+      skillId: "skl_test123",
+    });
+    const text = result.content[0].text;
+    assert.ok(
+      text.includes("失败") || text.includes("网络连接"),
+      `Expected failure/network message in: ${text}`
+    );
+  });
+
+  it("skill_version_submit should reject non-project directory", async () => {
+    const result = await client.callTool("skill_version_submit", {
+      skillId: "skl_test123",
+      version: "1.0-alpha.1",
+      projectDir: tmpHome,
+    });
+    const text = result.content[0].text;
+    assert.ok(
+      text.includes("不是 Minus Skill 项目"),
+      `Expected project validation error in: ${text}`
     );
   });
 });

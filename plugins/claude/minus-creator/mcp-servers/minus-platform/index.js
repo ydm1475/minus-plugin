@@ -4,6 +4,7 @@ import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { ZipArchive } from "archiver";
 
 const API_BASE = process.env.MINUS_API_BASE || "http://47.107.144.22:18990";
 const CREDENTIALS_PATH = path.join(os.homedir(), ".minus", "credentials.json");
@@ -132,6 +133,44 @@ async function apiRequest(method, endpoint, { body, needsAuth = true, _retried =
   }
 
   return { ok: true, data, sessionId };
+}
+
+// ─── Version Recovery ───
+
+async function ensureDraftVersion(skillId, currentVersion, projectDir) {
+  const check = await apiRequest("GET", `/api/skills/${skillId}/versions/${currentVersion}`);
+  if (check.ok && check.data.status === "draft") {
+    return { version: currentVersion, changed: false };
+  }
+
+  const create = await apiRequest("POST", `/api/skills/${skillId}/versions`);
+  if (create.error) return { error: true, message: create.message };
+  const newVersion = create.data.draftVersion;
+
+  if (projectDir) {
+    const skillJsonPath = path.join(projectDir, ".minus", "skill.json");
+    try {
+      const raw = await fs.readFile(skillJsonPath, "utf8");
+      const skillJson = JSON.parse(raw);
+      skillJson.version = newVersion;
+      await fs.writeFile(skillJsonPath, JSON.stringify(skillJson, null, 2) + "\n");
+    } catch {}
+
+    try {
+      const pidFile = path.join(projectDir, ".minus", "dev.pid");
+      const raw = await fs.readFile(pidFile, "utf8");
+      const pid = parseInt(raw.trim(), 10);
+      if (pid > 0) {
+        try { process.kill(-pid, "SIGTERM"); } catch {
+          try { process.kill(pid, "SIGTERM"); } catch {}
+        }
+      }
+      await fs.unlink(pidFile).catch(() => {});
+      await fs.unlink(path.join(projectDir, ".minus", "dev-ports.json")).catch(() => {});
+    } catch {}
+  }
+
+  return { version: newVersion, changed: true };
 }
 
 // ─── MCP Server ───
@@ -454,11 +493,35 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
     skillId: z.string().describe("Skill ID（如 skl_xxx）"),
     version: z.string().describe("版本号（如 1.0-alpha.1），从 .minus/skill.json 读取"),
     updates: z.record(z.unknown()).describe("要更新的字段，格式参照 PATCH /api/skills/{skillId}/versions/{version} 的 requestBody"),
+    projectDir: z.string().optional().describe("Skill 项目根目录的绝对路径（传入后可自动恢复过期版本）"),
   },
-  async ({ skillId, version, updates }) => {
-    const result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version}`, {
+  async ({ skillId, version, updates, projectDir }) => {
+    let result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version}`, {
       body: updates,
     });
+
+    if (result.error && (result.status === 409 || result.status === 404) && projectDir) {
+      const recovery = await ensureDraftVersion(skillId, version, projectDir);
+      if (recovery.error) {
+        return { content: [{ type: "text", text: `更新失败：${recovery.message}` }] };
+      }
+      if (recovery.changed) {
+        result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${recovery.version}`, {
+          body: updates,
+        });
+        if (result.error) {
+          return { content: [{ type: "text", text: `更新失败：${result.message}` }] };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Skill 草稿已更新（${recovery.version}）。\n[VERSION_CHANGED] 版本已从 ${version} 升级到 ${recovery.version}，需要重启开发服务器。`,
+            },
+          ],
+        };
+      }
+    }
 
     if (result.error) {
       return {
@@ -507,6 +570,171 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
         {
           type: "text",
           text: JSON.stringify(result.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "skill_version_create",
+  `创建新草稿版本（POST /api/skills/{skillId}/versions）。
+后端基于当前 PUBLISHED 版本自动 bump，默认 minor +1。
+返回新草稿的 draftVersionId、draftVersion、status。
+API 文档见 .claude/api/openapi-bundled.yaml`,
+  {
+    skillId: z.string().describe("Skill ID（如 skl_xxx）"),
+    version: z
+      .string()
+      .optional()
+      .describe("目标版本号（如 1.1），仅 major.minor 两段；不传则默认 minor +1"),
+  },
+  async ({ skillId, version }) => {
+    const body = version ? { version } : undefined;
+    const result = await apiRequest("POST", `/api/skills/${skillId}/versions`, { body });
+
+    if (result.error) {
+      return {
+        content: [
+          { type: "text", text: `创建版本失败：${result.message}` },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result.data, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "skill_version_submit",
+  `打包项目源码并提交审核（POST /api/skills/{skillId}/versions/{version}/submit）。
+自动将 projectDir 打包为 zip（排除 node_modules/.git/__pycache__/.venv 等），
+上传至后端进行审核。版本状态必须为 draft 才可提交。
+API 文档见 .claude/api/openapi-bundled.yaml`,
+  {
+    skillId: z.string().describe("Skill ID（如 skl_xxx）"),
+    version: z.string().describe("版本号（如 1.0-alpha.1）"),
+    projectDir: z.string().describe("Skill 项目根目录的绝对路径"),
+  },
+  async ({ skillId, version, projectDir }) => {
+    try {
+      await fs.access(path.join(projectDir, ".minus", "skill.json"));
+    } catch {
+      return {
+        content: [
+          { type: "text", text: "当前目录不是 Minus Skill 项目（未找到 .minus/skill.json）。" },
+        ],
+      };
+    }
+
+    const creds = await loadCredentials();
+    if (!creds?.session_id) {
+      return {
+        content: [
+          { type: "text", text: "未登录，请先登录。" },
+        ],
+      };
+    }
+
+    const recovery = await ensureDraftVersion(skillId, version, projectDir);
+    if (recovery.error) {
+      return { content: [{ type: "text", text: `版本检查失败：${recovery.message}` }] };
+    }
+    if (recovery.changed) {
+      version = recovery.version;
+    }
+
+    const zipBuffer = await new Promise((resolve, reject) => {
+      const chunks = [];
+      const archive = new ZipArchive({ zlib: { level: 9 } });
+      archive.on("data", (chunk) => chunks.push(chunk));
+      archive.on("end", () => resolve(Buffer.concat(chunks)));
+      archive.on("error", reject);
+      archive.glob("**/*", {
+        cwd: projectDir,
+        ignore: [
+          "node_modules/**",
+          ".git/**",
+          "__pycache__/**",
+          ".venv/**",
+          "*.pyc",
+          ".DS_Store",
+        ],
+        dot: true,
+      });
+      archive.finalize();
+    });
+
+    const formData = new FormData();
+    formData.append(
+      "sourcePackage",
+      new Blob([zipBuffer], { type: "application/zip" }),
+      "source.zip"
+    );
+
+    let response;
+    try {
+      response = await fetch(
+        `${API_BASE}/api/skills/${skillId}/versions/${version}/submit`,
+        {
+          method: "POST",
+          headers: {
+            Cookie: `MINUS_AI_SID=${creds.session_id}`,
+          },
+          body: formData,
+        }
+      );
+    } catch (err) {
+      return {
+        content: [
+          { type: "text", text: `网络连接失败：${err.message}` },
+        ],
+      };
+    }
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `提交失败：${err?.message || `HTTP ${response.status}`}`,
+          },
+        ],
+      };
+    }
+
+    const data = await response.json();
+
+    // 提交成功后自动创建新 draft，让用户可以继续开发
+    const nextDraft = await apiRequest("POST", `/api/skills/${skillId}/versions`);
+    if (nextDraft.ok && projectDir) {
+      const skillJsonPath = path.join(projectDir, ".minus", "skill.json");
+      try {
+        const raw = await fs.readFile(skillJsonPath, "utf8");
+        const skillJson = JSON.parse(raw);
+        skillJson.version = nextDraft.data.draftVersion;
+        await fs.writeFile(skillJsonPath, JSON.stringify(skillJson, null, 2) + "\n");
+      } catch {}
+    }
+
+    const result = { submitted: data };
+    if (nextDraft.ok) {
+      result.nextDraft = nextDraft.data.draftVersion;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };

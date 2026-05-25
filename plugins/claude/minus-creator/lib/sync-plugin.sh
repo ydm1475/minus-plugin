@@ -28,23 +28,27 @@ fi
 echo ""
 echo "  ⚠ hooks 和 settings.json 需要手动检查是否同步"
 
-# MCP Server
-CACHE_DIR=$(find "$CLAUDE_DIR/plugins/cache" -path "*/minus-creator/*/mcp-servers/minus-platform" -type d 2>/dev/null | head -1)
-if [ -n "$CACHE_DIR" ]; then
-  cp "$PLUGIN_SRC/mcp-servers/minus-platform/index.js" "$CACHE_DIR/index.js"
-  echo "  ✓ mcp-server: minus-platform"
-else
+# MCP Server — 同步到所有缓存目录
+MCP_SRC="$PLUGIN_SRC/mcp-servers/minus-platform"
+MCP_SYNCED=0
+find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -not -path "*/node_modules/*" 2>/dev/null | while read -r cached_index; do
+  CACHE_DIR="$(dirname "$cached_index")"
+  cp "$MCP_SRC/index.js" "$CACHE_DIR/index.js"
+  cp "$MCP_SRC/package.json" "$CACHE_DIR/package.json"
+  if [ -f "$MCP_SRC/pnpm-lock.yaml" ]; then
+    cp "$MCP_SRC/pnpm-lock.yaml" "$CACHE_DIR/pnpm-lock.yaml"
+  fi
+  echo "  ✓ mcp-server: $CACHE_DIR"
+done
+if ! find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -not -path "*/node_modules/*" 2>/dev/null | grep -q .; then
   echo "  ⚠ mcp-server 缓存目录未找到，跳过"
 fi
 
-# Lib scripts
-if [ -n "$CACHE_DIR" ]; then
-  LIB_CACHE="$(dirname "$(dirname "$CACHE_DIR")")/lib"
-  if [ -d "$LIB_CACHE" ]; then
-    cp "$PLUGIN_SRC"/lib/*.sh "$LIB_CACHE/"
-    echo "  ✓ lib scripts"
-  fi
-fi
+# Lib scripts — 同步到所有缓存目录
+find "$CLAUDE_DIR/plugins/cache" -path "*/minus-creator/*/lib" -type d -not -path "*/node_modules/*" 2>/dev/null | while read -r LIB_CACHE; do
+  cp "$PLUGIN_SRC"/lib/*.sh "$LIB_CACHE/"
+  echo "  ✓ lib scripts: $LIB_CACHE"
+done
 
 echo ""
 echo "同步完成。重启 Claude Code 生效。"

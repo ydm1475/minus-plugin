@@ -44,28 +44,23 @@ effort: high
 - 通过的项打 ✓
 - 未通过的项说明原因和修复方案
 
-### Step 2：端到端测试
+### Step 2：版本确认
 
-- 启动 pipeline 做一次完整运行
-- 检查每个步骤是否正常执行
-- 检查最终输出是否符合预期
+从 .minus/skill.json 读取 skillId 和 version，使用 `skill_version_get` 查询后端状态，告知 Creator 当前版本信息。
 
-如果测试失败：
-- 用通俗语言描述哪一步出了问题
-- 给出修复建议
-- 修复后可以重新测试
+注意：如果版本状态是 pending（审核中）或 approved（已通过待发布），告知 Creator 当前状态并结束流程，不需要再次提交。
 
-### Step 3：版本号确认
+### Step 3：打包提交
 
-- 使用 `skill_version_get` 查询当前草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
-- 告知 Creator 当前版本状态
-- 版本号由后端管理（create-skill 时已分配，如 1.0-alpha.1），不需要 Creator 手动指定
-
-### Step 4：提交审核
-
-- 发布流程待后端 submit/release API 对接后完善
-- 确认提交结果
-- 告知 Creator 发布结果
+1. 向 Creator 确认提交
+2. 调 `skill_version_submit`（skillId, version, 项目根目录）
+   - tool 内部自动处理版本状态：如果当前版本不是 draft，会自动创建新草稿版本并更新本地 skill.json
+   - tool 内部自动打包源码为 zip（排除 node_modules、.git 等）并上传
+3. 提交成功 → 告知 Creator：
+   - 状态已变为"待审核"
+   - 版本号
+   - 审核通过后可到平台点击发布上线
+4. 提交失败 → 展示错误原因，引导修复后重试
 
 ## 发布成功后
 
