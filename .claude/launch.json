@@ -4,7 +4,7 @@
     {
       "name": "references",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "7788", "--directory", "/Users/tutu/minus-plugin/References"],
+      "runtimeArgs": ["-m", "http.server", "7788", "--directory", "/Users/tutu/platform-develop/minus-plugin/References"],
       "port": 7788
     }
   ]

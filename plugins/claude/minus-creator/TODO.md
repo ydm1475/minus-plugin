@@ -65,6 +65,7 @@
 ### 平台功能
 - [ ] OAuth 2.0 PKCE 流程（Skill 本地调试时的 OAuth 认证）
 - [ ] widget-framework URL 回退 bug（FlowApp pushState 丢 query 参数）
+- [ ] sif-api-mcp 自动激活：HTTP 类型 MCP 不会随插件自动安装，用户需手动点 Install。改为本地 stdio proxy 包装远程 HTTP 端点，使其与 minus-platform 一样自动生效
 
 ### 技术债
 - [ ] MCP Server `server.tool()` 迁移到新签名（当前使用已弃用 API）
