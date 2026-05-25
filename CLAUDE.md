@@ -24,13 +24,15 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 - 代码模板 → 定义在 lib/ 的脚本或模板文件中，agent 调用脚本而非自己拼代码
 - 提问话术 → 定义在统一的话术表中，agent 引用 key 而非内联文本
 
-### 4. Plugin 不补偿 SDK 的职责
+### 4. Plugin 不补偿 Platform（SDK）的职责
 
-遇到问题时先判断该谁修，不要在 Plugin 里打补丁绕过 SDK 的问题。判断标准：**一个修复如果需要"被记住"才能生效，它就放错了位置。**
+遇到问题时先判断该谁修，不要在 Plugin 里打补丁绕过 Platform 的问题。判断标准：**一个修复如果需要"被记住"才能生效，它就放错了位置。**
 
-- 默认值 / 防御性校验 / 类型约束 → SDK 或脚手架的职责，提 issue 给 SDK 团队（参考 `References/sdk-improvement-proposals.md`）
+- 默认值 / 防御性校验 / 类型约束 → Platform（SDK）的职责
 - 需要上下文判断的决策（用什么 widget、怎么拆步骤、数据结构选择）→ Plugin 的职责
-- SDK 默认行为已经正确的事 → Plugin 里连提都不要提，提了反而诱导 Agent 画蛇添足
+- Platform 默认行为已经正确的事 → Plugin 里连提都不要提，提了反而诱导 Agent 画蛇添足
+
+归属判定和协商流程详见项目根目录 `CONTRACT.md`。
 
 反模式：在 agent 指令里写"记得加 XX 参数"、"默认值是 XX 别忘了"——这是在用提示词补偿代码缺陷，会积累提示词债务。
 
