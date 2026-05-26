@@ -186,7 +186,10 @@ cd ~/minus/{项目名称} && claude
       fi
       ```
       `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
-   4. CLI → 执行 `Bash(open "http://localhost:{port}")` 打开默认浏览器；Desktop → 只输出预览地址
+   4. 端口检测成功后，调用 `open-preview.sh` 打开预览（脚本自动区分 CLI/Desktop：CLI 打开浏览器，Desktop 只输出 URL）：
+      ```bash
+      bash "$PLUGIN_ROOT/lib/open-preview.sh" "$PREVIEW_PORT"
+      ```
    5. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
 
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：

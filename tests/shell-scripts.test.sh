@@ -1024,10 +1024,10 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
 )
 
 (
-  if grep -q 'CLI.*open.*http://localhost\|Bash(open.*http://localhost' "$SKILL_MD"; then
-    pass "SKILL.md: branch B has CLI browser open"
+  if grep -q 'open-preview\.sh' "$SKILL_MD"; then
+    pass "SKILL.md: branch B uses open-preview.sh (hardcoded CLI/Desktop branching)"
   else
-    fail "SKILL.md: branch B has CLI browser open" "not found"
+    fail "SKILL.md: branch B uses open-preview.sh" "not found"
   fi
 )
 
