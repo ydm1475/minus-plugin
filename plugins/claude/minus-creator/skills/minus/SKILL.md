@@ -96,7 +96,7 @@ cd ~/minus && create-skill "项目名称" --non-interactive
 ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
 ✅ 必须：通过 Bash tool 执行 `create-skill` CLI 命令
 
-描述默认为空，输入类型默认为 asin，后续都可以在开发过程中修改。
+描述默认为空，输入类型默认为 default（仅展示 Skill 名称、描述、适用场景、标签，无输入组件），输入组件在三步法第一步确认后生成。
 
 MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.json`，MCP 登录后 create-skill 自动复用登录态，无需额外传参。
 
@@ -215,9 +215,10 @@ cd ~/minus/{项目名称} && claude
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
-   「你现在看到的是 Skill 的初始框架，包含：」
-   「 · 名称、描述、适用客户、标签、版本等基本信息」
+   「你现在看到的是 Skill 的初始页面，展示了：」
+   「 · 名称、描述、适用场景、标签等基本信息」
    「 · 这些都是默认值，随时告诉我修改」
+   「 · 用户输入框还没有，等下我们设计完就会加上」
    「接下来我们用三步法设计这个 Skill。」
    「第一个问题：用户使用这个 Skill 时，需要提供什么信息？」
    「比如关键词、ASIN、品类……」
@@ -301,20 +302,26 @@ Plugin: ✓ 输入定义确认。
 input: { type: "keyword", label: "主关键词", placeholder: "如：wireless earbuds", required: true }
 ```
 
-**b) 根据输入类型更新前端代码 `frontend/src/main.tsx`，必须改以下内容：**
+**b) 根据输入类型在前端 `frontend/src/main.tsx` 的 Home 组件中添加输入区域：**
 
-按最小改动原则，只改验证参数和 locale 文案，不碰组件代码：
+默认模板（inputType: default）的 Home 组件只有元信息展示（title、description、useCases、tags），没有输入组件。确认输入类型后，需要在 Home 中添加完整的输入区域：
 
-**输入类型切换**（如 asin→keyword）：只改 `handleSubmit` 中的验证函数调用
+1. 给 Home 添加 `onStart` prop
+2. 添加输入状态（`value`、`country`、`error`、`loading`）
+3. 添加 `handleSubmit` 函数 + 对应验证：keyword → `validateKeywords`，ASIN → `validateAsins`
+4. 添加输入组件：keyword/ASIN → `AmazonSearchBar` + `CountrySelect` + `SearchSubmitButton`，file → `FilePicker`
+5. 补上对应的 import（`AmazonSearchBar`、`CountrySelect`、`SearchSubmitButton`、`validateAsins` / `validateKeywords`）
+6. 更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json` 中的 placeholder
+7. 更新 `renderHome` 调用，传入 `onStart`
+8. 数量限制通过验证函数的第二个参数 `{ min, max }` 控制，具体签名读 SDK 类型定义
 
-- ASIN → `validateAsins`，关键词 → `validateKeywords`，文件 → `FilePicker` 组件替换 `AmazonSearchBar`
-- 数量限制通过第二个参数 `{ min, max }` 控制，具体签名读 SDK 类型定义
+参考现有模板（`asin/main.tsx.tpl` 或 `keyword/main.tsx.tpl`）的 Home 组件结构来添加。
 
-**placeholder**：改 `frontend/src/locales/zh-CN.json` 和 `en-US.json` 对应的 key，代码里的字符串只是 fallback。
+**如果 Home 已有输入组件（切换类型场景）：** 按最小改动原则，只改验证函数 + locale 文案，保留组件不动。
 
 ⛔ 禁止：只改后端不改前端。输入类型、placeholder、输入模式变更必须前后端同步。
 ⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
-⛔ 禁止：删除模板自带的 UI 组件（如 AmazonSearchBar、CountrySelect、SearchSubmitButton）除非 Creator 明确要求删除。切换输入类型或数量限制时只改验证逻辑和 locale 文件，保留组件不动。
+⛔ 禁止：在 Creator 确认输入类型之前就添加输入组件。
 ⛔ 禁止：把 AmazonSearchBar 替换为原生 textarea 或 input。AmazonSearchBar 是平台组件，placeholder 通过 locale 文件控制，不是通过 HTML 属性。
 
 ### 第二步：拆解步骤

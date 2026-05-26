@@ -46,11 +46,14 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 }
 ```
 
-**b) 根据输入类型更新前端 `frontend/src/main.tsx`，必须改以下内容：**
-1. **输入组件**：关键词→`validateKeywords`，ASIN→`validateAsins`，文件→`FilePicker`
-2. **placeholder**：找到 `<input>` 的 `placeholder` 属性，改为 Creator 指定的提示语
-3. **输入模式**：根据 Creator 说的"支持一个/多个"调整校验逻辑
-4. 参考 CLAUDE.md 中的模板能力说明
+**b) 根据输入类型在前端 `frontend/src/main.tsx` 的 Home 组件中添加输入区域：**
+
+默认模板的 Home 组件只有元信息展示（title、description、useCases、tags），没有输入组件。确认输入类型后需要添加完整的输入区域：
+1. 给 Home 添加 `onStart` prop + 输入状态（value、country、error、loading）
+2. 添加 `handleSubmit` + 验证：keyword → `validateKeywords`，ASIN → `validateAsins`
+3. 添加组件：keyword/ASIN → `AmazonSearchBar` + `CountrySelect` + `SearchSubmitButton`，file → `FilePicker`
+4. 补 import、更新 locale 文件的 placeholder、更新 `renderHome` 传入 `onStart`
+5. 参考 CLAUDE.md 中的模板能力说明和现有模板（如 `asin/main.tsx.tpl`）的 Home 结构
 ⛔ 禁止：只改后端不改前端
 
 ⛔ 完成以上两件事后，必须立刻问第二步的问题，不能跳过。
