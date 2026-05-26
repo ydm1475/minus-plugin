@@ -614,16 +614,17 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
 
 server.tool(
   "skill_version_submit",
-  `打包项目源码并提交审核（POST /api/skills/{skillId}/versions/{version}/submit）。
+  `打包项目源码并提交审核（POST /api/skills/{skillId}/versions/submit）。
 自动将 projectDir 打包为 zip（排除 node_modules/.git/__pycache__/.venv 等），
-上传至后端进行审核。版本状态必须为 draft 才可提交。
+上传至后端进行审核。后端自动决策版本号并创建 next draft。
+可选 targetVersion 参数用于 author 主动 bump 版本线。
 API 文档见 .claude/api/openapi-bundled.yaml`,
   {
     skillId: z.string().describe("Skill ID（如 skl_xxx）"),
-    version: z.string().describe("版本号（如 1.0-alpha.1）"),
     projectDir: z.string().describe("Skill 项目根目录的绝对路径"),
+    targetVersion: z.string().optional().describe("可选，author 主动 bump 的目标版本号（如 2.0）。不传则后端自动决策"),
   },
-  async ({ skillId, version, projectDir }) => {
+  async ({ skillId, projectDir, targetVersion }) => {
     try {
       await fs.access(path.join(projectDir, ".minus", "skill.json"));
     } catch {
@@ -641,14 +642,6 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
           { type: "text", text: "未登录，请先登录。" },
         ],
       };
-    }
-
-    const recovery = await ensureDraftVersion(skillId, version, projectDir);
-    if (recovery.error) {
-      return { content: [{ type: "text", text: `版本检查失败：${recovery.message}` }] };
-    }
-    if (recovery.changed) {
-      version = recovery.version;
     }
 
     const zipBuffer = await new Promise((resolve, reject) => {
@@ -678,11 +671,14 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
       new Blob([zipBuffer], { type: "application/zip" }),
       "source.zip"
     );
+    if (targetVersion) {
+      formData.append("targetVersion", targetVersion);
+    }
 
     let response;
     try {
       response = await fetch(
-        `${API_BASE}/api/skills/${skillId}/versions/${version}/submit`,
+        `${API_BASE}/api/skills/${skillId}/versions/submit`,
         {
           method: "POST",
           headers: {
@@ -713,28 +709,22 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
 
     const data = await response.json();
 
-    // 提交成功后自动创建新 draft，让用户可以继续开发
-    const nextDraft = await apiRequest("POST", `/api/skills/${skillId}/versions`);
-    if (nextDraft.ok && projectDir) {
+    // 后端已自动创建 next draft，用响应中的 nextDraftVersion 更新本地 skill.json
+    if (data.nextDraftVersion && projectDir) {
       const skillJsonPath = path.join(projectDir, ".minus", "skill.json");
       try {
         const raw = await fs.readFile(skillJsonPath, "utf8");
         const skillJson = JSON.parse(raw);
-        skillJson.version = nextDraft.data.draftVersion;
+        skillJson.version = data.nextDraftVersion;
         await fs.writeFile(skillJsonPath, JSON.stringify(skillJson, null, 2) + "\n");
       } catch {}
-    }
-
-    const result = { submitted: data };
-    if (nextDraft.ok) {
-      result.nextDraft = nextDraft.data.draftVersion;
     }
 
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(result, null, 2),
+          text: JSON.stringify(data, null, 2),
         },
       ],
     };

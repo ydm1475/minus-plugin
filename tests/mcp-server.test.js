@@ -379,7 +379,6 @@ describe("MCP Server - Vcode & Register (network errors handled)", () => {
   it("skill_version_submit should reject non-project directory", async () => {
     const result = await client.callTool("skill_version_submit", {
       skillId: "skl_test123",
-      version: "1.0-alpha.1",
       projectDir: tmpHome,
     });
     const text = result.content[0].text;
