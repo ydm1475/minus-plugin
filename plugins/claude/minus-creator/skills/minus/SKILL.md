@@ -112,7 +112,7 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 
 ```bash
-cd ~/Desktop/sif-platform-template/packages/create-skill && pnpm link --global
+cd ~/minus-platform-develop/minus-platform/packages/create-skill && pnpm link --global
 ```
 
 **如果选"打开已有"：引导新开对话并打开项目文件夹**
