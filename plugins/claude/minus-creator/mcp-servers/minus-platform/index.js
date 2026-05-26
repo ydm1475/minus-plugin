@@ -617,14 +617,12 @@ server.tool(
   `打包项目源码并提交审核（POST /api/skills/{skillId}/versions/submit）。
 自动将 projectDir 打包为 zip（排除 node_modules/.git/__pycache__/.venv 等），
 上传至后端进行审核。后端自动决策版本号并创建 next draft。
-可选 targetVersion 参数用于 author 主动 bump 版本线。
 API 文档见 .claude/api/openapi-bundled.yaml`,
   {
     skillId: z.string().describe("Skill ID（如 skl_xxx）"),
     projectDir: z.string().describe("Skill 项目根目录的绝对路径"),
-    targetVersion: z.string().optional().describe("可选，author 主动 bump 的目标版本号（如 2.0）。不传则后端自动决策"),
   },
-  async ({ skillId, projectDir, targetVersion }) => {
+  async ({ skillId, projectDir }) => {
     try {
       await fs.access(path.join(projectDir, ".minus", "skill.json"));
     } catch {
@@ -671,10 +669,6 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
       new Blob([zipBuffer], { type: "application/zip" }),
       "source.zip"
     );
-    if (targetVersion) {
-      formData.append("targetVersion", targetVersion);
-    }
-
     let response;
     try {
       response = await fetch(
