@@ -5,8 +5,8 @@
 ## 安装
 
 ```bash
-# 1. 注册本地 marketplace（首次，路径指向 plugins/ 目录）
-claude plugin marketplace add ~/platform-develop/minus-plugin/plugins
+# 1. 注册本地 marketplace（首次，路径指向 plugins/claude/ 目录）
+claude plugin marketplace add ~/platform-develop/minus-plugin/plugins/claude
 
 # 2. 安装插件
 claude plugin install minus-creator@minus-plugin

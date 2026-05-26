@@ -14,7 +14,7 @@
         "name": "Minus Team"
       },
       "category": "development",
-      "source": "./claude/minus-creator",
+      "source": "./minus-creator",
       "homepage": "https://developers.minusai.com"
     }
   ]
