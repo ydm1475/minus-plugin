@@ -62,9 +62,13 @@ case "${1:-}" in
         exit 1
       fi
       # 非最后一步不允许 auto（必须问 Creator）
-      PIPELINE_FILE="pipeline.py"
-      if [ -f "$PIPELINE_FILE" ] && [ "$MODE" = "auto" ]; then
-        TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "$PIPELINE_FILE" 2>/dev/null || echo 0)
+      if [ "$MODE" = "auto" ]; then
+        TOTAL_STEPS_FILE=".minus/total-steps"
+        if [ -f "$TOTAL_STEPS_FILE" ]; then
+          TOTAL_STEPS=$(cat "$TOTAL_STEPS_FILE")
+        else
+          TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "pipeline.py" 2>/dev/null || echo 0)
+        fi
         if [ "$STEP" -lt "$TOTAL_STEPS" ]; then
           echo "错误：步骤 $STEP 不是最后一步（共 $TOTAL_STEPS 步），不能用 auto 模式，必须问 Creator 确认后用 interactive" >&2
           exit 1
@@ -122,13 +126,17 @@ case "${1:-}" in
 
   is-last)
     STEP="${2:?用法: step-tracker.sh is-last <step_number>}"
-    # 从 pipeline.py 中检测总步骤数
-    PIPELINE_FILE="pipeline.py"
-    if [ ! -f "$PIPELINE_FILE" ]; then
-      echo "ERROR: $PIPELINE_FILE 不存在" >&2
-      exit 1
+    TOTAL_STEPS_FILE=".minus/total-steps"
+    if [ -f "$TOTAL_STEPS_FILE" ]; then
+      TOTAL_STEPS=$(cat "$TOTAL_STEPS_FILE")
+    else
+      PIPELINE_FILE="pipeline.py"
+      if [ ! -f "$PIPELINE_FILE" ]; then
+        echo "ERROR: pipeline.py 不存在且 .minus/total-steps 不存在" >&2
+        exit 1
+      fi
+      TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "$PIPELINE_FILE" 2>/dev/null || echo 0)
     fi
-    TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "$PIPELINE_FILE" 2>/dev/null || echo 0)
     if [ "$STEP" -eq "$TOTAL_STEPS" ]; then
       echo "YES"
     else

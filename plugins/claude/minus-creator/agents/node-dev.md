@@ -151,6 +151,39 @@ bash "$PLUGIN_ROOT/lib/generate-node-code.sh" {step_number}
 
 根据门禁输出的 `CONFIRM_MODE` 和收集到的意图一次性生成所有代码。
 
+### 写代码前：必须查 API 文档（硬性前置步骤）
+
+⛔ **禁止凭记忆或推测写 API 调用代码。** 每个 `ctx.sif.request(...)` 调用前，必须先用 MCP 工具查接口文档确认以下三项：
+
+1. **HTTP 方法和参数名**：用 `get_endpoint_details` 查端点详情，确认 method（GET/POST）、参数名（如 `keywords` 不是 `searchKeyword`）、参数类型（数组/字符串）、参数位置（body/query）
+2. **响应结构**：确认返回数据的嵌套层级和字段名（如数据在 `list` 还是 `dataList`，ASIN 详情在 `asinDetail` 子对象还是扁平字段）
+3. **ctx.sif.request 返回值已解包**：SDK 会自动解包 API 响应的外层 `{"code":1, "data":{...}}`，`ctx.sif.request` 返回的就是 `data` 的内容。⛔ 禁止再写 `resp.get("data")`，直接从返回值取字段（如 `resp.get("list")`、`resp.get("keywords")`）
+4. **Null 安全**：外部 API 返回的数值字段可能是显式 `null`（不是缺失），`.get(key, 0)` 防不住——key 存在但值为 None 时仍返回 None。必须用 `or` 兜底：`kw.get("estSearchesNum") or 0`，排序用 `key=lambda r: r["field"]`（字段在构造时已兜底）
+5. **前后端字段对齐**：后端 payload 的 key 和前端渲染读取的 key 必须完全一致
+
+```bash
+# 示例：写 competePatternFlexibleGroupByWeekly 调用前
+mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
+# 确认：method=POST, body 参数 keywords(array), 响应 data.list[].asinDetail.title
+```
+
+⛔ 禁止：不查文档直接写 `ctx.sif.request("POST", path, json={猜测的参数})`
+⛔ 禁止：响应字段名靠猜（`dataList` vs `list`、`searchVolume` vs `estSearchesNum`）
+
+### 前后端字段名一致性
+
+前端 `confirmedKey` 和后端 `ctx.last_user_input.get(key)` 必须使用**完全相同的字符串**。统一用 camelCase。
+
+```
+# 正确：两端一致
+前端: confirmedKey: 'selectedAsins'
+后端: ctx.last_user_input.get("selectedAsins")
+
+# 错误：大小写/风格不一致
+前端: confirmedKey: 'selectedAsins'
+后端: ctx.last_user_input.get("selected_asins")  ← 读不到
+```
+
 ### 后端代码（pipeline.py）
 
 在 `step_N` 方法中按三层生成：

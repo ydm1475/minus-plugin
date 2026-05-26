@@ -2,12 +2,19 @@
 # generate-steps.sh
 # 根据步骤列表自动生成 pipeline.py 和 main.tsx 的骨架代码
 # 用法: generate-steps.sh "步骤1名称" "步骤2名称" "步骤3名称" ...
+#       generate-steps.sh --append "新步骤名称" ...
 # 必须在 Skill 项目根目录下执行
 
 set -euo pipefail
 
+APPEND_MODE=false
+if [ "${1:-}" = "--append" ]; then
+  APPEND_MODE=true
+  shift
+fi
+
 if [ $# -eq 0 ]; then
-  echo "用法: generate-steps.sh \"步骤1名称\" \"步骤2名称\" ..." >&2
+  echo "用法: generate-steps.sh [--append] \"步骤1名称\" \"步骤2名称\" ..." >&2
   exit 1
 fi
 
@@ -19,6 +26,70 @@ fi
 if [ ! -f "pipeline.py" ]; then
   echo "错误：未找到 pipeline.py" >&2
   exit 1
+fi
+
+# ── --append 模式：在已有代码后追加新步骤 ──
+if [ "$APPEND_MODE" = true ]; then
+  if [ -f ".minus/total-steps" ]; then
+    CURRENT_STEPS=$(cat .minus/total-steps)
+  else
+    CURRENT_STEPS=$(grep -c 'async def step_[0-9]' pipeline.py 2>/dev/null || echo 0)
+  fi
+
+  NEW_STEP_NAMES=("$@")
+  NEW_STEP_COUNT=${#NEW_STEP_NAMES[@]}
+  NEW_TOTAL=$((CURRENT_STEPS + NEW_STEP_COUNT))
+
+  # 追加 pipeline.py（在文件末尾、class 内部添加新方法）
+  for i in $(seq 1 "$NEW_STEP_COUNT"); do
+    idx=$((i - 1))
+    step_num=$((CURRENT_STEPS + i))
+    name="${NEW_STEP_NAMES[$idx]}"
+    {
+      echo ""
+      echo "    async def step_${step_num}(self, ctx: PipelineContext) -> StepOutcome:"
+      echo "        # TODO: 实现「${name}」的逻辑"
+      echo "        return StepOutcome.complete(payload={\"text\": \"${name}完成\"})"
+    } >> pipeline.py
+  done
+
+  echo "✓ pipeline.py 追加了 ${NEW_STEP_COUNT} 个步骤（step_$((CURRENT_STEPS + 1)) ~ step_${NEW_TOTAL}）"
+
+  # 追加 main.tsx buildSteps
+  MAIN_TSX="frontend/src/main.tsx"
+  if [ -f "$MAIN_TSX" ]; then
+    NEW_ENTRIES=""
+    for i in $(seq 1 "$NEW_STEP_COUNT"); do
+      idx=$((i - 1))
+      name="${NEW_STEP_NAMES[$idx]}"
+      NEW_ENTRIES="${NEW_ENTRIES}    {\n      render: ({ data }) => (\n        <div style={{ marginTop: 24, padding: '32px 24px', borderRadius: 12, background: 'var(--minus-step-bg, #f9fafb)', border: '1px solid var(--minus-step-border, #e5e7eb)', textAlign: 'center', fontSize: 18, fontWeight: 600 }}>\n          {(data.text as string) ?? '${name}'}\n        </div>\n      ),\n    },\n"
+    done
+
+    node -e "
+const fs = require('fs');
+let code = fs.readFileSync('${MAIN_TSX}', 'utf8');
+// 找到 buildSteps 函数的 'return [' 位置
+const fnStart = code.indexOf('function buildSteps');
+if (fnStart === -1) { console.error('⚠ 未找到 buildSteps 函数，跳过'); process.exit(0); }
+const returnIdx = code.indexOf('return [', fnStart);
+if (returnIdx === -1) { console.error('⚠ 未找到 return [，跳过'); process.exit(0); }
+// 从 'return [' 开始，用括号计数找到匹配的 ']'
+let depth = 0, closeIdx = -1;
+for (let i = code.indexOf('[', returnIdx); i < code.length; i++) {
+  if (code[i] === '[') depth++;
+  else if (code[i] === ']') { depth--; if (depth === 0) { closeIdx = i; break; } }
+}
+if (closeIdx === -1) { console.error('⚠ 未找到匹配的 ]，跳过'); process.exit(0); }
+const newEntries = \`${NEW_ENTRIES}\`;
+code = code.slice(0, closeIdx) + newEntries + code.slice(closeIdx);
+fs.writeFileSync('${MAIN_TSX}', code);
+console.log('✓ ${MAIN_TSX} 追加了 ${NEW_STEP_COUNT} 个步骤渲染');
+" 2>&1
+  fi
+
+  echo "$NEW_TOTAL" > .minus/total-steps
+  echo "✓ .minus/total-steps 更新为 ${NEW_TOTAL}"
+  exit 0
 fi
 
 STEP_COUNT=$#
