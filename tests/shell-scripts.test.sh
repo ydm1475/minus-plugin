@@ -924,33 +924,23 @@ echo "═══ detect-preview-port.sh ═══"
 
 DPP="$LIB_DIR/detect-preview-port.sh"
 
-# Test: returns fallback port when no Vite process running
+# Test: returns DETECT_FAILED when no Vite process running
 (
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
-  if [ "$OUTPUT" = "5173" ]; then
-    pass "detect-preview-port: returns default fallback 5173"
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
+  if [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: returns DETECT_FAILED when no server"
   else
-    fail "detect-preview-port: returns default fallback 5173" "got: $OUTPUT"
+    fail "detect-preview-port: returns DETECT_FAILED when no server" "got: $OUTPUT"
   fi
 )
 
-# Test: respects custom fallback port
+# Test: output is DETECT_FAILED or a number
 (
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 9999 2>&1)
-  if [ "$OUTPUT" = "9999" ]; then
-    pass "detect-preview-port: respects custom fallback port"
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
+  if [[ "$OUTPUT" =~ ^[0-9]+$ ]] || [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: output is numeric or DETECT_FAILED"
   else
-    fail "detect-preview-port: respects custom fallback port" "got: $OUTPUT"
-  fi
-)
-
-# Test: output is a number
-(
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
-  if [[ "$OUTPUT" =~ ^[0-9]+$ ]]; then
-    pass "detect-preview-port: output is numeric"
-  else
-    fail "detect-preview-port: output is numeric" "got: $OUTPUT"
+    fail "detect-preview-port: output is numeric or DETECT_FAILED" "got: $OUTPUT"
   fi
 )
 
@@ -960,12 +950,12 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   cd "$TMP"
   mkdir -p .minus
   echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=1 bash "$DPP" 2>&1)
-  # 没有真实 server 跑在 5199，所以 verify 会失败，应该 fallback
-  if [ "$OUTPUT" = "5173" ]; then
-    pass "detect-preview-port: falls back when dev-ports.json port is unreachable"
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=1 bash "$DPP" 2>&1 || true)
+  # 没有真实 server 跑在 5199，所以 verify 会失败，应该 DETECT_FAILED
+  if [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: DETECT_FAILED when dev-ports.json port is unreachable"
   else
-    fail "detect-preview-port: falls back when dev-ports.json port is unreachable" "got: $OUTPUT"
+    fail "detect-preview-port: DETECT_FAILED when dev-ports.json port is unreachable" "got: $OUTPUT"
   fi
 )
 
@@ -974,13 +964,87 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   TMP=$(make_tmp)
   cd "$TMP"
   START=$(date +%s)
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1)
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
   END=$(date +%s)
   ELAPSED=$((END - START))
   if [ "$ELAPSED" -lt 3 ]; then
     pass "detect-preview-port: MAX_WAIT=0 skips polling"
   else
     fail "detect-preview-port: MAX_WAIT=0 skips polling" "took ${ELAPSED}s"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ preview flow (vite template + SKILL.md) ═══"
+# ══════════════════════════════════════════════════════
+
+PLATFORM_DIR="$(dirname "$REPO_DIR")/minus-platform"
+VITE_TPL="$PLATFORM_DIR/packages/create-skill/templates/vite.config.ts.tpl"
+SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
+
+# Test: vite template must have server.open = false
+(
+  if [ -f "$VITE_TPL" ]; then
+    if grep -q 'open: false' "$VITE_TPL"; then
+      pass "vite-template: server.open is false (no auto-open browser)"
+    elif grep -q 'open: true' "$VITE_TPL"; then
+      fail "vite-template: server.open is false" "found open: true — Vite will auto-open Chrome"
+    else
+      pass "vite-template: no server.open setting (defaults to false)"
+    fi
+  else
+    fail "vite-template: file exists" "not found at $VITE_TPL"
+  fi
+)
+
+# Test: SKILL.md preview flow — two branches
+(
+  if grep -q 'ToolSearch.*preview' "$SKILL_MD"; then
+    pass "SKILL.md: step 3 probes Claude_Preview via ToolSearch"
+  else
+    fail "SKILL.md: step 3 probes Claude_Preview via ToolSearch" "not found"
+  fi
+)
+
+(
+  if grep -q 'preview_start.*name.*frontend' "$SKILL_MD"; then
+    pass "SKILL.md: branch A calls preview_start with name=frontend"
+  else
+    fail "SKILL.md: branch A calls preview_start with name=frontend" "not found"
+  fi
+)
+
+(
+  if grep -q 'launch\.json' "$SKILL_MD"; then
+    pass "SKILL.md: branch A creates .claude/launch.json"
+  else
+    fail "SKILL.md: branch A creates .claude/launch.json" "not found"
+  fi
+)
+
+(
+  if grep -q 'CLI.*open.*http://localhost\|Bash(open.*http://localhost' "$SKILL_MD"; then
+    pass "SKILL.md: branch B has CLI browser open"
+  else
+    fail "SKILL.md: branch B has CLI browser open" "not found"
+  fi
+)
+
+(
+  if grep -q 'CLAUDE_CODE_ENTRYPOINT' "$SKILL_MD"; then
+    pass "SKILL.md: detects client type via CLAUDE_CODE_ENTRYPOINT"
+  else
+    fail "SKILL.md: detects client type via CLAUDE_CODE_ENTRYPOINT" "not found"
+  fi
+)
+
+# Test: SKILL.md must NOT contain sed patch for vite.config.ts (anti-pattern per CLAUDE.md principle 4)
+(
+  if grep -q "sed.*open.*true.*open.*false" "$SKILL_MD"; then
+    fail "SKILL.md: no sed patch for vite.config.ts" "found sed hack — plugin should not patch user source code"
+  else
+    pass "SKILL.md: no sed patch for vite.config.ts"
   fi
 )
 

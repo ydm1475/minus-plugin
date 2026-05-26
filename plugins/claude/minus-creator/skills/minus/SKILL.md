@@ -138,39 +138,63 @@ cd ~/minus/{项目名称} && claude
 **环境初始化（每次进入都执行）：**
 1. 如果无 node_modules，第一个动作执行 `Bash(pnpm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. 启动 dev server：
-   ```bash
-   # 检查是否已有当前项目的 dev server 在跑
-   DEV_PORTS_FILE=".minus/dev-ports.json"
-   if [ -f "$DEV_PORTS_FILE" ]; then
-     BACKEND_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend||'')" 2>/dev/null)
-     if [ -n "$BACKEND_PORT" ] && lsof -i :$BACKEND_PORT -t >/dev/null 2>&1; then
-       echo "dev server already running on port $BACKEND_PORT"
-       # 跳过启动
-     fi
-   fi
-   ```
-   - 已在运行 → 跳过启动
-   - 未运行 → `Bash(pnpm dev)` 后台启动
-4. dev server 启动后，检测前端预览端口并告诉 Creator：
-   ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
-   if [ -n "$PREVIEW_PORT" ] && [ "$PREVIEW_PORT" != "DETECT_FAILED" ]; then
-     echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
-   else
-     echo "PREVIEW_DETECT_FAILED"
-   fi
-   ```
-   `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
-   - 输出 `PREVIEW_URL=...` → **必须原样告诉 Creator**（如「预览地址：http://localhost:5173」）。后续每次让 Creator 去浏览器测试时也要附带这个地址。
-   - 输出 `PREVIEW_DETECT_FAILED` → 告诉 Creator 预览端口检测失败，让 Creator 自己从终端日志里找 vite 输出的 Local: http://localhost:xxxx 地址。
+3. **探测预览能力**（在启动 dev server 之前）：
+   判断客户端类型（`CLAUDE_CODE_ENTRYPOINT` 环境变量：claude-desktop/vscode/jetbrains 为 Desktop，其余为 CLI）。
+   如果是 Desktop，调用 `ToolSearch("preview")` 搜索 `mcp__Claude_Preview__preview_start`。
+   记住探测结果，后续步骤根据结果分支。
+4. **启动 dev server + 打开预览**（根据步骤 3 的探测结果分支）：
+
+   **分支 A：Desktop + Claude_Preview 可用**
+   1. 检查后端是否已在运行：
+      ```bash
+      DEV_PORTS_FILE=".minus/dev-ports.json"
+      if [ -f "$DEV_PORTS_FILE" ]; then
+        BACKEND_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend||'')" 2>/dev/null)
+        if [ -n "$BACKEND_PORT" ] && lsof -i :$BACKEND_PORT -t >/dev/null 2>&1; then
+          echo "backend already running on port $BACKEND_PORT"
+        fi
+      fi
+      ```
+   2. 后端未运行 → `Bash(pnpm dev:backend)` 后台启动（只启动后端）。如果项目没有 `dev:backend` 脚本，则用 `Bash(pnpm dev)` 启动全部，然后 kill 前端 vite 进程让出端口。
+   3. 创建 `.claude/launch.json`（幂等，已存在则跳过）：
+      ```json
+      {
+        "version": "0.0.1",
+        "configurations": [{
+          "name": "frontend",
+          "runtimeExecutable": "pnpm",
+          "runtimeArgs": ["--filter", "./frontend", "exec", "vite"],
+          "port": 5173,
+          "autoPort": true
+        }]
+      }
+      ```
+   4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
+   5. 告诉 Creator 预览地址
+
+   **分支 B：CLI 或 Claude_Preview 不可用**
+   1. 检查 dev server 是否已在运行（同分支 A 步骤 1）
+   2. 未运行 → `Bash(pnpm dev)` 后台启动前后端
+   3. 检测前端预览端口：
+      ```bash
+      PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+      PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
+      if [ -n "$PREVIEW_PORT" ] && [ "$PREVIEW_PORT" != "DETECT_FAILED" ]; then
+        echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
+      else
+        echo "PREVIEW_DETECT_FAILED"
+      fi
+      ```
+      `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
+   4. CLI → 执行 `Bash(open "http://localhost:{port}")` 打开默认浏览器；Desktop → 只输出预览地址
+   5. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
+
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 6. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重启前后端 dev server
-   - 重新检测预览端口（步骤 4）
+   - 重新检测预览端口（步骤 4 分支 B）
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
 **首次进入（.minus/initialized 不存在）：**
@@ -437,7 +461,7 @@ async function executeStep(input, context) {
 - 文件浏览：用 ls 或 tree 命令展示
 
 **通用（不区分客户端）：**
-- 预览测试：Desktop 版输出 URL 自动弹预览面板，CLI 版用 `open` 打开浏览器
+- 预览测试：Desktop 用 `Claude_Preview` 在右侧面板打开（ToolSearch 动态发现），CLI 用 `open` 打开默认浏览器
 - 斜杠命令：/minus、/minus publish 两端一致
 - 自然语言触发：两端一致
 
