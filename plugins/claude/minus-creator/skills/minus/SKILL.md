@@ -19,9 +19,11 @@ effort: high
 !`find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname`
 
 ⚠️ 后续所有需要调用 lib/ 下脚本的 Bash 命令，必须先定义 PLUGIN_ROOT：
+
 ```
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
 ```
+
 然后用 `$PLUGIN_ROOT/lib/xxx.sh` 调用脚本。禁止硬编码路径或使用未定义的 `$PLUGIN_DIR`。
 
 项目检测结果：
@@ -44,18 +46,19 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate
 根据检测结果，按以下优先级处理：
 
 ### 1. 未登录
+
 如果登录状态为 NOT_LOGGED_IN：
 
 **登录流程（严格按顺序执行，禁止跳步）：**
 
 Step A：原样输出："欢迎使用 Minus Creator Plugin！请输入你的开发者 API Key。"
-        原样输出："（在 Minus 开发者平台的「设置 → API Key」页面获取）"
-  ⛔ 禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool
-  ⛔ 禁止：自动使用 userEmail 或系统上下文中的任何信息
+原样输出："（在 Minus 开发者平台的「设置 → API Key」页面获取）"
+⛔ 禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool
+⛔ 禁止：自动使用 userEmail 或系统上下文中的任何信息
 Step B：等 Creator 提供 API Key
 Step C：用 `mcp__minus-platform__auth_dev_session` 验证 API Key
 Step D：成功 → 完成认证
-        失败 → 提示"API Key 无效，请检查后重新输入"
+失败 → 提示"API Key 无效，请检查后重新输入"
 
 仅使用 minus-platform MCP server 的 auth_dev_session 工具登录，不要使用其他任何 MCP server 的登录/认证功能。
 
@@ -65,6 +68,7 @@ Step D：成功 → 完成认证
 ⛔ 禁止：调用 `skill_list` MCP tool 查后端。已有项目以本地为准。
 
 **如果有项目：先列出所有项目名称和路径**，然后再询问：
+
 ```
 Plugin: 你有这些本地项目：
   1. 关键词调研 (~/minus/关键词调研/)
@@ -80,9 +84,10 @@ Plugin: 你有这些本地项目：
 **Step 1：只问名称（原样输出以下提示语，不要改写）：**
 "给你的 Skill 项目起个名字？（这会作为项目文件夹名）"
 
-命名约束：过滤文件系统非法字符（/ \ : * ? " < > |），中英文均可，长度 1-50 字符。
+命名约束：过滤文件系统非法字符（/ \ : \* ? " < > |），中英文均可，长度 1-50 字符。
 
 **Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
+
 ```bash
 cd ~/minus && create-skill "项目名称" --non-interactive
 ```
@@ -96,6 +101,7 @@ cd ~/minus && create-skill "项目名称" --non-interactive
 MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.json`，MCP 登录后 create-skill 自动复用登录态，无需额外传参。
 
 脚手架会自动完成：
+
 - 向平台注册 Skill（获得 skillId 和 apiKey）
 - 在 ~/minus/{项目名称}/ 下生成完整项目结构（前后端代码、配置文件、.minus/skill.json）
 - 创建 Python 虚拟环境并安装后端依赖
@@ -104,11 +110,13 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
 
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
+
 ```bash
 cd ~/Desktop/sif-platform-template/packages/create-skill && pnpm link --global
 ```
 
 **如果选"打开已有"：引导新开对话并打开项目文件夹**
+
 ```
 Plugin: 请按以下步骤打开项目：
   1. 新开一个对话
@@ -119,6 +127,7 @@ Plugin: 请按以下步骤打开项目：
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
 
 **scaffold 完成后原样输出以下内容（不要改写、不要加额外说明）：**
+
 ```
 项目已创建！接下来请：
 
@@ -136,6 +145,7 @@ cd ~/minus/{项目名称} && claude
 ### 3. 已登录 + 有项目（进入开发环境）
 
 **环境初始化（每次进入都执行）：**
+
 1. 如果无 node_modules，第一个动作执行 `Bash(pnpm install)`，不说话不询问
 2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
 3. **探测预览能力**（在启动 dev server 之前）：
@@ -145,6 +155,7 @@ cd ~/minus/{项目名称} && claude
 4. **启动 dev server + 打开预览**（根据步骤 3 的探测结果分支）：
 
    **分支 A：Desktop + Claude_Preview 可用**
+
    1. 检查后端是否已在运行：
       ```bash
       DEV_PORTS_FILE=".minus/dev-ports.json"
@@ -160,19 +171,22 @@ cd ~/minus/{项目名称} && claude
       ```json
       {
         "version": "0.0.1",
-        "configurations": [{
-          "name": "frontend",
-          "runtimeExecutable": "pnpm",
-          "runtimeArgs": ["--filter", "./frontend", "exec", "vite"],
-          "port": 5173,
-          "autoPort": true
-        }]
+        "configurations": [
+          {
+            "name": "frontend",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["--filter", "./frontend", "exec", "vite"],
+            "port": 5173,
+            "autoPort": true
+          }
+        ]
       }
       ```
    4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
    5. 告诉 Creator 预览地址
 
    **分支 B：CLI 或 Claude_Preview 不可用**
+
    1. 检查 dev server 是否已在运行（同分支 A 步骤 1）
    2. 未运行 → `Bash(pnpm dev)` 后台启动前后端
    3. 检测前端预览端口：
@@ -185,12 +199,8 @@ cd ~/minus/{项目名称} && claude
         echo "PREVIEW_DETECT_FAILED"
       fi
       ```
-      `detect-preview-port.sh` 会自动等待端口就绪（最多 15s），不需要额外 sleep。
-   4. 端口检测成功后，调用 `open-preview.sh` 打开预览（脚本自动区分 CLI/Desktop：CLI 打开浏览器，Desktop 只输出 URL）：
-      ```bash
-      bash "$PLUGIN_ROOT/lib/open-preview.sh" "$PREVIEW_PORT"
-      ```
-   5. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
+      `detect-preview-port.sh` 会自动等待端口就绪（最多 15s）。**检测成功后脚本会自动打开预览**（CLI 打开浏览器，Desktop 只输出 URL），无需额外调用。
+   4. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
 
 5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
@@ -201,6 +211,7 @@ cd ~/minus/{项目名称} && claude
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
 **首次进入（.minus/initialized 不存在）：**
+
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
@@ -216,6 +227,7 @@ cd ~/minus/{项目名称} && claude
 通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② Memory 中的开发进度。
 
 状态 A — 开发中（有未完成进度）：
+
 ```
 当前项目：{名称} v{版本}
 上次你完成了「{已完成步骤}」的开发，
@@ -224,6 +236,7 @@ cd ~/minus/{项目名称} && claude
 ```
 
 状态 B — 待测试（所有步骤开发完成但未测试）：
+
 ```
 当前项目：{名称} v{版本}
 所有步骤已开发完成，但还没有运行过测试。
@@ -231,6 +244,7 @@ cd ~/minus/{项目名称} && claude
 ```
 
 状态 C — 可发布（测试已通过）：
+
 ```
 当前项目：{名称} v{版本}
 所有步骤已开发，测试已通过。
@@ -238,13 +252,16 @@ cd ~/minus/{项目名称} && claude
 ```
 
 状态 D — 无进度（刚创建的项目）：
+
 ```
 ✓ Minus 已就绪 — {名称} v{版本}
 ```
+
 引导 Creator 开始结构设计。
 
 **特殊情况 — Creator 要求创建新项目：**
 如果 Creator 说"创建新 Skill"、"创建新项目"等，不要在当前项目目录里操作。引导 Creator：
+
 ```
 当前目录已经是「{当前项目名}」的项目了。要创建新 Skill 请：
 1. 新开一个对话
@@ -259,6 +276,7 @@ Plugin 的角色是**帮 Creator 结构化表达想法**，不是替 Creator 规
 ### 第一步：确定输入
 
 对话示例（按此风格引导）：
+
 ```
 Plugin: 接下来先聊聊这个 Skill 的设计。
        第一个问题：用户使用这个 Skill 时，需要提供什么信息？
@@ -278,6 +296,7 @@ Plugin: ✓ 输入定义确认。
 确认后做两件事：
 
 **a) 用 `skill_update` 将输入定义写入后端（只传 input 字段，不要改 description 等其他字段）：**
+
 ```
 input: { type: "keyword", label: "主关键词", placeholder: "如：wireless earbuds", required: true }
 ```
@@ -287,6 +306,7 @@ input: { type: "keyword", label: "主关键词", placeholder: "如：wireless ea
 按最小改动原则，只改验证参数和 locale 文案，不碰组件代码：
 
 **输入类型切换**（如 asin→keyword）：只改 `handleSubmit` 中的验证函数调用
+
 - ASIN → `validateAsins`，关键词 → `validateKeywords`，文件 → `FilePicker` 组件替换 `AmazonSearchBar`
 - 数量限制通过第二个参数 `{ min, max }` 控制，具体签名读 SDK 类型定义
 
@@ -317,6 +337,7 @@ Plugin: ✓ 步骤结构确认。
 ```
 
 确认后用 `skill_update` 将步骤结构写入后端（**字段必须是 stepNumber + stepName，不要用其他字段名**）：
+
 ```json
 {
   "skillId": "从 .minus/skill.json 读取",
@@ -330,15 +351,18 @@ Plugin: ✓ 步骤结构确认。
   }
 }
 ```
+
 **后端是步骤定义的唯一数据源。** 所有平台 API 的字段格式参照 `.claude/api/openapi-bundled.yaml`。
 
 ⛔ 禁止：在更新 steps 时顺带修改 description、displayName 等其他字段。每次 `skill_update` 只传 Creator 明确确认的字段。
 
 然后执行 Bash 命令生成步骤骨架代码（**必须执行，不要自己手写**）：
+
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
 bash "$PLUGIN_ROOT/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
 ```
+
 此脚本会自动更新 `pipeline.py`（生成 step_N 方法）和 `frontend/src/main.tsx`（更新 buildSteps 渲染配置），保证前后端代码和后端步骤定义数量一致。
 
 ⛔ 禁止：手写 pipeline.py 和 main.tsx 的步骤结构。必须用 generate-steps.sh 生成骨架，只在骨架基础上填充逻辑。
@@ -367,7 +391,7 @@ Plugin: ✓ 输出定义确认。
 
 ## 逐节点开发（Step 4.2）
 
-⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤X"、"开发步骤X"等），都必须先 Read node-dev.md 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先 Read node-dev.md 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
 
 Plugin 引导 Creator 按顺序开发每个 pipeline 节点。
 
@@ -414,6 +438,7 @@ Creator: 大模型自动生成，但要突出关键数字
 - HTML 报告：完整分析报告
 
 四维确认完成后：
+
 1. 生成结果页面代码
 2. 用 `skill_update` 将结果配置写入后端
 3. 提示 Creator 可以进行端到端测试
@@ -454,16 +479,19 @@ async function executeStep(input, context) {
 根据检测到的客户端类型调整引导措辞：
 
 **Desktop 版本：**
+
 - 新建对话："点击左上角的 ＋ 开始新对话"
 - 打开项目："在 Claude Desktop 中，点击 文件 → 打开文件夹"
 - 文件浏览：可以引用"左侧文件树"
 
 **CLI 版本：**
+
 - 新建对话："按 Ctrl+C 退出当前对话，然后重新运行 claude"
 - 打开项目：给出 `cd ~/minus/项目名 && claude` 命令
 - 文件浏览：用 ls 或 tree 命令展示
 
 **通用（不区分客户端）：**
+
 - 预览测试：Desktop 用 `Claude_Preview` 在右侧面板打开（ToolSearch 动态发现），CLI 用 `open` 打开默认浏览器
 - 斜杠命令：/minus、/minus publish 两端一致
 - 自然语言触发：两端一致

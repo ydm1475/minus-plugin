@@ -926,7 +926,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # Test: returns DETECT_FAILED when no Vite process running
 (
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
   if [ "$OUTPUT" = "DETECT_FAILED" ]; then
     pass "detect-preview-port: returns DETECT_FAILED when no server"
   else
@@ -936,7 +936,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # Test: output is DETECT_FAILED or a number
 (
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
   if [[ "$OUTPUT" =~ ^[0-9]+$ ]] || [ "$OUTPUT" = "DETECT_FAILED" ]; then
     pass "detect-preview-port: output is numeric or DETECT_FAILED"
   else
@@ -950,7 +950,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   cd "$TMP"
   mkdir -p .minus
   echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=1 bash "$DPP" 2>&1 || true)
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=1 bash "$DPP" 2>&1 || true)
   # 没有真实 server 跑在 5199，所以 verify 会失败，应该 DETECT_FAILED
   if [ "$OUTPUT" = "DETECT_FAILED" ]; then
     pass "detect-preview-port: DETECT_FAILED when dev-ports.json port is unreachable"
@@ -964,7 +964,7 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   TMP=$(make_tmp)
   cd "$TMP"
   START=$(date +%s)
-  OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
   END=$(date +%s)
   ELAPSED=$((END - START))
   if [ "$ELAPSED" -lt 3 ]; then
@@ -1024,10 +1024,10 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
 )
 
 (
-  if grep -q 'open-preview\.sh' "$SKILL_MD"; then
-    pass "SKILL.md: branch B uses open-preview.sh (hardcoded CLI/Desktop branching)"
+  if grep -q '自动打开预览' "$SKILL_MD"; then
+    pass "SKILL.md: branch B auto-opens preview via detect-preview-port.sh"
   else
-    fail "SKILL.md: branch B uses open-preview.sh" "not found"
+    fail "SKILL.md: branch B auto-opens preview via detect-preview-port.sh" "not found"
   fi
 )
 
