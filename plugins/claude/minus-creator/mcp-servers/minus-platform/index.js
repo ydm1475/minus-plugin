@@ -491,7 +491,7 @@ server.tool(
     }
     const tags = result.data;
     if (!Array.isArray(tags) || tags.length === 0) {
-      return { content: [{ type: "text", text: "当前平台还没有可用的标签。标签由平台管理员创建，Creator 暂时无法自定义标签。" }] };
+      return { content: [{ type: "text", text: "当前没有可以添加的标签。" }] };
     }
     return { content: [{ type: "text", text: JSON.stringify(tags, null, 2) }] };
   }
