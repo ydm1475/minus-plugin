@@ -109,7 +109,7 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
 
-**scaffold 成功后自动生成描述和适用场景：** 根据项目名称自动生成一句简短的 Skill 描述和 2-3 条适用场景，调用 `skill_update` 一次性写入 description 和 useCases 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
+**scaffold 成功后自动生成基础信息：** 根据项目名称自动生成一句简短的 Skill 描述和 2-3 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 
@@ -218,8 +218,8 @@ cd ~/minus/{项目名称} && claude
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
    「你现在看到的是 Skill 的初始页面，展示了名称、描述、适用场景和一个默认的 ASIN 输入框。」
-   「描述和适用场景是根据名称自动生成的，随时可以改。标签等信息也可以随时添加。」
-   「你想现在就补充标签，还是直接开始设计 Skill？」
+   「这些都是根据名称自动生成的，随时可以改。」
+   「我们直接开始设计 Skill 吧？」
 
 4. 根据 Creator 选择分支：
 
