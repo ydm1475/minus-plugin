@@ -239,8 +239,8 @@ check_contains_any "$LAST_OUTPUT" "展示什么给用户" "传什么数据给下
 
 # ── 2.4 回答输出 → 应问用户确认 ──
 echo ""
-info "发送：表格显示关键词和搜索量，传原始数据给下一步"
-send_continue "表格显示关键词和搜索量，传原始数据给下一步"
+info "发送：表格显示关键词和搜索量"
+send_continue "表格显示关键词和搜索量"
 check_contains_any "$LAST_OUTPUT" "暂停确认" "自动往下走" "暂停" "确认再继续" -- "④ 问用户确认"
 
 # ── 2.5 完成步骤 1，快速走完步骤 2 ──
@@ -249,7 +249,7 @@ info "快速走完步骤 2（回答④后逐步推进）"
 send_continue "自动继续，不用暂停"
 send_continue "步骤2也用 ctx.sif 接口查数据，直接写代码"
 send_continue "直接透传，不做额外处理"
-send_continue "表格展示，数据传给下一步"
+send_continue "表格展示就行"
 send_continue "这是最后一步了，自动完成就行"
 
 fi  # Phase 2

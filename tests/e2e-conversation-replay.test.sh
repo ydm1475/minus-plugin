@@ -118,14 +118,13 @@ fi
 bash "$LIB_DIR/step-tracker.sh" complete 1 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last 判断是否最后一步
-# 第 1 步不是最后一步 → 维度③提问应包含"需要传什么数据给下一步"
+# 非最后一步传给下一步的数据 = 用户确认的内容（隐含），维度③不再问
 if echo "$IS_LAST_1" | grep -q "NO"; then
-  # 验证 node-dev.md 中非最后一步的维度③提问模板
   NON_LAST_BLOCK=$(sed -n '/如果不是最后一步（返回 NO）/,/### ③/p' "$NODE_DEV")
   if echo "$NON_LAST_BLOCK" | grep -q "传什么数据给下一步"; then
-    pass "非最后一步：维度③提问包含「传什么数据给下一步」"
+    fail "非最后一步：维度③不应再问「传什么数据给下一步」" "已移除" "仍然存在"
   else
-    fail "非最后一步：维度③应问下一步数据" "包含该问题" "未找到"
+    pass "非最后一步：维度③不含「传什么数据给下一步」（隐含为用户确认内容）"
   fi
 fi
 
@@ -227,7 +226,7 @@ fi
 
 # TC-R13: 验证维度②到③的提问模板是多行独立的（BUG-2）
 # 旧对话中三行合成一段，现在应该空行分隔
-LINE_COUNT=$(grep -c '^$' <<< "$(sed -n '/下一个问题：这一步要展示什么给用户看/,/还有，需要传什么数据给下一步/p' "$NODE_DEV")")
+LINE_COUNT=$(grep -c '^$' <<< "$(sed -n '/下一个问题：这一步要展示什么给用户看/,/### ③/p' "$NODE_DEV")")
 if [ "$LINE_COUNT" -gt 0 ]; then
   pass "BUG-2 修复验证：维度③提问模板行间有空行分隔"
 else
