@@ -1015,34 +1015,6 @@
 
     <p style="margin-top:12px">Plugin 将步骤结构通过平台 API 写入后端。<strong style="color:#fff;">后端是步骤定义的唯一数据源</strong>，前端展示和运行时均从后端拉取。</p>
 
-    <!-- 第三步：定义输出 -->
-    <div class="subsection">
-      <h4>第三步：定义输出</h4>
-    </div>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>定义输出</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">最后一个问题：Skill 跑完之后，最终给用户看什么结果？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">比如一份报告、一个关键词列表、一个评分……</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">推荐词列表是主要的，再加上竞争度的评分，</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">最好还有一段总结</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">整理一下最终输出：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 推荐词列表（表格，含搜索量、竞争度、潜力评分）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 竞争度评分（评分卡片）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 分析摘要（大模型基于数据自动生成）</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">确认吗？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">可以</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 输出定义确认。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="warn">初始页面已生成，可以先预览一下效果。后续每个步骤开发完随时都能调整。</span></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">接下来我们逐个节点开发。</span></div>
-      </div>
-    </div>
   </div>
 
   <!-- 4.2 -->
@@ -1157,67 +1129,34 @@
     <h3>结果呈现设计</h3>
     <span class="actor both">Creator + Plugin</span>
     <p><strong>所有 pipeline 节点开发完成后</strong>，Plugin 引导 Creator 定义 Skill 的最终输出——这是终端用户看到的最后一屏，是独立于任何 pipeline 节点的呈现层。</p>
-    <p style="margin-top:8px">Plugin 引导 Creator 逐一确认以下四个方面：</p>
+    <p style="margin-top:8px">Plugin 引导 Creator 逐一确认以下两个方面：</p>
 
-    <!-- Result Data -->
+    <!-- Result Summary -->
     <div class="dim-card">
-      <h5>① 结果数据：最终结果包含什么数据？</h5>
-      <p>确定 pipeline 各步骤的输出中，哪些要出现在最终结果页。</p>
-    </div>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>结果数据</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">3 个步骤全部开发完成。现在来定义 Skill 的最终结果。</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">pipeline 的输出数据包括：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 1：关键词基础数据（搜索量、趋势）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2：竞争度评分和分析报告</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 3：推荐长尾词列表</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">最终结果要包含上面哪些数据？还是全部？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">全部都要，但重点突出推荐词列表和竞争度评分</span></div>
-      </div>
-    </div>
-
-    <!-- Summary -->
-    <div class="dim-card">
-      <h5>② 结果摘要：如何总结描述这个结果？</h5>
-      <p>结果页顶部的自然语言总结——大模型自动生成 or 模板定义。</p>
+      <h5>① 结果摘要：如何总结这个 Skill 的运行结果？</h5>
+      <p>Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。Plugin 先展示各步骤产出的数据全景，再引导 Creator 定义摘要的风格和内容。</p>
     </div>
 
     <div class="conv-mock">
       <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>结果摘要</span></div>
       <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">结果页顶部需要一段摘要，用自然语言总结分析结论。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">这段摘要由大模型在运行时基于实际数据自动生成，还是你来定义模板？</span></div>
+        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">3 个步骤全部开发完成。各步骤产出的数据：</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 1：关键词基础数据（搜索量、趋势）</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2：竞争度评分和分析报告</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 3：推荐长尾词列表</span></div>
         <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">大模型自动生成，但要突出关键数字</span></div>
-      </div>
-    </div>
-
-    <!-- Preview -->
-    <div class="dim-card">
-      <h5>③ 内容预览：提供什么样的可视化预览？</h5>
-      <p>表格、评分卡片、图表等。</p>
-    </div>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>内容预览</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">结果页里需要哪些预览内容？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 推荐词列表（表格）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 竞争度评分（评分卡片）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 搜索趋势（图表）</span></div>
+        <div class="conv-line"><span class="role plugin"></span> <span class="msg">Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">你想怎么定义这段摘要？比如：</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="hi">"关键词 wireless earbuds 月搜索量 12 万，竞争度中等，建议优先布局以下 3 个长尾词……"</span></span></div>
         <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">表格和评分卡片就行，趋势图暂时不做</span></div>
+        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">差不多这个感觉，大模型自动生成就行，</span></div>
+        <div class="conv-line"><span class="role"></span> <span class="msg">但要突出关键数字和结论</span></div>
       </div>
     </div>
 
     <!-- Downloads -->
     <div class="dim-card">
-      <h5>④ 下载内容：提供哪些可下载的文件？</h5>
+      <h5>② 下载内容：提供哪些可下载的文件？</h5>
       <p>CSV、PDF、JSON 等导出格式。</p>
     </div>
 
