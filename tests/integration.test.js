@@ -19,6 +19,7 @@ function createMockApi() {
     skills: [],
     sessions: [],
     vcodes: {},
+    skillTags: [],
     nextSkillId: 1,
   };
 
@@ -102,6 +103,12 @@ function createMockApi() {
       if (method === "POST" && url === "/api/auth/logout") {
         res.statusCode = 204;
         res.end();
+        return;
+      }
+
+      // ── Skill Tags: list ──
+      if (method === "GET" && url === "/api/skill-tags") {
+        res.end(JSON.stringify(state.skillTags));
         return;
       }
 
@@ -609,6 +616,63 @@ describe("Flow 3b: skill_update — 两步法写入 input/steps", () => {
       updates: { displayName: "test" },
     });
     assert.ok(getText(r).includes("失败") || getText(r).includes("不存在"));
+  });
+
+  it("5. skill_tag_list — 字典为空时返回友好提示", async () => {
+    mockApi.state.skillTags = [];
+    const r = await client.callTool("skill_tag_list", {});
+    assert.ok(getText(r).includes("没有可以添加的标签"), `Expected empty hint, got: ${getText(r)}`);
+  });
+
+  it("6. skill_tag_list — 字典有数据时返回列表", async () => {
+    mockApi.state.skillTags = [
+      { code: "amazon", label: "亚马逊" },
+      { code: "keyword", label: "关键词" },
+    ];
+    const r = await client.callTool("skill_tag_list", {});
+    const text = getText(r);
+    assert.ok(text.includes("amazon"), `Expected amazon in: ${text}`);
+    assert.ok(text.includes("keyword"), `Expected keyword in: ${text}`);
+  });
+
+  it("7. skill_update tags — 字典为空时拒绝写入", async () => {
+    mockApi.state.skillTags = [];
+    const r = await client.callTool("skill_update", {
+      skillId,
+      version: "1.0-alpha.1",
+      updates: { tags: ["amazon"] },
+    });
+    assert.ok(getText(r).includes("没有可以添加的标签"), `Expected empty hint, got: ${getText(r)}`);
+  });
+
+  it("8. skill_update tags — 无效 code 被拦截并列出可用标签", async () => {
+    mockApi.state.skillTags = [
+      { code: "amazon", label: "亚马逊" },
+      { code: "keyword", label: "关键词" },
+    ];
+    const r = await client.callTool("skill_update", {
+      skillId,
+      version: "1.0-alpha.1",
+      updates: { tags: ["amazon", "不存在的"] },
+    });
+    const text = getText(r);
+    assert.ok(text.includes("不在可用列表"), `Expected rejection, got: ${text}`);
+    assert.ok(text.includes("amazon（亚马逊）"), `Expected available list, got: ${text}`);
+  });
+
+  it("9. skill_update tags — 合法 code 正常写入", async () => {
+    mockApi.state.skillTags = [
+      { code: "amazon", label: "亚马逊" },
+      { code: "keyword", label: "关键词" },
+    ];
+    const r = await client.callTool("skill_update", {
+      skillId,
+      version: "1.0-alpha.1",
+      updates: { tags: ["amazon", "keyword"] },
+    });
+    assert.ok(getText(r).includes("已更新"), `Expected success, got: ${getText(r)}`);
+    const skill = mockApi.state.skills.find((s) => s.id === skillId);
+    assert.deepEqual(skill.tags, ["amazon", "keyword"]);
   });
 });
 

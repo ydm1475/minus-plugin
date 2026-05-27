@@ -520,7 +520,7 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
       }
       const validCodes = (tagResult.data || []).map(t => t.code);
       if (validCodes.length === 0) {
-        return { content: [{ type: "text", text: "当前平台还没有可用的标签，无法设置 tags。标签由平台管理员创建。" }] };
+        return { content: [{ type: "text", text: "当前没有可以添加的标签。" }] };
       }
       const invalidTags = updates.tags.filter(t => !validCodes.includes(t));
       if (invalidTags.length > 0) {
