@@ -111,6 +111,8 @@ cat << 'GUIDE'
   如果 Creator 选了 HTML 报告，追问报告具体包含哪些内容：
   「HTML 报告里你想呈现哪些信息？比如哪些数据表格、图表、分析结论……」
 
+注意：Excel 默认用 .xlsx 格式（openpyxl），不要用 CSV，除非 Creator 明确指定 CSV。
+
 两项确认完成后：
   1. 生成结果页面代码（查 SDK 文档了解 CompletionPanel 用法）
   2. 用 skill_update 将结果配置写入后端
