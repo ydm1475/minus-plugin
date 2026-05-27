@@ -96,7 +96,7 @@ cd ~/minus && create-skill "项目名称" --non-interactive
 ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
 ✅ 必须：通过 Bash tool 执行 `create-skill` CLI 命令
 
-描述默认为空，输入类型默认为 asin（页面自带 ASIN 输入框 + 国家选择器）。结构设计第一步确认输入类型后，如果 Creator 要的不是 ASIN，再切换。
+描述由 agent 根据项目名称自动生成，输入类型默认为 asin（页面自带 ASIN 输入框 + 国家选择器）。结构设计第一步确认输入类型后，如果 Creator 要的不是 ASIN，再切换。
 
 MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.json`，MCP 登录后 create-skill 自动复用登录态，无需额外传参。
 
@@ -108,6 +108,8 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 - 安装前端依赖
 
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
+
+**scaffold 成功后自动生成描述：** 根据项目名称生成一句简短的 Skill 描述，调用 `skill_update` 写入 description 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 
@@ -215,9 +217,9 @@ cd ~/minus/{项目名称} && claude
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
-   「你现在看到的是 Skill 的初始页面，目前展示了名称和一个默认的 ASIN 输入框。」
-   「描述、适用场景、标签这些信息可以随时添加，输入框的类型后面设计时会确认。」
-   「你想现在就补充基础信息，还是先设计 Skill？」
+   「你现在看到的是 Skill 的初始页面，展示了名称、描述和一个默认的 ASIN 输入框。」
+   「描述是根据名称自动生成的，随时可以改。标签等信息也可以随时添加。」
+   「你想现在就补充标签，还是直接开始设计 Skill？」
 
 4. 根据 Creator 选择分支：
 
