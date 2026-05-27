@@ -1390,8 +1390,8 @@
 
           <!-- Dimension 3 -->
           <div class="dim-card">
-            <h5>③ 输出定义：这一步输出什么？</h5>
-            <p>传给下一步的数据 + 展示给用户的内容。</p>
+            <h5>③ 展示内容：这一步展示什么给用户看？</h5>
+            <p>只定义展示内容，传给下一步的数据在维度④确认后再问。</p>
           </div>
 
           <div class="conv-mock">
@@ -1399,21 +1399,22 @@
               <div class="dot r"></div>
               <div class="dot y"></div>
               <div class="dot g"></div>
-              <span>输出定义对话</span>
+              <span>展示内容对话</span>
             </div>
             <div class="conv-body">
-              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">这一步的输出包含两部分：</span></div>
-              <div class="conv-line"><span class="role"></span> <span class="msg">· 传给下一步的数据：关键词基础数据对象（搜索量、趋势数组等）</span></div>
-              <div class="conv-line"><span class="role"></span> <span class="msg">· 展示给用户的内容：搜索量摘要 + 趋势图表数据</span></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">这一步要展示什么给用户看？</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">比如一个数据表格、一段文字摘要、一个评分卡片……</span></div>
               <div class="conv-line blank"></div>
-              <div class="conv-line"><span class="role plugin"></span> <span class="msg">格式你觉得 OK 吗？</span></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">搜索量摘要 + 趋势图表数据</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 展示内容确认。</span></div>
             </div>
           </div>
 
           <!-- Dimension 4 -->
           <div class="dim-card">
-            <h5>④ 用户确认：用户使用时需要在这一步暂停确认吗？</h5>
-            <p>决定<strong>运行时行为</strong>——终端用户跑这个 Skill 时，pipeline 是否在此步骤后暂停等待确认。</p>
+            <h5>④ 用户确认 + 传递数据</h5>
+            <p>先确认<strong>运行时行为</strong>（是否暂停），再根据确认模式追问传给下一步的数据。</p>
           </div>
 
           <div class="conv-mock">
@@ -1421,20 +1422,25 @@
               <div class="dot r"></div>
               <div class="dot y"></div>
               <div class="dot g"></div>
-              <span>用户确认对话</span>
+              <span>用户确认 + 传递数据对话</span>
             </div>
             <div class="conv-body">
               <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">用户运行到这一步后，需要暂停让用户确认数据再继续吗？</span></div>
               <div class="conv-line"><span class="role"></span> <span class="msg">· 是 → 用户看到输出后点确认，才进入下一步</span></div>
               <div class="conv-line"><span class="role"></span> <span class="msg">· 否 → 自动继续到下一步</span></div>
               <div class="conv-line blank"></div>
-              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">这步不用，数据采集直接过就行</span></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">需要确认</span></div>
               <div class="conv-line blank"></div>
-              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，标记为自动继续。</span></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，用户需要先确认再继续。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">那用户勾选确认的什么数据传给下一步？比如选中的关键词、选中的 ASIN……</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">用户勾选的关键词传给下一步</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 确认模式和传递数据已记录。</span></div>
             </div>
           </div>
 
-          <p style="margin-top: 16px">确认后，Plugin 将 <code>requires_confirmation: false</code> 写入该步骤定义。</p>
+          <p style="margin-top: 16px">确认后，Plugin 将确认模式和传递数据写入步骤定义。</p>
 
           <div class="branch-box" style="margin-top: 28px">
             <p><strong>代码编写、调试与测试：</strong>贯穿节点开发全程。Plugin 在每个维度确认后即时编写和调试代码，Creator 随时可在浏览器中体验效果并提出修改意见。测试不是独立环节，而是持续进行的。</p>
