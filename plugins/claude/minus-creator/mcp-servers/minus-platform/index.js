@@ -481,6 +481,23 @@ server.tool(
 // create-skill 内部会调用 POST /api/skills 注册并生成项目结构
 
 server.tool(
+  "skill_tag_list",
+  "查询可用的 Skill 标签字典（GET /api/skill-tags）。\n返回所有可用标签的 code 和 label。Creator 更新 tags 前必须先查此接口，只能使用返回的 code。",
+  {},
+  async () => {
+    const result = await apiRequest("GET", "/api/skill-tags");
+    if (result.error) {
+      return { content: [{ type: "text", text: `查询失败：${result.message}` }] };
+    }
+    const tags = result.data;
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return { content: [{ type: "text", text: "当前平台还没有可用的标签。标签由平台管理员创建，Creator 暂时无法自定义标签。" }] };
+    }
+    return { content: [{ type: "text", text: JSON.stringify(tags, null, 2) }] };
+  }
+);
+
+server.tool(
   "skill_update",
   `编辑草稿版本（PATCH /api/skills/{skillId}/versions/{version}）。
 仅 status=draft 的版本可编辑，否则返回 409。
@@ -496,6 +513,22 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
     projectDir: z.string().optional().describe("Skill 项目根目录的绝对路径（传入后可自动恢复过期版本）"),
   },
   async ({ skillId, version, updates, projectDir }) => {
+    if (updates.tags && Array.isArray(updates.tags)) {
+      const tagResult = await apiRequest("GET", "/api/skill-tags");
+      if (tagResult.error) {
+        return { content: [{ type: "text", text: `标签字典查询失败：${tagResult.message}` }] };
+      }
+      const validCodes = (tagResult.data || []).map(t => t.code);
+      if (validCodes.length === 0) {
+        return { content: [{ type: "text", text: "当前平台还没有可用的标签，无法设置 tags。标签由平台管理员创建。" }] };
+      }
+      const invalidTags = updates.tags.filter(t => !validCodes.includes(t));
+      if (invalidTags.length > 0) {
+        const available = tagResult.data.map(t => `${t.code}（${t.label}）`).join("、");
+        return { content: [{ type: "text", text: `标签 [${invalidTags.join(", ")}] 不在可用列表中。\n可用标签：${available}` }] };
+      }
+    }
+
     let result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version}`, {
       body: updates,
     });

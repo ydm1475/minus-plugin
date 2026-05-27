@@ -181,6 +181,7 @@ describe("MCP Server - Tool Registration", () => {
       "session_create",
       "session_list",
       "skill_list",
+      "skill_tag_list",
       "skill_update",
       "skill_version_create",
       "skill_version_get",
