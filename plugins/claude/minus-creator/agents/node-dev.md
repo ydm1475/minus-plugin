@@ -89,18 +89,18 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 
 「比如一个数据表格、一段文字摘要、一个评分卡片……」
 
-### ③ 输出定义
+### ③ 展示内容
 
-收集展示意图（不写代码）：
+只收集展示意图（不写代码）：
 - **展示给用户的内容**：表格、摘要、卡片等
-- 非最后一步传给下一步的数据 = 用户确认的内容（隐含，不用问）
+- 传给下一步的数据在维度④确认后再问
 
 Creator 确认后，执行：
 ```bash
 bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} output
 ```
 
-然后**再次判断是否为最后一步**：
+然后**判断是否为最后一步**：
 ```bash
 bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 ```
@@ -113,21 +113,37 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
 
 **如果不是最后一步（返回 NO）**，原样输出：
 
-「输出确认完毕。」
+「展示内容确认完毕。」
 
-「最后一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？」
+「下一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？」
 
 「还是自动往下走？」
 
-### ④ 用户确认
+### ④ 用户确认 + 传递数据
 
 **最后一步硬性跳过**：如果 `step-tracker.sh is-last` 返回 YES，本维度已在维度③结束时自动完成，不会走到这里。
 
 ⛔ **非最后一步必须问 Creator 确认模式。** `step-tracker.sh` 会拒绝对非最后一步执行 `complete confirm auto`，必须用 `interactive`。
 
-收集 Creator 的意图：
-- "需要确认" → 执行 `complete {step_number} confirm interactive`
-- "不需要确认，自动继续" → 这种情况不存在于非最后一步，非最后一步默认需要确认
+**分两轮收集：**
+
+**第一轮：确认模式**
+- "需要确认" → 记录 interactive
+- "自动继续" → 记录 auto（非最后一步会被 step-tracker 拒绝）
+
+**第二轮：传递数据（根据确认模式调整措辞）**
+
+如果 interactive，原样输出：
+
+「好，用户需要先确认再继续。」
+
+「那用户勾选确认的什么数据传给下一步？比如选中的关键词、选中的 ASIN……」
+
+如果 auto，原样输出：
+
+「好，自动往下走。」
+
+「那这一步的什么数据传给下一步？」
 
 Creator 确认后，执行：
 ```bash

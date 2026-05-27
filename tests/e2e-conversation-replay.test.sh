@@ -118,13 +118,21 @@ fi
 bash "$LIB_DIR/step-tracker.sh" complete 1 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last 判断是否最后一步
-# 非最后一步传给下一步的数据 = 用户确认的内容（隐含），维度③不再问
+# 传递数据的问题已移到维度④之后，维度③只问展示内容
 if echo "$IS_LAST_1" | grep -q "NO"; then
-  NON_LAST_BLOCK=$(sed -n '/如果不是最后一步（返回 NO）/,/### ③/p' "$NODE_DEV")
+  # 维度③→④过渡提问不应包含传递数据
+  NON_LAST_BLOCK=$(sed -n '/如果不是最后一步（返回 NO）/,/### ④/p' "$NODE_DEV" | head -20)
   if echo "$NON_LAST_BLOCK" | grep -q "传什么数据给下一步"; then
-    fail "非最后一步：维度③不应再问「传什么数据给下一步」" "已移除" "仍然存在"
+    fail "非最后一步：③→④过渡不应问「传什么数据给下一步」" "已移到④之后" "仍在过渡中"
   else
-    pass "非最后一步：维度③不含「传什么数据给下一步」（隐含为用户确认内容）"
+    pass "非最后一步：③→④过渡不含传递数据问题（已移到④确认后）"
+  fi
+  # 维度④中应包含传递数据的提问
+  DIM4_BLOCK=$(sed -n '/### ④/,/## 阶段二/p' "$NODE_DEV")
+  if echo "$DIM4_BLOCK" | grep -q "什么数据传给下一步"; then
+    pass "非最后一步：维度④确认后追问传递数据"
+  else
+    fail "非最后一步：维度④应在确认模式后追问传递数据" "包含" "未找到"
   fi
 fi
 
