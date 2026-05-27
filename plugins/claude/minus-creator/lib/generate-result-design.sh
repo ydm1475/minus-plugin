@@ -1,0 +1,118 @@
+#!/bin/bash
+# generate-result-design.sh
+# 结果呈现设计（Step 4.3）的门禁 + 引导脚本
+# 用法: generate-result-design.sh
+#
+# 前置条件：所有 pipeline 步骤的四维度必须全部完成
+# 输出：数据全景 + 两维度引导（结果摘要 / 下载内容）
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TRACKER_DIR=".minus/dev-progress"
+
+# ── 门禁：所有步骤必须完成 ──
+
+TOTAL_STEPS_FILE=".minus/total-steps"
+if [ ! -f "$TOTAL_STEPS_FILE" ]; then
+  echo "错误：.minus/total-steps 不存在，步骤骨架尚未生成" >&2
+  exit 1
+fi
+TOTAL_STEPS=$(cat "$TOTAL_STEPS_FILE")
+
+if [ "$TOTAL_STEPS" -lt 1 ]; then
+  echo "错误：总步骤数为 0" >&2
+  exit 1
+fi
+
+ALL_COMPLETE=true
+INCOMPLETE_STEPS=""
+for i in $(seq 1 "$TOTAL_STEPS"); do
+  CHECK_RESULT=$(bash "$SCRIPT_DIR/step-tracker.sh" check "$i" 2>&1) || true
+  if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
+    ALL_COMPLETE=false
+    INCOMPLETE_STEPS="${INCOMPLETE_STEPS} 步骤$i"
+  fi
+done
+
+if [ "$ALL_COMPLETE" = false ]; then
+  echo "错误：以下步骤四维度未全部完成，不能进入结果呈现设计：${INCOMPLETE_STEPS}" >&2
+  exit 1
+fi
+
+# ── 门禁通过 ──
+set +e
+
+echo "GATE_PASSED"
+echo "TOTAL_STEPS=$TOTAL_STEPS"
+
+# ── 数据全景：从 pipeline.py 提取各步骤的 payload ──
+
+echo ""
+echo "═══ 各步骤产出数据全景 ═══"
+
+if [ -f "pipeline.py" ]; then
+  node -e "
+const fs = require('fs');
+const code = fs.readFileSync('pipeline.py', 'utf8');
+const payloads = [...code.matchAll(/step_(\d+)[\s\S]*?payload=\{([^}]*)\}/g)];
+for (const m of payloads) {
+  const stepNum = m[1];
+  const fields = [...m[2].matchAll(/['\"](\w+)['\"]\s*:/g)].map(f => f[1]);
+  if (fields.length > 0) {
+    console.log('步骤 ' + stepNum + ' 输出: { ' + fields.join(', ') + ' }');
+  }
+}
+if (payloads.length === 0) {
+  console.log('(未解析到 payload 字段，请手动确认各步骤输出)');
+}
+" 2>/dev/null || echo "(pipeline.py 解析失败，请手动确认各步骤输出)"
+else
+  echo "(pipeline.py 不存在)"
+fi
+
+# ── 从后端获取步骤名称（如果 step-tracker 有记录）──
+
+echo ""
+for i in $(seq 1 "$TOTAL_STEPS"); do
+  NAME_FILE="$TRACKER_DIR/step_${i}_name"
+  if [ -f "$NAME_FILE" ]; then
+    echo "步骤 $i 名称: $(cat "$NAME_FILE")"
+  fi
+done
+
+# ── 两维度引导 ──
+
+cat << 'GUIDE'
+
+═══════════════════════════════════════════════════════
+  所有步骤开发完成，进入「结果呈现设计」。
+  按以下两个维度逐一引导 Creator 确认：
+═══════════════════════════════════════════════════════
+
+① 结果摘要
+  先向 Creator 展示上面的「各步骤产出数据全景」，
+  然后问：结果页顶部的摘要怎么定义？
+  示例提问（原样输出，不要改写）：
+
+  「所有步骤开发完成。各步骤产出的数据：」
+  「 · 步骤 1：{步骤1名称}（{步骤1输出字段}）」
+  「 · 步骤 2：...」
+  「」
+  「Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。」
+  「你想怎么定义这段摘要？由大模型自动生成还是你定义模板？要重点突出哪些数据？」
+
+② 下载内容
+  Creator 确认摘要后，问：
+
+  「用户可以下载哪些内容？默认支持两种格式：」
+  「 · Excel：数据列表导出」
+  「 · HTML 报告：完整分析报告」
+  「你觉得这两个够吗？还需要其他格式？」
+
+两项确认完成后：
+  1. 生成结果页面代码（查 SDK 文档了解 CompletionPanel 用法）
+  2. 用 skill_update 将结果配置写入后端
+  3. 告诉 Creator：开发完成，可以端到端测试了
+
+GUIDE

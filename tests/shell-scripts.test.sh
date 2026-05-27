@@ -769,6 +769,62 @@ TSXEOF
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ generate-result-design.sh ═══"
+# ══════════════════════════════════════════════════════
+
+GRD="$LIB_DIR/generate-result-design.sh"
+
+# Test: fails without total-steps
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus
+  OUTPUT=$(bash "$GRD" 2>&1) && {
+    fail "generate-result-design: should fail without total-steps" "got: $OUTPUT"
+  } || {
+    pass "generate-result-design: fails without total-steps"
+  }
+)
+
+# Test: fails when steps incomplete
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus/dev-progress
+  echo "2" > .minus/total-steps
+  # step 1 complete, step 2 missing
+  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
+  OUTPUT=$(bash "$GRD" 2>&1) && {
+    fail "generate-result-design: should fail with incomplete steps" "got: $OUTPUT"
+  } || {
+    if echo "$OUTPUT" | grep -q "步骤2"; then
+      pass "generate-result-design: fails with incomplete steps, reports which"
+    else
+      fail "generate-result-design: should report incomplete step number" "got: $OUTPUT"
+    fi
+  }
+)
+
+# Test: passes when all steps complete
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus/dev-progress
+  echo "2" > .minus/total-steps
+  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
+  touch .minus/dev-progress/step_2_{data,logic,output,confirm}
+  OUTPUT=$(bash "$GRD" 2>&1)
+  if echo "$OUTPUT" | grep -q "GATE_PASSED"; then
+    pass "generate-result-design: gate passes when all steps complete"
+  else
+    fail "generate-result-design: should output GATE_PASSED" "got: $OUTPUT"
+  fi
+  if echo "$OUTPUT" | grep -q "结果摘要" && echo "$OUTPUT" | grep -q "下载内容"; then
+    pass "generate-result-design: outputs two-dimension guidance"
+  else
+    fail "generate-result-design: should output both dimensions" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ agent files ═══"
 # ══════════════════════════════════════════════════════
 

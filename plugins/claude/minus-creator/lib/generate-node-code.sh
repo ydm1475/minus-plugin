@@ -147,19 +147,18 @@ else
   echo "(未找到 SDK PipelineContext 源码，请先 uv pip install -e .)"
 fi
 
-# ── 最后一步：代码生成完毕后触发结果呈现设计 ──
+# ── 最后一步：提示调用 generate-result-design.sh ──
 
 if [ "$IS_LAST" = "YES" ]; then
-  cat << 'RESULT_DESIGN'
+  cat << RESULT_DESIGN
 
 ═══════════════════════════════════════════════════════
   ⛔ 这是最后一步。代码生成完毕后，必须进入「结果呈现设计」。
   不要直接告诉 Creator "开发完成"，还有最后一个环节。
-═══════════════════════════════════════════════════════
 
-按 SKILL.md 的「结果呈现设计（Step 4.3）」两维度引导 Creator：
-① 结果摘要 — 展示各步骤数据全景，问 Creator 摘要风格
-② 下载内容 — 问需要哪些可下载的文件
+  代码写完后立即执行：
+  bash "$SCRIPT_DIR/generate-result-design.sh"
+═══════════════════════════════════════════════════════
 
 RESULT_DESIGN
 fi
