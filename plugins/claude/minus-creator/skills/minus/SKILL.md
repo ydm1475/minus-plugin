@@ -96,7 +96,7 @@ cd ~/minus && create-skill "项目名称" --non-interactive
 ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
 ✅ 必须：通过 Bash tool 执行 `create-skill` CLI 命令
 
-描述默认为空，输入类型默认为 default（仅展示 Skill 名称、描述、适用场景、标签，无输入组件），输入组件在结构设计第一步确认后生成。
+描述默认为空，输入类型默认为 asin（页面自带 ASIN 输入框 + 国家选择器）。结构设计第一步确认输入类型后，如果 Creator 要的不是 ASIN，再切换。
 
 MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.json`，MCP 登录后 create-skill 自动复用登录态，无需额外传参。
 
@@ -215,8 +215,9 @@ cd ~/minus/{项目名称} && claude
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
-   「你现在看到的是 Skill 的初始页面，目前只展示了名称。」
-   「描述、适用场景、标签这些信息可以随时添加，你想现在就补充，还是先设计 Skill？」
+   「你现在看到的是 Skill 的初始页面，目前展示了名称和一个默认的 ASIN 输入框。」
+   「描述、适用场景、标签这些信息可以随时添加，输入框的类型后面设计时会确认。」
+   「你想现在就补充基础信息，还是先设计 Skill？」
 
 4. 根据 Creator 选择分支：
 
@@ -230,8 +231,8 @@ cd ~/minus/{项目名称} && claude
    **结构设计第一个问题（两个分支最终都到这里，原样输出）：**
    「接下来我们来设计这个 Skill。」
    「第一个问题：用户使用这个 Skill 时，需要提供什么信息？」
-   「比如关键词、ASIN、品类……」
-   「还有，用户可以输入几个？只能一个、一个或多个、还是至少两个」
+   「现在默认是 ASIN 输入框，如果你的 Skill 就是用 ASIN 的，直接告诉我用户可以输入几个就行。」
+   「如果需要改成其他类型（比如关键词、文件上传），也告诉我。」
 
 **非首次进入 — 根据状态给针对性提示：**
 通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② Memory 中的开发进度。
