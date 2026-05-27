@@ -1,5 +1,5 @@
 #!/bin/bash
-# E2E 测试：验证三步法流程不被跳过
+# E2E 测试：验证两步法流程不被跳过
 # 用 claude -p 多轮对话，检查每轮输出是否包含预期的问题
 #
 # 用法：bash tests/e2e-three-step.sh
@@ -103,7 +103,7 @@ run_claude_continue() {
 # ══════════════════════════════════════════════════════
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║   E2E 测试：三步法流程完整性         ║"
+echo "║   E2E 测试：两步法流程完整性         ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
@@ -135,7 +135,7 @@ R1=$(run_claude "hi")
 echo "$R1" > /tmp/e2e-r1.txt
 info "输出已保存到 /tmp/e2e-r1.txt"
 
-check_contains "$R1" "三步法" "提到三步法"
+check_contains_any "$R1" "设计" "需要提供什么信息" "第一个问题" -- "提到设计流程"
 check_contains "$R1" "需要提供什么信息" "问第一步：输入是什么"
 
 # ── Round 2：回答第一步，应该问第二步（步骤）──
@@ -159,7 +159,7 @@ else
   PASS=$((PASS + 1))
 fi
 
-# ── Round 3：回答第二步，应该问第三步（输出）──
+# ── Round 3：回答第二步，应该生成骨架并进入节点开发 ──
 echo ""
 echo "═══ Round 3：回答步骤 ═══"
 info "发送：先查搜索量，再分析竞争度"
@@ -169,16 +169,7 @@ R3=$(run_claude_continue "先查搜索量，再分析竞争度")
 echo "$R3" > /tmp/e2e-r3.txt
 info "输出已保存到 /tmp/e2e-r3.txt"
 
-check_contains_any "$R3" "给用户看什么结果" "最后一个问题" "最终输出" "输出定义" -- "问第三步：输出是什么"
-
-# 关键断言：不能直接开始写代码
-if echo "$R3" | grep -qE "pipeline\.py|开始开发|先从后端|generate-steps"; then
-  fail "第三轮不应该出现写代码的迹象" "agent 跳过了第三步直接写代码"
-  FAIL=$((FAIL + 1))
-else
-  pass "第三轮没有跳步写代码"
-  PASS=$((PASS + 1))
-fi
+check_contains_any "$R3" "确认" "骨架" "开始开发" "步骤 1" "步骤1" "逐个节点" "generate" -- "两步法完成，进入骨架生成/节点开发"
 
 # ══════════════════════════════════════════════════════
 echo ""

@@ -1,10 +1,10 @@
 #!/bin/bash
-# E2E 测试：验证完整开发流程（三步法 + 逐节点四维度 + 结果呈现）
+# E2E 测试：验证完整开发流程（两步法 + 逐节点四维度 + 结果呈现）
 # 用 claude -p 多轮对话，检查每轮输出是否包含预期的问题
 #
 # 用法：
 #   bash tests/e2e-dev-flow.sh              # 跑全流程
-#   bash tests/e2e-dev-flow.sh --phase 1    # 只跑三步法
+#   bash tests/e2e-dev-flow.sh --phase 1    # 只跑两步法
 #   bash tests/e2e-dev-flow.sh --phase 2    # 只跑逐节点开发
 #   bash tests/e2e-dev-flow.sh --phase 3    # 只跑结果呈现
 #   E2E_KEEP=1 bash tests/e2e-dev-flow.sh  # 保留临时项目不删
@@ -167,18 +167,18 @@ pass "项目已创建：$PROJECT_DIR"
 
 
 # ╔══════════════════════════════════════════╗
-# ║  Phase 1：三步法设计                      ║
+# ║  Phase 1：结构设计                        ║
 # ╚══════════════════════════════════════════╝
 
 if [ "$PHASE" = "all" ] || [ "$PHASE" = "1" ]; then
 
-phase_header "Phase 1：三步法设计（输入 → 步骤 → 输出）"
+phase_header "Phase 1：结构设计（输入 → 步骤）"
 
 # ── 1.0 首次进入 ──
 echo ""
 info "发送：hi"
 send "hi"
-check_contains "$LAST_OUTPUT" "三步法" "提到三步法"
+check_contains_any "$LAST_OUTPUT" "设计" "需要提供什么信息" "第一个问题" -- "提到设计流程"
 check_contains "$LAST_OUTPUT" "需要提供什么信息" "问第一步：输入是什么"
 
 # ── 1.1 回答输入 → 应问步骤 ──
@@ -188,18 +188,11 @@ send_continue "关键词，支持多个"
 check_contains_any "$LAST_OUTPUT" "分几步" "每一步做什么" "步骤" -- "问第二步：拆解步骤"
 check_no_skip "$LAST_OUTPUT" "没有跳步写代码"
 
-# ── 1.2 回答步骤 → 应问输出 ──
+# ── 1.2 回答步骤 → 应进入骨架生成/节点开发 ──
 echo ""
 info "发送：先查搜索量，再分析竞争度"
 send_continue "先查搜索量，再分析竞争度"
-check_contains_any "$LAST_OUTPUT" "给用户看什么结果" "最后一个问题" "最终输出" "输出" -- "问第三步：定义输出"
-check_no_skip "$LAST_OUTPUT" "没有跳步写代码"
-
-# ── 1.3 回答输出 → 应进入节点开发 ──
-echo ""
-info "发送：表格展示关键词和搜索量就行"
-send_continue "表格展示关键词和搜索量就行"
-check_contains_any "$LAST_OUTPUT" "确认" "逐个节点" "开始开发" "步骤 1" "步骤1" "数据" "从哪" "骨架" "generate" -- "三步法完成，进入节点开发"
+check_contains_any "$LAST_OUTPUT" "确认" "逐个节点" "开始开发" "步骤 1" "步骤1" "数据" "从哪" "骨架" "generate" -- "两步法完成，进入节点开发"
 
 fi  # Phase 1
 
@@ -212,14 +205,13 @@ if [ "$PHASE" = "all" ] || [ "$PHASE" = "2" ]; then
 
 phase_header "Phase 2：逐节点开发 — 步骤 1 四维度"
 
-# 如果只跑 Phase 2，需要先走完三步法
+# 如果只跑 Phase 2，需要先走完结构设计
 if [ "$PHASE" = "2" ]; then
-  info "快速走完三步法..."
+  info "快速走完结构设计..."
   send "hi"
   send_continue "关键词，支持多个"
   send_continue "先查搜索量，再分析竞争度"
-  send_continue "表格展示关键词和搜索量就行"
-  info "三步法已完成，开始测试四维度"
+  info "结构设计已完成，开始测试四维度"
 fi
 
 # ── 2.1 进入步骤1开发，应该问数据需求 ──
@@ -264,7 +256,7 @@ fi  # Phase 2
 
 
 # ╔══════════════════════════════════════════╗
-# ║  Phase 3：结果呈现设计（四维度）           ║
+# ║  Phase 3：结果呈现设计（两维度）           ║
 # ╚══════════════════════════════════════════╝
 
 if [ "$PHASE" = "all" ] || [ "$PHASE" = "3" ]; then
@@ -277,7 +269,6 @@ if [ "$PHASE" = "3" ]; then
   send "hi"
   send_continue "关键词，支持多个"
   send_continue "先查搜索量，再分析竞争度"
-  send_continue "表格展示关键词和搜索量就行"
   send_continue "开始开发第一个步骤"
   send_continue "用 keyword_metrics 接口查搜索量"
   send_continue "直接把原始数据整理成表格"
@@ -287,29 +278,17 @@ if [ "$PHASE" = "3" ]; then
   info "前置流程已完成，开始测试结果呈现"
 fi
 
-# ── 3.1 所有节点完成，应该问结果数据 ──
+# ── 3.1 所有节点完成，应该问结果摘要 ──
 echo ""
 info "发送：所有步骤都开发好了，现在定义最终结果"
 send_continue "所有步骤都开发好了，现在定义最终结果"
-check_contains_any "$LAST_OUTPUT" "最终结果" "结果数据" "包含什么" "哪些数据" "结果" -- "① 问结果数据"
+check_contains_any "$LAST_OUTPUT" "摘要" "总结" "数据" "结果" "步骤" -- "① 问结果摘要"
 
-# ── 3.2 回答结果数据 → 应问结果摘要 ──
+# ── 3.2 回答摘要 → 应问下载 ──
 echo ""
-info "发送：全部都要"
-send_continue "全部都要"
-check_contains_any "$LAST_OUTPUT" "摘要" "总结" "描述" "概述" -- "② 问结果摘要"
-
-# ── 3.3 回答摘要 → 应问预览 ──
-echo ""
-info "发送：大模型自动生成摘要"
-send_continue "大模型自动生成摘要"
-check_contains_any "$LAST_OUTPUT" "预览" "可视化" "表格" "图表" "卡片" "展示" -- "③ 问内容预览"
-
-# ── 3.4 回答预览 → 应问下载 ──
-echo ""
-info "发送：用表格就行"
-send_continue "用表格就行"
-check_contains_any "$LAST_OUTPUT" "下载" "导出" "Excel" "文件" "报告" -- "④ 问下载内容"
+info "发送：大模型自动生成，突出关键数字和结论"
+send_continue "大模型自动生成，突出关键数字和结论"
+check_contains_any "$LAST_OUTPUT" "下载" "导出" "Excel" "文件" "报告" -- "② 问下载内容"
 
 fi  # Phase 3
 

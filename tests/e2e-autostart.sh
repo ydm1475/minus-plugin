@@ -93,7 +93,7 @@ else
 fi
 
 # ── Step 6: 检查输出中包含开发引导（首次进入） ──
-if echo "$OUTPUT" | grep -qE "三步法|需要提供什么信息|第一个问题|开始开发|你想做什么|SKILL.md"; then
+if echo "$OUTPUT" | grep -qE "设计|需要提供什么信息|第一个问题|开始开发|你想做什么|SKILL.md"; then
   pass "首次进入包含开发引导"
 else
   fail "首次进入未包含开发引导" "未找到引导相关提问"

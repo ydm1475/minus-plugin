@@ -503,7 +503,7 @@ describe("Flow 3: 创建 Skill → 设置 Endpoint → 创建 Session", () => {
   });
 });
 
-describe("Flow 3b: skill_update — 三步法写入 input/steps", () => {
+describe("Flow 3b: skill_update — 两步法写入 input/steps", () => {
   let mockApi, apiPort, client, tmpHome;
   const skillId = "sk_update_test";
 
@@ -939,8 +939,7 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
     );
   });
 
-  // 设计变更 [2026-05-22]：SessionStart 轻量提示模式，不再输出环境检查详情
-  it("8. project-detector 轻量提示：已登录状态 + 提示输入 /minus", async () => {
+  it("8. project-detector Skill 项目：已登录状态 + 自动触发 minus skill", async () => {
     const dirs = await fs.readdir(tmpWorkspace);
     const skillDir = dirs.find((d) => d.includes("测试Skill") || d.startsWith("sk_"));
     const projectPath = path.join(tmpWorkspace, skillDir);
@@ -951,23 +950,8 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
     assert.ok(stdout.includes("登录状态：true"), `Expected 登录状态：true in: ${stdout}`);
-    assert.ok(stdout.includes("/minus"), `Expected /minus prompt in: ${stdout}`);
-  });
-
-  it("9. project-detector 轻量提示：不含自动执行指令", async () => {
-    const dirs = await fs.readdir(tmpWorkspace);
-    const skillDir = dirs.find((d) => d.includes("测试Skill") || d.startsWith("sk_"));
-    const projectPath = path.join(tmpWorkspace, skillDir);
-
-    const PD = path.resolve(
-      import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
-    );
-    const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
-    assert.ok(
-      !stdout.includes("即时动作") && !stdout.includes("不要等待用户输入"),
-      `Should not contain auto-execution instructions: ${stdout}`
-    );
+    assert.ok(stdout.includes("[自动触发]"), `Expected auto-trigger instruction in: ${stdout}`);
+    assert.ok(stdout.includes("minus-creator:minus"), `Expected minus-creator:minus in: ${stdout}`);
   });
 });
 

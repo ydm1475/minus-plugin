@@ -150,12 +150,6 @@ fi
 # ── 最后一步：代码生成完毕后触发结果呈现设计 ──
 
 if [ "$IS_LAST" = "YES" ]; then
-  # 读取三步法第三步的粗略意图（如果有）
-  RESULT_INTENT=""
-  if [ -f ".minus/result-intent.txt" ]; then
-    RESULT_INTENT=$(cat .minus/result-intent.txt)
-  fi
-
   cat << 'RESULT_DESIGN'
 
 ═══════════════════════════════════════════════════════
@@ -163,18 +157,9 @@ if [ "$IS_LAST" = "YES" ]; then
   不要直接告诉 Creator "开发完成"，还有最后一个环节。
 ═══════════════════════════════════════════════════════
 
-RESULT_DESIGN
+按 SKILL.md 的「结果呈现设计（Step 4.3）」两维度引导 Creator：
+① 结果摘要 — 展示各步骤数据全景，问 Creator 摘要风格
+② 下载内容 — 问需要哪些可下载的文件
 
-  if [ -n "$RESULT_INTENT" ]; then
-    echo "Creator 在三步法中对最终输出的要求是：${RESULT_INTENT}"
-    echo ""
-    echo "现在要对「${RESULT_INTENT}」做细化确认。"
-    echo "向 Creator 追问具体细节，确认后实现到最终结果的摘要里。查 SDK 文档了解怎么实现。"
-    echo "如果 Creator 说过「不需要额外的」，跳过此环节直接完成。"
-  else
-    echo "Creator 在三步法中没有明确输出需求。"
-    echo "问 Creator：所有步骤跑完后，想额外给用户展示什么？"
-    echo "比如一句话总结、可下载的文件、还是不需要额外的东西。"
-    echo "根据回答追问细节，确认后生成代码。"
-  fi
+RESULT_DESIGN
 fi

@@ -1,1196 +1,1537 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Creator Plugin Flow — Dev & Publish</title>
-<style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface-alt: #1a1a26;
-    --border: #2a2a3a;
-    --border-accent: #4f46e5;
-    --text: #e4e4ed;
-    --text-muted: #8888a0;
-    --accent: #818cf8;
-    --accent-bright: #a5b4fc;
-    --green: #34d399;
-    --green-dim: #064e3b;
-    --amber: #fbbf24;
-    --amber-dim: #78350f;
-    --rose: #fb7185;
-    --rose-dim: #4c0519;
-    --cyan: #22d3ee;
-    --cyan-dim: #083344;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.7;
-    padding: 0;
-    margin-left: 220px;
-  }
-
-  .hero {
-    position: relative;
-    padding: 80px 40px 60px;
-    text-align: center;
-    background: linear-gradient(180deg, #1a1a2e 0%, var(--bg) 100%);
-    border-bottom: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 800px;
-    height: 800px;
-    background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .hero-badge {
-    display: inline-block;
-    padding: 6px 16px;
-    border-radius: 20px;
-    background: rgba(79, 70, 229, 0.12);
-    border: 1px solid rgba(79, 70, 229, 0.3);
-    color: var(--accent-bright);
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    margin-bottom: 24px;
-  }
-
-  .hero h1 {
-    font-size: 42px;
-    font-weight: 700;
-    letter-spacing: -1px;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, #fff 0%, var(--accent-bright) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .hero-sub {
-    font-size: 18px;
-    color: var(--text-muted);
-    max-width: 640px;
-    margin: 0 auto 24px;
-  }
-
-  .hero-link {
-    display: inline-block;
-    font-size: 14px;
-    color: var(--accent);
-    text-decoration: none;
-    border-bottom: 1px dashed rgba(129, 140, 248, 0.4);
-    padding-bottom: 1px;
-  }
-
-  .hero-link:hover { color: var(--accent-bright); border-color: var(--accent-bright); }
-
-  .container {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 0 40px;
-  }
-
-  section { padding: 60px 0; }
-
-  .section-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--accent);
-    margin-bottom: 16px;
-  }
-
-  .section-label::before {
-    content: '';
-    display: block;
-    width: 20px;
-    height: 1px;
-    background: var(--accent);
-  }
-
-  h2 {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    margin-bottom: 12px;
-  }
-
-  .section-desc {
-    color: var(--text-muted);
-    font-size: 16px;
-    margin-bottom: 40px;
-    max-width: 680px;
-  }
-
-  .divider {
-    height: 1px;
-    background: var(--border);
-    margin: 0;
-  }
-
-  /* Overview Table */
-  .overview-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 32px;
-  }
-
-  .overview-table th {
-    padding: 14px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    text-align: left;
-    background: var(--surface-alt);
-    border-bottom: 1px solid var(--border);
-    color: var(--text-muted);
-  }
-
-  .overview-table td {
-    padding: 12px 20px;
-    font-size: 14px;
-    border-bottom: 1px solid rgba(42, 42, 58, 0.5);
-    color: var(--text-muted);
-  }
-
-  .overview-table tr:last-child td { border-bottom: none; }
-  .overview-table td:first-child { font-weight: 600; color: var(--accent-bright); white-space: nowrap; }
-  .overview-table td:nth-child(2) { color: #fff; font-weight: 500; }
-
-  /* Design Note Box */
-  .design-note {
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(34, 211, 238, 0.05) 100%);
-    border: 1px solid rgba(79, 70, 229, 0.25);
-    border-radius: 12px;
-    padding: 24px 28px;
-    margin-bottom: 16px;
-    font-size: 15px;
-    line-height: 1.8;
-  }
-
-  .design-note strong { color: #fff; }
-
-  .env-note {
-    background: var(--surface-alt);
-    border-left: 3px solid var(--amber);
-    border-radius: 0 8px 8px 0;
-    padding: 16px 20px;
-    font-size: 14px;
-    color: var(--text-muted);
-    margin-bottom: 12px;
-  }
-
-  .env-note strong { color: var(--amber); }
-
-  /* Phase Header */
-  .phase-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-
-  .phase-num {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    font-size: 18px;
-    font-weight: 800;
-    flex-shrink: 0;
-  }
-
-  .phase-num.p4 { background: rgba(251, 191, 36, 0.12); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.3); }
-  .phase-num.p5 { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.3); }
-
-  .phase-header h2 { margin-bottom: 0; }
-  .phase-header .phase-freq {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
-
-  /* Step Card */
-  .step-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
-    margin-bottom: 20px;
-    position: relative;
-  }
-
-  .step-card:hover { border-color: rgba(79, 70, 229, 0.4); }
-
-  .step-id {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-  }
-
-  .step-card h3 {
-    font-size: 18px;
-    font-weight: 600;
-    color: #fff;
-    margin-bottom: 8px;
-  }
-
-  .step-card .actor {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    margin-bottom: 12px;
-  }
-
-  .actor.creator { background: rgba(251, 191, 36, 0.12); color: var(--amber); }
-  .actor.plugin { background: rgba(129, 140, 248, 0.12); color: var(--accent-bright); }
-  .actor.both { background: rgba(52, 211, 153, 0.1); color: var(--green); }
-  .actor.minus { background: rgba(251, 113, 133, 0.1); color: var(--rose); }
-
-  .step-card p, .step-card li {
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.8;
-  }
-
-  .step-card ul { list-style: none; margin-top: 8px; }
-  .step-card ul li {
-    padding: 4px 0;
-    padding-left: 16px;
-    position: relative;
-  }
-
-  .step-card ul li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 12px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-
-  /* Conversation Mock */
-  .conv-mock {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 16px 0;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 13px;
-    line-height: 1.8;
-  }
-
-  .conv-mock .conv-header {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .conv-mock .conv-header .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .conv-mock .conv-header .dot.r { background: #ef4444; }
-  .conv-mock .conv-header .dot.y { background: #eab308; }
-  .conv-mock .conv-header .dot.g { background: #22c55e; }
-  .conv-mock .conv-header span { font-size: 12px; color: var(--text-muted); }
-
-  .conv-mock .conv-body { padding: 16px 20px; }
-
-  .conv-line { padding: 2px 0; }
-  .conv-line .role {
-    display: inline-block;
-    min-width: 70px;
-    font-weight: 600;
-  }
-
-  .conv-line .role.plugin { color: var(--accent-bright); }
-  .conv-line .role.creator { color: var(--amber); }
-  .conv-line .msg { color: var(--text-muted); }
-  .conv-line .msg .ok { color: var(--green); }
-  .conv-line .msg .err { color: var(--rose); }
-  .conv-line .msg .warn { color: var(--amber); }
-  .conv-line .msg .hi { color: #fff; }
-  .conv-line.blank { height: 8px; }
-
-  /* JSON / YAML Block */
-  .json-block {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 16px 0;
-  }
-
-  .json-block .json-header {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-    color: var(--text-muted);
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .json-block .json-header .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .json-block .json-header .dot.r { background: #ef4444; }
-  .json-block .json-header .dot.y { background: #eab308; }
-  .json-block .json-header .dot.g { background: #22c55e; }
-
-  .json-block pre {
-    padding: 16px 20px;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 13px;
-    line-height: 1.7;
-    color: var(--text-muted);
-    overflow-x: auto;
-  }
-
-  .json-block pre .key { color: var(--accent-bright); }
-  .json-block pre .str { color: var(--green); }
-  .json-block pre .comment { color: #555570; font-style: italic; }
-
-  /* File Tree */
-  .file-tree {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 16px 0;
-  }
-
-  .file-tree .tree-header {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .file-tree .tree-header .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .file-tree .tree-header .dot.r { background: #ef4444; }
-  .file-tree .tree-header .dot.y { background: #eab308; }
-  .file-tree .tree-header .dot.g { background: #22c55e; }
-  .file-tree .tree-header span { font-size: 12px; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; }
-
-  .file-tree .tree-body {
-    padding: 16px 20px;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 13px;
-    line-height: 2;
-  }
-
-  .file-tree .folder { color: var(--accent-bright); }
-  .file-tree .file { color: var(--text-muted); }
-  .file-tree .comment { color: #555570; font-style: italic; }
-  .file-tree .indent { padding-left: 24px; }
-  .file-tree .indent2 { padding-left: 48px; }
-
-  /* Branch Box */
-  .branch-box {
-    background: var(--surface-alt);
-    border-left: 3px solid var(--accent);
-    border-radius: 0 8px 8px 0;
-    padding: 16px 20px;
-    margin: 12px 0;
-  }
-
-  .branch-box p {
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.7;
-  }
-
-  .branch-box strong { color: #fff; }
-
-  /* Future Note */
-  .future-note {
-    background: rgba(34, 211, 238, 0.05);
-    border: 1px solid rgba(34, 211, 238, 0.15);
-    border-radius: 8px;
-    padding: 16px 20px;
-    margin: 12px 0;
-    font-size: 13px;
-    color: var(--text-muted);
-  }
-
-  .future-note strong { color: var(--cyan); }
-
-  /* Inner Table */
-  .inner-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin: 12px 0;
-    font-size: 13px;
-  }
-
-  .inner-table th {
-    padding: 10px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    text-align: left;
-    background: rgba(0,0,0,0.2);
-    border-bottom: 1px solid var(--border);
-    color: var(--text-muted);
-  }
-
-  .inner-table td {
-    padding: 8px 16px;
-    border-bottom: 1px solid rgba(42, 42, 58, 0.3);
-    color: var(--text-muted);
-    vertical-align: top;
-  }
-
-  .inner-table tr:last-child td { border-bottom: none; }
-
-  .inner-table code {
-    color: var(--accent);
-    background: rgba(129, 140, 248, 0.08);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 12px;
-  }
-
-  /* Checklist */
-  .checklist {
-    list-style: none;
-    margin: 12px 0;
-  }
-
-  .checklist li {
-    padding: 6px 0;
-    padding-left: 28px;
-    position: relative;
-    font-size: 14px;
-    color: var(--text-muted);
-  }
-
-  .checklist li::before {
-    content: '✓';
-    position: absolute;
-    left: 0;
-    color: var(--green);
-    font-weight: 700;
-    font-size: 14px;
-  }
-
-  /* Subsection */
-  .subsection {
-    margin: 24px 0;
-  }
-
-  .subsection h4 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
-    margin-bottom: 12px;
-  }
-
-  /* Dimension Card */
-  .dim-card {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 24px;
-    margin: 12px 0;
-  }
-
-  .dim-card h5 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--accent-bright);
-    margin-bottom: 10px;
-  }
-
-  .dim-card p {
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.7;
-  }
-
-  /* Footer */
-  .doc-footer {
-    padding: 40px 0;
-    border-top: 1px solid var(--border);
-    text-align: center;
-  }
-
-  .doc-footer p {
-    font-size: 13px;
-    color: var(--text-muted);
-  }
-
-  .doc-footer .date {
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  /* Code inline */
-  code {
-    color: var(--accent);
-    background: rgba(129, 140, 248, 0.08);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.9em;
-  }
-
-  /* TOC Sidebar */
-  .toc {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 220px;
-    height: 100vh;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    padding: 20px 0;
-    z-index: 100;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
-
-  .toc::-webkit-scrollbar { width: 4px; }
-  .toc::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  .toc-title {
-    padding: 0 20px 16px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--accent);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 8px;
-  }
-
-  .toc a {
-    display: block;
-    padding: 5px 20px;
-    font-size: 12.5px;
-    color: var(--text-muted);
-    text-decoration: none;
-    line-height: 1.5;
-    transition: color 0.15s, background 0.15s;
-    border-left: 2px solid transparent;
-  }
-
-  .toc a:hover {
-    color: var(--text);
-    background: rgba(129, 140, 248, 0.05);
-  }
-
-  .toc a.active {
-    color: var(--accent-bright);
-    border-left-color: var(--accent);
-    background: rgba(129, 140, 248, 0.08);
-  }
-
-  .toc a.toc-phase {
-    font-weight: 600;
-    color: var(--text);
-    padding-top: 10px;
-    margin-top: 4px;
-  }
-
-  .toc a.toc-phase.active {
-    color: var(--accent-bright);
-  }
-
-  .toc a.toc-step {
-    padding-left: 32px;
-    font-size: 12px;
-  }
-
-  .toc a.toc-section {
-    font-weight: 600;
-    color: var(--text);
-    padding-top: 10px;
-    margin-top: 4px;
-  }
-
-  .toc a.toc-section.active {
-    color: var(--accent-bright);
-  }
-
-  html { scroll-behavior: smooth; }
-
-  @media (max-width: 1100px) {
-    .toc { display: none; }
-    body { margin-left: 0; }
-  }
-
-  @media (max-width: 768px) {
-    .hero { padding: 60px 24px 40px; }
-    .hero h1 { font-size: 28px; }
-    .container { padding: 0 24px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- TOC Sidebar -->
-<nav class="toc">
-  <div class="toc-title">目录</div>
-  <a href="javascript:void(0)" data-target="overview" class="toc-section">阶段总览</a>
-  <a href="javascript:void(0)" data-target="platform" class="toc-section">平台能力</a>
-  <a href="javascript:void(0)" data-target="toolkit" class="toc-step">内置工具库</a>
-  <a href="javascript:void(0)" data-target="ui-components" class="toc-step">UI 组件规范</a>
-  <a href="javascript:void(0)" data-target="context-mgmt" class="toc-step">上下文管理</a>
-  <a href="javascript:void(0)" data-target="phase4" class="toc-phase">Phase 4 · Skill 开发</a>
-  <a href="javascript:void(0)" data-target="s4-1" class="toc-step">4.1 结构设计</a>
-  <a href="javascript:void(0)" data-target="s4-2" class="toc-step">4.2 逐节点开发</a>
-  <a href="javascript:void(0)" data-target="s4-3" class="toc-step">4.3 结果呈现设计</a>
-  <a href="javascript:void(0)" data-target="s4-4" class="toc-step">4.4 输出 Schema</a>
-  <a href="javascript:void(0)" data-target="phase5" class="toc-phase">Phase 5 · 发布上线</a>
-  <a href="javascript:void(0)" data-target="s5-1" class="toc-step">5.1 发布前校验</a>
-  <a href="javascript:void(0)" data-target="s5-2" class="toc-step">5.2 打包</a>
-  <a href="javascript:void(0)" data-target="s5-3" class="toc-step">5.3 上传至平台</a>
-  <a href="javascript:void(0)" data-target="s5-4" class="toc-step">5.4 审核</a>
-  <a href="javascript:void(0)" data-target="s5-5" class="toc-step">5.5 预览版 → 正式发布</a>
-  <a href="javascript:void(0)" data-target="s5-6" class="toc-step">5.6 版本更新</a>
-</nav>
-
-<!-- Hero -->
-<div class="hero">
-  <div class="hero-badge">Phase 4 ~ 5</div>
-  <h1>Creator Plugin Flow<br>Dev & Publish</h1>
-  <p class="hero-sub">Skill 项目就绪后，Creator 的开发与发布全流程。精确到可直接作为 Plugin 开发规格。</p>
-  <a href="javascript:void(0)" class="hero-link">前置文档：Install & Init →</a>
-</div>
-
-<div class="container">
-
-<!-- Overview -->
-<section id="overview">
-  <span class="section-label">Phase Overview</span>
-  <h2>阶段总览</h2>
-  <p class="section-desc">起点：Creator 已完成 Phase 3（日常进入），Skill 初始页面已生成并打开，开发环境就绪。</p>
-
-  <table class="overview-table">
-    <thead><tr><th>阶段</th><th>名称</th><th>频率</th><th>说明</th></tr></thead>
-    <tbody>
-      <tr><td>Phase 1~3</td><td>安装 & 初始化 & 日常进入</td><td>—</td><td>见 Install & Init</td></tr>
-      <tr><td>Phase 4</td><td>Skill 开发</td><td>持续</td><td>结构设计 → 逐节点开发 → 结果呈现 → 输出定义</td></tr>
-      <tr><td>Phase 5</td><td>发布上线</td><td>每个版本一次</td><td>校验 → 打包 → 上传 → 审核 → 预览 → 正式发布</td></tr>
-    </tbody>
-  </table>
-
-  <div class="env-note">
-    <strong>环境假设：</strong>流程优先基于 Claude Desktop 的 Code 模块设计，后续实现时增加对 CLI 的支持。
-  </div>
-
-  <div class="design-note">
-    <strong>核心准则：零技术门槛。</strong>Plugin 的目标用户是没有技术背景的 Creator。在整个流程中不要假设 Creator 知道任何技术层面的东西——什么是端口、什么是 API、什么是 YAML、什么是依赖安装，这些对 Creator 来说都是陌生概念。Plugin 的所有说明和指引必须做到：Creator 不需要理解背后的技术原理，照着提示就能完成操作。<strong>技术复杂度由 Plugin 吸收，不暴露给 Creator。</strong>
-  </div>
-
-  <div class="design-note">
-    <strong>双触发模式：</strong>Plugin 的所有功能同时支持斜杠命令和自然语言触发。例如 <code>/minus publish</code> 和"帮我发布"等价，<code>/minus</code> 和"打开 Minus"等价。Creator 不需要记住任何命令，用自然语言描述意图即可。斜杠命令作为快捷方式保留，供熟悉的 Creator 使用。
-  </div>
-
-  <div class="design-note">
-    <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制，贯穿整个开发过程持续检查，不限于节点边界。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator 不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
-  </div>
-</section>
-
-<hr class="divider">
-
-<!-- 平台能力 -->
-<section id="platform">
-  <span class="section-label">Platform Capabilities</span>
-  <h2>平台能力</h2>
-  <p class="section-desc">Minus 平台为所有 Skill 提供三类系统级基础设施：代码层的内置工具库、界面层的 UI 组件规范、会话层的上下文管理。这些能力由平台统一维护，Creator 无需自己实现，保证所有 Skill 的质量底线一致。</p>
-
-  <div id="toolkit" style="margin-top:40px">
-    <h3>内置工具库</h3>
-    <p>Plugin 提供一套标准工具包，大模型在生成 Skill 代码时直接调用。保证所有 Skill 的输出格式统一、质量稳定，避免大模型每次自己写重复的基础逻辑。</p>
-
-  <div class="subsection">
-    <h4>格式化工具</h4>
-  </div>
-
-  <table class="inner-table">
-    <thead><tr><th>方法</th><th>用途</th><th>示例</th></tr></thead>
-    <tbody>
-      <tr><td><code>minus.format.number(value)</code></td><td>数字千分位</td><td><code>1234567</code> → <code>1,234,567</code></td></tr>
-      <tr><td><code>minus.format.decimal(value, digits)</code></td><td>保留小数位</td><td><code>3.14159, 2</code> → <code>3.14</code></td></tr>
-      <tr><td><code>minus.format.percent(value)</code></td><td>百分比</td><td><code>0.156</code> → <code>15.6%</code></td></tr>
-      <tr><td><code>minus.format.currency(value, currency)</code></td><td>货币</td><td><code>29.9, 'USD'</code> → <code>$29.90</code></td></tr>
-      <tr><td><code>minus.format.date(value, pattern)</code></td><td>日期</td><td><code>'2026-05-17', 'MM/DD'</code> → <code>05/17</code></td></tr>
-      <tr><td><code>minus.format.compact(value)</code></td><td>缩写大数字</td><td><code>1580000</code> → <code>1.58M</code></td></tr>
-    </tbody>
-  </table>
-
-  <div class="subsection">
-    <h4>数据处理工具</h4>
-  </div>
-
-  <table class="inner-table">
-    <thead><tr><th>方法</th><th>用途</th></tr></thead>
-    <tbody>
-      <tr><td><code>minus.data.sort(list, field, order)</code></td><td>按字段排序</td></tr>
-      <tr><td><code>minus.data.filter(list, condition)</code></td><td>条件过滤</td></tr>
-      <tr><td><code>minus.data.group(list, field)</code></td><td>按字段分组</td></tr>
-      <tr><td><code>minus.data.dedupe(list, field)</code></td><td>按字段去重</td></tr>
-      <tr><td><code>minus.data.top(list, field, n)</code></td><td>取前 N 项</td></tr>
-    </tbody>
-  </table>
-
-  <div class="subsection">
-    <h4>输出工具</h4>
-  </div>
-
-  <table class="inner-table">
-    <thead><tr><th>方法</th><th>用途</th></tr></thead>
-    <tbody>
-      <tr><td><code>minus.output.table(data, columns)</code></td><td>渲染数据表格</td></tr>
-      <tr><td><code>minus.output.card(title, value, change)</code></td><td>渲染指标卡片</td></tr>
-      <tr><td><code>minus.output.excel(data, columns, filename)</code></td><td>生成 Excel 下载</td></tr>
-      <tr><td><code>minus.output.html(content, filename)</code></td><td>生成 HTML 报告下载</td></tr>
-    </tbody>
-  </table>
-
-    <div class="branch-box">
-      <p><strong>扩展原则：</strong>当大模型发现某个格式化/处理逻辑在多个 Skill 中重复出现时，应提议将其沉淀为新的内置方法。工具库随平台迭代持续扩展。</p>
-    </div>
-  </div>
-
-  <div id="ui-components" style="margin-top:40px">
-    <h3>Skill UI 组件规范</h3>
-    <p>Minus 提供一套标准 UI 组件，所有 Skill 共享同一界面框架。Creator 只配置组件的内容，不控制组件的结构和样式。这保证了两件事：用户在不同 Skill 之间切换时体验一致；Creator 无需关心界面设计，专注于业务逻辑。</p>
-
-  <div class="subsection">
-    <h4>Pipeline 进度条</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>步骤条布局、进度动画、当前 / 完成 / 未开始三种状态图标</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>步骤名称、步骤数量</td></tr>
-      </tbody>
-    </table>
-    <p>用户看到的始终是统一的步骤进度条，清楚知道当前在哪一步、还有几步。无论 Skill 有 2 步还是 10 步，视觉体验完全一致。</p>
-  </div>
-
-  <div class="subsection">
-    <h4>输入表单</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>表单布局、输入框样式、校验提示、提交按钮</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>输入项的 label、placeholder、是否必填、输入数量（单个 / 多个）</td></tr>
-      </tbody>
-    </table>
-    <p>支持的输入类型：</p>
-    <ul>
-      <li>单行文本（关键词、ASIN 等）</li>
-      <li>多行文本（批量输入，如多个 ASIN）</li>
-      <li>选择器（下拉选项）</li>
-      <li>数字输入</li>
-    </ul>
-  </div>
-
-  <div class="subsection">
-    <h4>确认弹窗</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>弹窗结构、按钮位置（确认 / 取消）、遮罩层</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>提示文案、确认按钮文字</td></tr>
-      </tbody>
-    </table>
-    <p>用于 pipeline 中 <code>requires_confirmation: true</code> 的步骤。用户看到当前步骤的输出后，通过确认弹窗决定是否继续下一步。</p>
-  </div>
-
-  <div class="subsection">
-    <h4>结果页</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>页面骨架：摘要区（顶部）→ 数据区（中部）→ 下载区（底部）</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>摘要区内容、数据区的表格列 / 卡片指标、下载区的文件列表</td></tr>
-      </tbody>
-    </table>
-    <p>三个区块的位置和布局不可更改，Creator 只定义每个区块展示什么内容。</p>
-  </div>
-
-  <div class="subsection">
-    <h4>加载状态</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>加载动画、步骤名称显示、预估时间提示</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>无（自动从 pipeline 定义中读取步骤名称）</td></tr>
-      </tbody>
-    </table>
-    <p>每个步骤执行时，用户看到统一的加载界面，包含当前步骤名称和进度。Creator 不需要为加载状态做任何配置。</p>
-  </div>
-
-  <div class="subsection">
-    <h4>错误提示</h4>
-    <table class="inner-table">
-      <tbody>
-        <tr><td style="width:120px"><strong>固定</strong></td><td>错误卡片样式、重试按钮、返回按钮</td></tr>
-        <tr><td><strong>Creator 配置</strong></td><td>错误描述文案模板（可选，默认由系统生成通用提示）</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-    <div class="branch-box">
-      <p><strong>扩展原则：</strong>组件库随平台迭代持续扩展。当多个 Skill 出现相似的交互模式时，应提炼为新的标准组件。Creator 不能自定义组件外观，但可以向平台提出组件需求。</p>
-    </div>
-  </div>
-
-  <div id="context-mgmt" style="margin-top:40px">
-    <h3>上下文窗口管理</h3>
-    <p>Creator 不会主动管理会话上下文。Plugin 内置容量检查机制，<strong>贯穿整个开发过程持续检查</strong>，不限于节点边界——单个节点也可能耗尽一个 Session。正常状态下不打断 Creator；当接近上限时执行以下流程。</p>
-
-  <div class="subsection">
-    <h4>保存进度</h4>
-    <p>Plugin 将当前开发状态写入 Memory，包括：</p>
-    <ul>
-      <li>已完成的步骤及其状态</li>
-      <li>当前正在进行的任务及进展</li>
-      <li>接下来需要继续的工作</li>
-      <li>Creator 在本轮会话中表达的偏好和决策</li>
-    </ul>
-  </div>
-
-  <div class="subsection">
-    <h4>通知并引导切换</h4>
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>上下文切换</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">当前对话的记忆空间快满了，继续工作可能会影响质量。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">我已经把你的进度保存好了：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 步骤 1「关键词数据采集」已完成</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="warn">✓</span> 步骤 2「竞争度分析」开发中（数据需求已确认，处理逻辑待定）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">请开一个新对话继续：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">1. 点击左上角的 ＋ 开始新对话</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">2. 输入 /minus 或"打开 Minus"</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">3. Plugin 会自动读取进度，从中断的地方继续</span></div>
-      </div>
-    </div>
-  </div>
-
-    <div class="design-note" style="margin-top:16px">
-      <strong>措辞原则：</strong>不要出现"上下文窗口""token""context window"等技术术语。用 Creator 能理解的说法——"记忆空间""对话容量"等。
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Creator Plugin Flow — Dev & Publish</title>
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --surface: #12121a;
+        --surface-alt: #1a1a26;
+        --border: #2a2a3a;
+        --border-accent: #4f46e5;
+        --text: #e4e4ed;
+        --text-muted: #8888a0;
+        --accent: #818cf8;
+        --accent-bright: #a5b4fc;
+        --green: #34d399;
+        --green-dim: #064e3b;
+        --amber: #fbbf24;
+        --amber-dim: #78350f;
+        --rose: #fb7185;
+        --rose-dim: #4c0519;
+        --cyan: #22d3ee;
+        --cyan-dim: #083344;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.7;
+        padding: 0;
+        margin-left: 220px;
+      }
+
+      .hero {
+        position: relative;
+        padding: 80px 40px 60px;
+        text-align: center;
+        background: linear-gradient(180deg, #1a1a2e 0%, var(--bg) 100%);
+        border-bottom: 1px solid var(--border);
+        overflow: hidden;
+      }
+
+      .hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 800px;
+        height: 800px;
+        background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .hero-badge {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 20px;
+        background: rgba(79, 70, 229, 0.12);
+        border: 1px solid rgba(79, 70, 229, 0.3);
+        color: var(--accent-bright);
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        margin-bottom: 24px;
+      }
+
+      .hero h1 {
+        font-size: 42px;
+        font-weight: 700;
+        letter-spacing: -1px;
+        margin-bottom: 16px;
+        background: linear-gradient(135deg, #fff 0%, var(--accent-bright) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .hero-sub {
+        font-size: 18px;
+        color: var(--text-muted);
+        max-width: 640px;
+        margin: 0 auto 24px;
+      }
+
+      .hero-link {
+        display: inline-block;
+        font-size: 14px;
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(129, 140, 248, 0.4);
+        padding-bottom: 1px;
+      }
+
+      .hero-link:hover {
+        color: var(--accent-bright);
+        border-color: var(--accent-bright);
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 40px;
+      }
+
+      section {
+        padding: 60px 0;
+      }
+
+      .section-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--accent);
+        margin-bottom: 16px;
+      }
+
+      .section-label::before {
+        content: '';
+        display: block;
+        width: 20px;
+        height: 1px;
+        background: var(--accent);
+      }
+
+      h2 {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        margin-bottom: 12px;
+      }
+
+      .section-desc {
+        color: var(--text-muted);
+        font-size: 16px;
+        margin-bottom: 40px;
+        max-width: 680px;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 0;
+      }
+
+      /* Overview Table */
+      .overview-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 32px;
+      }
+
+      .overview-table th {
+        padding: 14px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: left;
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+
+      .overview-table td {
+        padding: 12px 20px;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(42, 42, 58, 0.5);
+        color: var(--text-muted);
+      }
+
+      .overview-table tr:last-child td {
+        border-bottom: none;
+      }
+      .overview-table td:first-child {
+        font-weight: 600;
+        color: var(--accent-bright);
+        white-space: nowrap;
+      }
+      .overview-table td:nth-child(2) {
+        color: #fff;
+        font-weight: 500;
+      }
+
+      /* Design Note Box */
+      .design-note {
+        background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(34, 211, 238, 0.05) 100%);
+        border: 1px solid rgba(79, 70, 229, 0.25);
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin-bottom: 16px;
+        font-size: 15px;
+        line-height: 1.8;
+      }
+
+      .design-note strong {
+        color: #fff;
+      }
+
+      .env-note {
+        background: var(--surface-alt);
+        border-left: 3px solid var(--amber);
+        border-radius: 0 8px 8px 0;
+        padding: 16px 20px;
+        font-size: 14px;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+      }
+
+      .env-note strong {
+        color: var(--amber);
+      }
+
+      /* Phase Header */
+      .phase-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 32px;
+      }
+
+      .phase-num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        font-size: 18px;
+        font-weight: 800;
+        flex-shrink: 0;
+      }
+
+      .phase-num.p4 {
+        background: rgba(251, 191, 36, 0.12);
+        color: var(--amber);
+        border: 1px solid rgba(251, 191, 36, 0.3);
+      }
+      .phase-num.p5 {
+        background: var(--green-dim);
+        color: var(--green);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+      }
+
+      .phase-header h2 {
+        margin-bottom: 0;
+      }
+      .phase-header .phase-freq {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+
+      /* Step Card */
+      .step-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 28px;
+        margin-bottom: 20px;
+        position: relative;
+      }
+
+      .step-card:hover {
+        border-color: rgba(79, 70, 229, 0.4);
+      }
+
+      .step-id {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+      }
+
+      .step-card h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 8px;
+      }
+
+      .step-card .actor {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      .actor.creator {
+        background: rgba(251, 191, 36, 0.12);
+        color: var(--amber);
+      }
+      .actor.plugin {
+        background: rgba(129, 140, 248, 0.12);
+        color: var(--accent-bright);
+      }
+      .actor.both {
+        background: rgba(52, 211, 153, 0.1);
+        color: var(--green);
+      }
+      .actor.minus {
+        background: rgba(251, 113, 133, 0.1);
+        color: var(--rose);
+      }
+
+      .step-card p,
+      .step-card li {
+        font-size: 14px;
+        color: var(--text-muted);
+        line-height: 1.8;
+      }
+
+      .step-card ul {
+        list-style: none;
+        margin-top: 8px;
+      }
+      .step-card ul li {
+        padding: 4px 0;
+        padding-left: 16px;
+        position: relative;
+      }
+
+      .step-card ul li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 12px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      /* Conversation Mock */
+      .conv-mock {
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 16px 0;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 13px;
+        line-height: 1.8;
+      }
+
+      .conv-mock .conv-header {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .conv-mock .conv-header .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .conv-mock .conv-header .dot.r {
+        background: #ef4444;
+      }
+      .conv-mock .conv-header .dot.y {
+        background: #eab308;
+      }
+      .conv-mock .conv-header .dot.g {
+        background: #22c55e;
+      }
+      .conv-mock .conv-header span {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .conv-mock .conv-body {
+        padding: 16px 20px;
+      }
+
+      .conv-line {
+        padding: 2px 0;
+      }
+      .conv-line .role {
+        display: inline-block;
+        min-width: 70px;
+        font-weight: 600;
+      }
+
+      .conv-line .role.plugin {
+        color: var(--accent-bright);
+      }
+      .conv-line .role.creator {
+        color: var(--amber);
+      }
+      .conv-line .msg {
+        color: var(--text-muted);
+      }
+      .conv-line .msg .ok {
+        color: var(--green);
+      }
+      .conv-line .msg .err {
+        color: var(--rose);
+      }
+      .conv-line .msg .warn {
+        color: var(--amber);
+      }
+      .conv-line .msg .hi {
+        color: #fff;
+      }
+      .conv-line.blank {
+        height: 8px;
+      }
+
+      /* JSON / YAML Block */
+      .json-block {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      .json-block .json-header {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--text-muted);
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .json-block .json-header .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .json-block .json-header .dot.r {
+        background: #ef4444;
+      }
+      .json-block .json-header .dot.y {
+        background: #eab308;
+      }
+      .json-block .json-header .dot.g {
+        background: #22c55e;
+      }
+
+      .json-block pre {
+        padding: 16px 20px;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text-muted);
+        overflow-x: auto;
+      }
+
+      .json-block pre .key {
+        color: var(--accent-bright);
+      }
+      .json-block pre .str {
+        color: var(--green);
+      }
+      .json-block pre .comment {
+        color: #555570;
+        font-style: italic;
+      }
+
+      /* File Tree */
+      .file-tree {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 16px 0;
+      }
+
+      .file-tree .tree-header {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .file-tree .tree-header .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .file-tree .tree-header .dot.r {
+        background: #ef4444;
+      }
+      .file-tree .tree-header .dot.y {
+        background: #eab308;
+      }
+      .file-tree .tree-header .dot.g {
+        background: #22c55e;
+      }
+      .file-tree .tree-header span {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      .file-tree .tree-body {
+        padding: 16px 20px;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 13px;
+        line-height: 2;
+      }
+
+      .file-tree .folder {
+        color: var(--accent-bright);
+      }
+      .file-tree .file {
+        color: var(--text-muted);
+      }
+      .file-tree .comment {
+        color: #555570;
+        font-style: italic;
+      }
+      .file-tree .indent {
+        padding-left: 24px;
+      }
+      .file-tree .indent2 {
+        padding-left: 48px;
+      }
+
+      /* Branch Box */
+      .branch-box {
+        background: var(--surface-alt);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 8px 8px 0;
+        padding: 16px 20px;
+        margin: 12px 0;
+      }
+
+      .branch-box p {
+        font-size: 14px;
+        color: var(--text-muted);
+        line-height: 1.7;
+      }
+
+      .branch-box strong {
+        color: #fff;
+      }
+
+      /* Future Note */
+      .future-note {
+        background: rgba(34, 211, 238, 0.05);
+        border: 1px solid rgba(34, 211, 238, 0.15);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 12px 0;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      .future-note strong {
+        color: var(--cyan);
+      }
+
+      /* Inner Table */
+      .inner-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 12px 0;
+        font-size: 13px;
+      }
+
+      .inner-table th {
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: left;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+
+      .inner-table td {
+        padding: 8px 16px;
+        border-bottom: 1px solid rgba(42, 42, 58, 0.3);
+        color: var(--text-muted);
+        vertical-align: top;
+      }
+
+      .inner-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .inner-table code {
+        color: var(--accent);
+        background: rgba(129, 140, 248, 0.08);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 12px;
+      }
+
+      /* Checklist */
+      .checklist {
+        list-style: none;
+        margin: 12px 0;
+      }
+
+      .checklist li {
+        padding: 6px 0;
+        padding-left: 28px;
+        position: relative;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+
+      .checklist li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: var(--green);
+        font-weight: 700;
+        font-size: 14px;
+      }
+
+      /* Subsection */
+      .subsection {
+        margin: 24px 0;
+      }
+
+      .subsection h4 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 12px;
+      }
+
+      /* Dimension Card */
+      .dim-card {
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 12px 0;
+      }
+
+      .dim-card h5 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--accent-bright);
+        margin-bottom: 10px;
+      }
+
+      .dim-card p {
+        font-size: 14px;
+        color: var(--text-muted);
+        line-height: 1.7;
+      }
+
+      /* Footer */
+      .doc-footer {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+
+      .doc-footer p {
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      .doc-footer .date {
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      /* Code inline */
+      code {
+        color: var(--accent);
+        background: rgba(129, 140, 248, 0.08);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 0.9em;
+      }
+
+      /* TOC Sidebar */
+      .toc {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 220px;
+        height: 100vh;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        overflow-y: auto;
+        padding: 20px 0;
+        z-index: 100;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+
+      .toc::-webkit-scrollbar {
+        width: 4px;
+      }
+      .toc::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+
+      .toc-title {
+        padding: 0 20px 16px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--accent);
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+      }
+
+      .toc a {
+        display: block;
+        padding: 5px 20px;
+        font-size: 12.5px;
+        color: var(--text-muted);
+        text-decoration: none;
+        line-height: 1.5;
+        transition: color 0.15s, background 0.15s;
+        border-left: 2px solid transparent;
+      }
+
+      .toc a:hover {
+        color: var(--text);
+        background: rgba(129, 140, 248, 0.05);
+      }
+
+      .toc a.active {
+        color: var(--accent-bright);
+        border-left-color: var(--accent);
+        background: rgba(129, 140, 248, 0.08);
+      }
+
+      .toc a.toc-phase {
+        font-weight: 600;
+        color: var(--text);
+        padding-top: 10px;
+        margin-top: 4px;
+      }
+
+      .toc a.toc-phase.active {
+        color: var(--accent-bright);
+      }
+
+      .toc a.toc-step {
+        padding-left: 32px;
+        font-size: 12px;
+      }
+
+      .toc a.toc-section {
+        font-weight: 600;
+        color: var(--text);
+        padding-top: 10px;
+        margin-top: 4px;
+      }
+
+      .toc a.toc-section.active {
+        color: var(--accent-bright);
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      @media (max-width: 1100px) {
+        .toc {
+          display: none;
+        }
+        body {
+          margin-left: 0;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .hero {
+          padding: 60px 24px 40px;
+        }
+        .hero h1 {
+          font-size: 28px;
+        }
+        .container {
+          padding: 0 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- TOC Sidebar -->
+    <nav class="toc">
+      <div class="toc-title">目录</div>
+      <a href="javascript:void(0)" data-target="overview" class="toc-section">阶段总览</a>
+      <a href="javascript:void(0)" data-target="platform" class="toc-section">平台能力</a>
+      <a href="javascript:void(0)" data-target="toolkit" class="toc-step">内置工具库</a>
+      <a href="javascript:void(0)" data-target="ui-components" class="toc-step">UI 组件规范</a>
+      <a href="javascript:void(0)" data-target="context-mgmt" class="toc-step">上下文管理</a>
+      <a href="javascript:void(0)" data-target="phase4" class="toc-phase">Phase 4 · Skill 开发</a>
+      <a href="javascript:void(0)" data-target="s4-1" class="toc-step">4.1 结构设计</a>
+      <a href="javascript:void(0)" data-target="s4-2" class="toc-step">4.2 逐节点开发</a>
+      <a href="javascript:void(0)" data-target="s4-3" class="toc-step">4.3 结果呈现设计</a>
+      <a href="javascript:void(0)" data-target="s4-4" class="toc-step">4.4 输出 Schema</a>
+      <a href="javascript:void(0)" data-target="phase5" class="toc-phase">Phase 5 · 发布上线</a>
+      <a href="javascript:void(0)" data-target="s5-1" class="toc-step">5.1 发布前校验</a>
+      <a href="javascript:void(0)" data-target="s5-2" class="toc-step">5.2 打包</a>
+      <a href="javascript:void(0)" data-target="s5-3" class="toc-step">5.3 上传至平台</a>
+      <a href="javascript:void(0)" data-target="s5-4" class="toc-step">5.4 审核</a>
+      <a href="javascript:void(0)" data-target="s5-5" class="toc-step">5.5 预览版 → 正式发布</a>
+      <a href="javascript:void(0)" data-target="s5-6" class="toc-step">5.6 版本更新</a>
+    </nav>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-badge">Phase 4 ~ 5</div>
+      <h1>Creator Plugin Flow<br />Dev & Publish</h1>
+      <p class="hero-sub">Skill 项目就绪后，Creator 的开发与发布全流程。精确到可直接作为 Plugin 开发规格。</p>
+      <a href="javascript:void(0)" class="hero-link">前置文档：Install & Init →</a>
     </div>
 
-    <div class="design-note" style="margin-top:12px">
-      <strong>为什么不自动切换？</strong>Claude Desktop 中 Session 必须由用户手动创建，Plugin 无法自动开启新 Session。Plugin 能做的是让切换尽可能简单——保存好进度，给出明确的操作步骤，Creator 照做即可。
-    </div>
+    <div class="container">
+      <!-- Overview -->
+      <section id="overview">
+        <span class="section-label">Phase Overview</span>
+        <h2>阶段总览</h2>
+        <p class="section-desc">起点：Creator 已完成 Phase 3（日常进入），Skill 初始页面已生成并打开，开发环境就绪。</p>
 
-    <div class="design-note" style="margin-top:12px">
-      <strong>进度恢复：</strong>新 Session 启动后，Plugin 通过 <code>/minus</code> 进入项目（Phase 3 流程），自动读取 Memory 中的进度记录，主动告诉 Creator"上次做到哪里了，接下来继续什么"，无需 Creator 自己回忆。
-    </div>
-  </div>
-</section>
+        <table class="overview-table">
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>名称</th>
+              <th>频率</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Phase 1~3</td>
+              <td>安装 & 初始化 & 日常进入</td>
+              <td>—</td>
+              <td>见 Install & Init</td>
+            </tr>
+            <tr>
+              <td>Phase 4</td>
+              <td>Skill 开发</td>
+              <td>持续</td>
+              <td>结构设计 → 逐节点开发 → 结果呈现 → 输出定义</td>
+            </tr>
+            <tr>
+              <td>Phase 5</td>
+              <td>发布上线</td>
+              <td>每个版本一次</td>
+              <td>校验 → 打包 → 上传 → 审核 → 预览 → 正式发布</td>
+            </tr>
+          </tbody>
+        </table>
 
-<hr class="divider">
+        <div class="env-note"><strong>环境假设：</strong>流程优先基于 Claude Desktop 的 Code 模块设计，后续实现时增加对 CLI 的支持。</div>
 
-<!-- Phase 4 -->
-<section id="phase4">
-  <div class="phase-header">
-    <div class="phase-num p4">4</div>
-    <div>
-      <h2>Skill 开发</h2>
-      <div class="phase-freq">持续 · Creator 花时间最多的阶段</div>
-    </div>
-  </div>
+        <div class="design-note">
+          <strong>核心准则：零技术门槛。</strong>Plugin 的目标用户是没有技术背景的 Creator。在整个流程中不要假设 Creator 知道任何技术层面的东西——什么是端口、什么是 API、什么是 YAML、什么是依赖安装，这些对 Creator 来说都是陌生概念。Plugin 的所有说明和指引必须做到：Creator
+          不需要理解背后的技术原理，照着提示就能完成操作。<strong>技术复杂度由 Plugin 吸收，不暴露给 Creator。</strong>
+        </div>
 
-  <div class="design-note">
-    Plugin 在这里的角色是<strong>引导者</strong>——帮 Creator 把一个模糊的想法变成可运行的 Skill。所有实际的开发工作（写 prompt、调 API、处理输出）都由 Claude Code 的原生能力完成，Plugin 只编排流程。
-  </div>
+        <div class="design-note">
+          <strong>双触发模式：</strong>Plugin 的所有功能同时支持斜杠命令和自然语言触发。例如 <code>/minus publish</code> 和"帮我发布"等价，<code>/minus</code> 和"打开 Minus"等价。Creator 不需要记住任何命令，用自然语言描述意图即可。斜杠命令作为快捷方式保留，供熟悉的 Creator 使用。
+        </div>
 
-  <!-- 4.1 -->
-  <div class="step-card" id="s4-1">
-    <div class="step-id">Step 4.1</div>
-    <h3>Skill 结构设计</h3>
-    <span class="actor both">Creator + Plugin</span>
+        <div class="design-note">
+          <strong>上下文窗口管理：</strong>Creator 不会主动管理会话上下文，Plugin 必须内置容量检查机制，贯穿整个开发过程持续检查，不限于节点边界。当接近上限时，Plugin 主动将当前进度保存到 Memory，然后引导 Creator 开启新 Session 继续工作，并给出完整的操作步骤。Creator
+          不需要理解"上下文"是什么概念，Plugin 负责在合适的时机平滑切换。
+        </div>
+      </section>
 
-    <div class="branch-box">
-      <p><strong>承接 Phase 3：</strong>初始页面生成后，Plugin 主动引导 Creator 描述 Skill 的目标。Plugin 的角色是<strong>帮 Creator 结构化表达自己的想法</strong>，而非替 Creator 规划步骤——Plugin 对具体业务场景不够了解，应由 Creator 主导内容，Plugin 负责整理归纳。</p>
-    </div>
+      <hr class="divider" />
 
-    <p>Plugin 采用<strong>逐步引导</strong>的方式，一次只聚焦一个问题，确保 Creator 把每个环节都想清楚：</p>
+      <!-- 平台能力 -->
+      <section id="platform">
+        <span class="section-label">Platform Capabilities</span>
+        <h2>平台能力</h2>
+        <p class="section-desc">Minus 平台为所有 Skill 提供三类系统级基础设施：代码层的内置工具库、界面层的 UI 组件规范、会话层的上下文管理。这些能力由平台统一维护，Creator 无需自己实现，保证所有 Skill 的质量底线一致。</p>
 
-    <!-- 第一步：确定输入 -->
-    <div class="subsection">
-      <h4>第一步：确定输入</h4>
-    </div>
+        <div id="toolkit" style="margin-top: 40px">
+          <h3>内置工具库</h3>
+          <p>Plugin 提供一套标准工具包，大模型在生成 Skill 代码时直接调用。保证所有 Skill 的输出格式统一、质量稳定，避免大模型每次自己写重复的基础逻辑。</p>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>确定输入</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">接下来先聊聊这个 Skill 的设计。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">第一个问题：用户使用这个 Skill 时，需要提供什么信息？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">比如关键词、ASIN、品类……</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">还有，用户可以输入几个？只能一个、一个或多个、还是至少两个</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">一个主关键词</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好的，一个主关键词。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">用户输入时的提示语你想写什么？比如"请输入要调研的关键词"？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">就写"输入主关键词，如 wireless earbuds"</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 输入定义确认。</span></div>
-      </div>
-    </div>
+          <div class="subsection">
+            <h4>格式化工具</h4>
+          </div>
 
-    <p style="margin-top:12px">Plugin 将输入定义通过平台 API 写入后端：</p>
+          <table class="inner-table">
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>用途</th>
+                <th>示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>minus.format.number(value)</code></td>
+                <td>数字千分位</td>
+                <td><code>1234567</code> → <code>1,234,567</code></td>
+              </tr>
+              <tr>
+                <td><code>minus.format.decimal(value, digits)</code></td>
+                <td>保留小数位</td>
+                <td><code>3.14159, 2</code> → <code>3.14</code></td>
+              </tr>
+              <tr>
+                <td><code>minus.format.percent(value)</code></td>
+                <td>百分比</td>
+                <td><code>0.156</code> → <code>15.6%</code></td>
+              </tr>
+              <tr>
+                <td><code>minus.format.currency(value, currency)</code></td>
+                <td>货币</td>
+                <td><code>29.9, 'USD'</code> → <code>$29.90</code></td>
+              </tr>
+              <tr>
+                <td><code>minus.format.date(value, pattern)</code></td>
+                <td>日期</td>
+                <td><code>'2026-05-17', 'MM/DD'</code> → <code>05/17</code></td>
+              </tr>
+              <tr>
+                <td><code>minus.format.compact(value)</code></td>
+                <td>缩写大数字</td>
+                <td><code>1580000</code> → <code>1.58M</code></td>
+              </tr>
+            </tbody>
+          </table>
 
-    <div class="json-block">
-      <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div> 后端存储的输入定义</div>
-      <pre><span class="key">input</span>:
+          <div class="subsection">
+            <h4>数据处理工具</h4>
+          </div>
+
+          <table class="inner-table">
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>minus.data.sort(list, field, order)</code></td>
+                <td>按字段排序</td>
+              </tr>
+              <tr>
+                <td><code>minus.data.filter(list, condition)</code></td>
+                <td>条件过滤</td>
+              </tr>
+              <tr>
+                <td><code>minus.data.group(list, field)</code></td>
+                <td>按字段分组</td>
+              </tr>
+              <tr>
+                <td><code>minus.data.dedupe(list, field)</code></td>
+                <td>按字段去重</td>
+              </tr>
+              <tr>
+                <td><code>minus.data.top(list, field, n)</code></td>
+                <td>取前 N 项</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="subsection">
+            <h4>输出工具</h4>
+          </div>
+
+          <table class="inner-table">
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>minus.output.table(data, columns)</code></td>
+                <td>渲染数据表格</td>
+              </tr>
+              <tr>
+                <td><code>minus.output.card(title, value, change)</code></td>
+                <td>渲染指标卡片</td>
+              </tr>
+              <tr>
+                <td><code>minus.output.excel(data, columns, filename)</code></td>
+                <td>生成 Excel 下载</td>
+              </tr>
+              <tr>
+                <td><code>minus.output.html(content, filename)</code></td>
+                <td>生成 HTML 报告下载</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="branch-box">
+            <p><strong>扩展原则：</strong>当大模型发现某个格式化/处理逻辑在多个 Skill 中重复出现时，应提议将其沉淀为新的内置方法。工具库随平台迭代持续扩展。</p>
+          </div>
+        </div>
+
+        <div id="ui-components" style="margin-top: 40px">
+          <h3>Skill UI 组件规范</h3>
+          <p>Minus 提供一套标准 UI 组件，所有 Skill 共享同一界面框架。Creator 只配置组件的内容，不控制组件的结构和样式。这保证了两件事：用户在不同 Skill 之间切换时体验一致；Creator 无需关心界面设计，专注于业务逻辑。</p>
+
+          <div class="subsection">
+            <h4>Pipeline 进度条</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>步骤条布局、进度动画、当前 / 完成 / 未开始三种状态图标</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>步骤名称、步骤数量</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>用户看到的始终是统一的步骤进度条，清楚知道当前在哪一步、还有几步。无论 Skill 有 2 步还是 10 步，视觉体验完全一致。</p>
+          </div>
+
+          <div class="subsection">
+            <h4>输入表单</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>表单布局、输入框样式、校验提示、提交按钮</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>输入项的 label、placeholder、是否必填、输入数量（单个 / 多个）</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>支持的输入类型：</p>
+            <ul>
+              <li>单行文本（关键词、ASIN 等）</li>
+              <li>多行文本（批量输入，如多个 ASIN）</li>
+              <li>选择器（下拉选项）</li>
+              <li>数字输入</li>
+            </ul>
+          </div>
+
+          <div class="subsection">
+            <h4>确认弹窗</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>弹窗结构、按钮位置（确认 / 取消）、遮罩层</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>提示文案、确认按钮文字</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>用于 pipeline 中 <code>requires_confirmation: true</code> 的步骤。用户看到当前步骤的输出后，通过确认弹窗决定是否继续下一步。</p>
+          </div>
+
+          <div class="subsection">
+            <h4>结果页</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>页面骨架：摘要区（顶部）→ 数据区（中部）→ 下载区（底部）</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>摘要区内容、数据区的表格列 / 卡片指标、下载区的文件列表</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>三个区块的位置和布局不可更改，Creator 只定义每个区块展示什么内容。</p>
+          </div>
+
+          <div class="subsection">
+            <h4>加载状态</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>加载动画、步骤名称显示、预估时间提示</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>无（自动从 pipeline 定义中读取步骤名称）</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>每个步骤执行时，用户看到统一的加载界面，包含当前步骤名称和进度。Creator 不需要为加载状态做任何配置。</p>
+          </div>
+
+          <div class="subsection">
+            <h4>错误提示</h4>
+            <table class="inner-table">
+              <tbody>
+                <tr>
+                  <td style="width: 120px"><strong>固定</strong></td>
+                  <td>错误卡片样式、重试按钮、返回按钮</td>
+                </tr>
+                <tr>
+                  <td><strong>Creator 配置</strong></td>
+                  <td>错误描述文案模板（可选，默认由系统生成通用提示）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="branch-box">
+            <p><strong>扩展原则：</strong>组件库随平台迭代持续扩展。当多个 Skill 出现相似的交互模式时，应提炼为新的标准组件。Creator 不能自定义组件外观，但可以向平台提出组件需求。</p>
+          </div>
+        </div>
+
+        <div id="context-mgmt" style="margin-top: 40px">
+          <h3>上下文窗口管理</h3>
+          <p>Creator 不会主动管理会话上下文。Plugin 内置容量检查机制，<strong>贯穿整个开发过程持续检查</strong>，不限于节点边界——单个节点也可能耗尽一个 Session。正常状态下不打断 Creator；当接近上限时执行以下流程。</p>
+
+          <div class="subsection">
+            <h4>保存进度</h4>
+            <p>Plugin 将当前开发状态写入 Memory，包括：</p>
+            <ul>
+              <li>已完成的步骤及其状态</li>
+              <li>当前正在进行的任务及进展</li>
+              <li>接下来需要继续的工作</li>
+              <li>Creator 在本轮会话中表达的偏好和决策</li>
+            </ul>
+          </div>
+
+          <div class="subsection">
+            <h4>通知并引导切换</h4>
+            <div class="conv-mock">
+              <div class="conv-header">
+                <div class="dot r"></div>
+                <div class="dot y"></div>
+                <div class="dot g"></div>
+                <span>上下文切换</span>
+              </div>
+              <div class="conv-body">
+                <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">当前对话的记忆空间快满了，继续工作可能会影响质量。</span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg">我已经把你的进度保存好了：</span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg"></span></div>
+                <div class="conv-line">
+                  <span class="role"></span> <span class="msg"><span class="ok">✓</span> 步骤 1「关键词数据采集」已完成</span>
+                </div>
+                <div class="conv-line">
+                  <span class="role"></span> <span class="msg"><span class="warn">✓</span> 步骤 2「竞争度分析」开发中（数据需求已确认，处理逻辑待定）</span>
+                </div>
+                <div class="conv-line"><span class="role"></span> <span class="msg"></span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg">请开一个新对话继续：</span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg">1. 点击左上角的 ＋ 开始新对话</span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg">2. 输入 /minus 或"打开 Minus"</span></div>
+                <div class="conv-line"><span class="role"></span> <span class="msg">3. Plugin 会自动读取进度，从中断的地方继续</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="design-note" style="margin-top: 16px"><strong>措辞原则：</strong>不要出现"上下文窗口""token""context window"等技术术语。用 Creator 能理解的说法——"记忆空间""对话容量"等。</div>
+
+          <div class="design-note" style="margin-top: 12px"><strong>为什么不自动切换？</strong>Claude Desktop 中 Session 必须由用户手动创建，Plugin 无法自动开启新 Session。Plugin 能做的是让切换尽可能简单——保存好进度，给出明确的操作步骤，Creator 照做即可。</div>
+
+          <div class="design-note" style="margin-top: 12px"><strong>进度恢复：</strong>新 Session 启动后，Plugin 通过 <code>/minus</code> 进入项目（Phase 3 流程），自动读取 Memory 中的进度记录，主动告诉 Creator"上次做到哪里了，接下来继续什么"，无需 Creator 自己回忆。</div>
+        </div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- Phase 4 -->
+      <section id="phase4">
+        <div class="phase-header">
+          <div class="phase-num p4">4</div>
+          <div>
+            <h2>Skill 开发</h2>
+            <div class="phase-freq">持续 · Creator 花时间最多的阶段</div>
+          </div>
+        </div>
+
+        <div class="design-note">Plugin 在这里的角色是<strong>引导者</strong>——帮 Creator 把一个模糊的想法变成可运行的 Skill。所有实际的开发工作（写 prompt、调 API、处理输出）都由 Claude Code 的原生能力完成，Plugin 只编排流程。</div>
+
+        <!-- 4.1 -->
+        <div class="step-card" id="s4-1">
+          <div class="step-id">Step 4.1</div>
+          <h3>Skill 结构设计</h3>
+          <span class="actor both">Creator + Plugin</span>
+
+          <div class="branch-box">
+            <p><strong>承接 Phase 3：</strong>初始页面生成后，Plugin 主动引导 Creator 描述 Skill 的目标。Plugin 的角色是<strong>帮 Creator 结构化表达自己的想法</strong>，而非替 Creator 规划步骤——Plugin 对具体业务场景不够了解，应由 Creator 主导内容，Plugin 负责整理归纳。</p>
+          </div>
+
+          <p>Plugin 采用<strong>逐步引导</strong>的方式，一次只聚焦一个问题，确保 Creator 把每个环节都想清楚：</p>
+
+          <!-- 第一步：确定输入 -->
+          <div class="subsection">
+            <h4>第一步：确定输入</h4>
+          </div>
+
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>确定输入</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">接下来先聊聊这个 Skill 的设计。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">第一个问题：用户使用这个 Skill 时，需要提供什么信息？</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">比如关键词、ASIN、品类……</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">还有，用户可以输入几个？只能一个、一个或多个、还是至少两个</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">一个主关键词</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好的，一个主关键词。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">用户输入时的提示语你想写什么？比如"请输入要调研的关键词"？</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">就写"输入主关键词，如 wireless earbuds"</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 输入定义确认。</span>
+              </div>
+            </div>
+          </div>
+
+          <p style="margin-top: 12px">Plugin 将输入定义通过平台 API 写入后端：</p>
+
+          <div class="json-block">
+            <div class="json-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              后端存储的输入定义
+            </div>
+            <pre><span class="key">input</span>:
   <span class="key">type</span>: <span class="str">keyword</span>               <span class="comment"># 输入类型标识</span>
   <span class="key">label</span>: <span class="str">主关键词</span>              <span class="comment"># 给用户看的输入提示</span>
   <span class="key">placeholder</span>: <span class="str">"如：wireless earbuds"</span>
   <span class="key">required</span>: <span class="str">true</span></pre>
-    </div>
+          </div>
 
-    <!-- 第二步：拆解步骤 -->
-    <div class="subsection">
-      <h4>第二步：拆解步骤</h4>
-    </div>
+          <!-- 第二步：拆解步骤 -->
+          <div class="subsection">
+            <h4>第二步：拆解步骤</h4>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>拆解步骤</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">第二个问题：拿到用户的关键词后，Skill 要分几步完成？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">每一步做什么？按你的思路说就行。</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">先查搜索量和趋势，然后看竞争度有多激烈，</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">最后推荐一些相关的长尾词</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">整理一下，3 步：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">1.</span> 关键词数据采集 — 搜索量、趋势</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">2.</span> 竞争度分析 — 竞争密度、排名难度</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">3.</span> 长尾词推荐 — 扩展相关词，按潜力排序</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">有没有要加的或者要调整的？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">差不多就这样</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 步骤结构确认。</span></div>
-      </div>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>拆解步骤</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">第二个问题：拿到用户的关键词后，Skill 要分几步完成？</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">每一步做什么？按你的思路说就行。</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">先查搜索量和趋势，然后看竞争度有多激烈，</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">最后推荐一些相关的长尾词</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">整理一下，3 步：</span></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">1.</span> 关键词数据采集 — 搜索量、趋势</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">2.</span> 竞争度分析 — 竞争密度、排名难度</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">3.</span> 长尾词推荐 — 扩展相关词，按潜力排序</span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">有没有要加的或者要调整的？</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">差不多就这样</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 步骤结构确认。</span>
+              </div>
+            </div>
+          </div>
 
-    <p style="margin-top:12px">Plugin 将步骤结构通过平台 API 写入后端。<strong style="color:#fff;">后端是步骤定义的唯一数据源</strong>，前端展示和运行时均从后端拉取。</p>
+          <p style="margin-top: 12px">Plugin 将步骤结构通过平台 API 写入后端。<strong style="color: #fff">后端是步骤定义的唯一数据源</strong>，前端展示和运行时均从后端拉取。</p>
+        </div>
 
-  </div>
+        <!-- 4.2 -->
+        <div class="step-card" id="s4-2">
+          <div class="step-id">Step 4.2</div>
+          <h3>逐节点开发</h3>
+          <span class="actor both">Creator + Plugin</span>
+          <p>Plugin 引导 Creator 按顺序开发每个 pipeline 节点。<strong>每个节点的开发是一轮完整的对话</strong>，Plugin 依次引导 Creator 确认以下四个维度：</p>
 
-  <!-- 4.2 -->
-  <div class="step-card" id="s4-2">
-    <div class="step-id">Step 4.2</div>
-    <h3>逐节点开发</h3>
-    <span class="actor both">Creator + Plugin</span>
-    <p>Plugin 引导 Creator 按顺序开发每个 pipeline 节点。<strong>每个节点的开发是一轮完整的对话</strong>，Plugin 依次引导 Creator 确认以下四个维度：</p>
+          <!-- Dimension 1 -->
+          <div class="dim-card">
+            <h5>① 数据需求：完成这一步需要什么数据？</h5>
+            <p>Plugin 通过数据服务商提供的 MCP 自动发现可用的 API 列表，向 Creator 推荐匹配当前节点需求的接口。Creator 不需要自己去查 API 文档。</p>
+          </div>
 
-    <!-- Dimension 1 -->
-    <div class="dim-card">
-      <h5>① 数据需求：完成这一步需要什么数据？</h5>
-      <p>Plugin 通过数据服务商提供的 MCP 自动发现可用的 API 列表，向 Creator 推荐匹配当前节点需求的接口。Creator 不需要自己去查 API 文档。</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>数据需求对话</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">现在开发步骤 1「关键词数据采集」。</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">我通过 MCP 查询了可用的数据接口，以下 API 与这个步骤相关：</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_demand</span> — 关键词搜索量、点击量、购买率</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_history</span> — 关键词 12 个月趋势数据</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_competition</span> — 关键词竞争密度指标</span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">你需要哪些？还有其他数据需求吗？</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">前两个就够了，搜索量和趋势</span></div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>数据需求对话</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">现在开发步骤 1「关键词数据采集」。</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">我通过 MCP 查询了可用的数据接口，以下 API 与这个步骤相关：</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_demand</span> — 关键词搜索量、点击量、购买率</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_history</span> — 关键词 12 个月趋势数据</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· <span class="ok">market_get_keyword_competition</span> — 关键词竞争密度指标</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">你需要哪些？还有其他数据需求吗？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">前两个就够了，搜索量和趋势</span></div>
-      </div>
-    </div>
+          <div class="branch-box">
+            <p><strong>MCP 发现机制：</strong>所有数据服务商在 Minus 平台上注册时，会提供一个 MCP（Model Context Protocol）接口用于查询其全部可用 API。Plugin 在开发阶段通过 MCP 动态获取 API 目录，而非依赖静态文档。数据服务商新增 API 后，Creator 在下一次开发时就能自动看到。</p>
+          </div>
 
-    <div class="branch-box">
-      <p><strong>MCP 发现机制：</strong>所有数据服务商在 Minus 平台上注册时，会提供一个 MCP（Model Context Protocol）接口用于查询其全部可用 API。Plugin 在开发阶段通过 MCP 动态获取 API 目录，而非依赖静态文档。数据服务商新增 API 后，Creator 在下一次开发时就能自动看到。</p>
-    </div>
+          <!-- Dimension 2 -->
+          <div class="dim-card">
+            <h5>② 处理逻辑：拿到数据后做什么？</h5>
+            <p>直接透传原始数据？做聚合/排序？用大模型做分析总结？</p>
+          </div>
 
-    <!-- Dimension 2 -->
-    <div class="dim-card">
-      <h5>② 处理逻辑：拿到数据后做什么？</h5>
-      <p>直接透传原始数据？做聚合/排序？用大模型做分析总结？</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>处理逻辑对话</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，拿到搜索量和趋势数据之后，这一步的处理逻辑是什么？</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">原始数据做一个结构化整理就行，不需要大模型分析</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">明白。我来编写这个步骤的处理逻辑：</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 调用 market_get_keyword_demand 获取核心指标</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 调用 market_get_keyword_history 获取趋势</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 合并为结构化的关键词基础数据对象</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">[生成步骤代码]</span></span>
+              </div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>处理逻辑对话</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，拿到搜索量和趋势数据之后，这一步的处理逻辑是什么？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">原始数据做一个结构化整理就行，不需要大模型分析</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">明白。我来编写这个步骤的处理逻辑：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 调用 market_get_keyword_demand 获取核心指标</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 调用 market_get_keyword_history 获取趋势</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 合并为结构化的关键词基础数据对象</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">[生成步骤代码]</span></span></div>
-      </div>
-    </div>
+          <!-- Dimension 3 -->
+          <div class="dim-card">
+            <h5>③ 输出定义：这一步输出什么？</h5>
+            <p>传给下一步的数据 + 展示给用户的内容。</p>
+          </div>
 
-    <!-- Dimension 3 -->
-    <div class="dim-card">
-      <h5>③ 输出定义：这一步输出什么？</h5>
-      <p>传给下一步的数据 + 展示给用户的内容。</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>输出定义对话</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">这一步的输出包含两部分：</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 传给下一步的数据：关键词基础数据对象（搜索量、趋势数组等）</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 展示给用户的内容：搜索量摘要 + 趋势图表数据</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">格式你觉得 OK 吗？</span></div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>输出定义对话</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">这一步的输出包含两部分：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 传给下一步的数据：关键词基础数据对象（搜索量、趋势数组等）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 展示给用户的内容：搜索量摘要 + 趋势图表数据</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">格式你觉得 OK 吗？</span></div>
-      </div>
-    </div>
+          <!-- Dimension 4 -->
+          <div class="dim-card">
+            <h5>④ 用户确认：用户使用时需要在这一步暂停确认吗？</h5>
+            <p>决定<strong>运行时行为</strong>——终端用户跑这个 Skill 时，pipeline 是否在此步骤后暂停等待确认。</p>
+          </div>
 
-    <!-- Dimension 4 -->
-    <div class="dim-card">
-      <h5>④ 用户确认：用户使用时需要在这一步暂停确认吗？</h5>
-      <p>决定<strong>运行时行为</strong>——终端用户跑这个 Skill 时，pipeline 是否在此步骤后暂停等待确认。</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>用户确认对话</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">用户运行到这一步后，需要暂停让用户确认数据再继续吗？</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 是 → 用户看到输出后点确认，才进入下一步</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 否 → 自动继续到下一步</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">这步不用，数据采集直接过就行</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，标记为自动继续。</span></div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>用户确认对话</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">用户运行到这一步后，需要暂停让用户确认数据再继续吗？</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 是 → 用户看到输出后点确认，才进入下一步</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 否 → 自动继续到下一步</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">这步不用，数据采集直接过就行</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">好，标记为自动继续。</span></div>
-      </div>
-    </div>
+          <p style="margin-top: 16px">确认后，Plugin 将 <code>requires_confirmation: false</code> 写入该步骤定义。</p>
 
-    <p style="margin-top:16px">确认后，Plugin 将 <code>requires_confirmation: false</code> 写入该步骤定义。</p>
+          <div class="branch-box" style="margin-top: 28px">
+            <p><strong>代码编写、调试与测试：</strong>贯穿节点开发全程。Plugin 在每个维度确认后即时编写和调试代码，Creator 随时可在浏览器中体验效果并提出修改意见。测试不是独立环节，而是持续进行的。</p>
+          </div>
 
-    <div class="branch-box" style="margin-top:28px">
-      <p><strong>代码编写、调试与测试：</strong>贯穿节点开发全程。Plugin 在每个维度确认后即时编写和调试代码，Creator 随时可在浏览器中体验效果并提出修改意见。测试不是独立环节，而是持续进行的。</p>
-    </div>
+          <div class="branch-box">
+            <p><strong>统一预览地址：</strong>Creator 只需要记住一个地址来测试 Skill。Plugin 在首次启动预览时自动检测可用端口，如果该端口被占用，Plugin 自动切换到新端口并通知 Creator。无论底层有多少服务，Creator 看到的始终是一个入口：<code>http://localhost:{port}</code>。</p>
+          </div>
 
-    <div class="branch-box">
-      <p><strong>统一预览地址：</strong>Creator 只需要记住一个地址来测试 Skill。Plugin 在首次启动预览时自动检测可用端口，如果该端口被占用，Plugin 自动切换到新端口并通知 Creator。无论底层有多少服务，Creator 看到的始终是一个入口：<code>http://localhost:{port}</code>。</p>
-    </div>
+          <p>Creator 确认后，Plugin 通过平台 API 更新后端该步骤的状态，保存进度到 Memory，进入下一个节点的开发。</p>
+        </div>
 
-    <p>Creator 确认后，Plugin 通过平台 API 更新后端该步骤的状态，保存进度到 Memory，进入下一个节点的开发。</p>
-  </div>
+        <!-- 4.3 -->
+        <div class="step-card" id="s4-3">
+          <div class="step-id">Step 4.3</div>
+          <h3>结果呈现设计</h3>
+          <span class="actor both">Creator + Plugin</span>
+          <p><strong>所有 pipeline 节点开发完成后</strong>，Plugin 引导 Creator 定义 Skill 的最终输出——这是终端用户看到的最后一屏，是独立于任何 pipeline 节点的呈现层。</p>
+          <p style="margin-top: 8px">Plugin 引导 Creator 逐一确认以下两个方面：</p>
 
-  <!-- 4.3 -->
-  <div class="step-card" id="s4-3">
-    <div class="step-id">Step 4.3</div>
-    <h3>结果呈现设计</h3>
-    <span class="actor both">Creator + Plugin</span>
-    <p><strong>所有 pipeline 节点开发完成后</strong>，Plugin 引导 Creator 定义 Skill 的最终输出——这是终端用户看到的最后一屏，是独立于任何 pipeline 节点的呈现层。</p>
-    <p style="margin-top:8px">Plugin 引导 Creator 逐一确认以下两个方面：</p>
+          <!-- Result Summary -->
+          <div class="dim-card">
+            <h5>① 结果摘要：如何总结这个 Skill 的运行结果？</h5>
+            <p>Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。Plugin 先展示各步骤产出的数据全景，再引导 Creator 定义摘要的风格和内容。</p>
+          </div>
 
-    <!-- Result Summary -->
-    <div class="dim-card">
-      <h5>① 结果摘要：如何总结这个 Skill 的运行结果？</h5>
-      <p>Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。Plugin 先展示各步骤产出的数据全景，再引导 Creator 定义摘要的风格和内容。</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>结果摘要</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">3 个步骤全部开发完成。各步骤产出的数据：</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 1：关键词基础数据（搜索量、趋势）</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2：竞争度评分和分析报告</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 3：推荐长尾词列表</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">你想怎么定义这段摘要？比如：</span></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="hi">"关键词 wireless earbuds 月搜索量 12 万，竞争度中等，建议优先布局以下 3 个长尾词……"</span></span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">差不多这个感觉，大模型自动生成就行，</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">但要突出关键数字和结论</span></div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>结果摘要</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">3 个步骤全部开发完成。各步骤产出的数据：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 1：关键词基础数据（搜索量、趋势）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2：竞争度评分和分析报告</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 3：推荐长尾词列表</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">你想怎么定义这段摘要？比如：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="hi">"关键词 wireless earbuds 月搜索量 12 万，竞争度中等，建议优先布局以下 3 个长尾词……"</span></span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">差不多这个感觉，大模型自动生成就行，</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">但要突出关键数字和结论</span></div>
-      </div>
-    </div>
+          <!-- Downloads -->
+          <div class="dim-card">
+            <h5>② 下载内容：提供哪些可下载的文件？</h5>
+            <p>CSV、PDF、JSON 等导出格式。</p>
+          </div>
 
-    <!-- Downloads -->
-    <div class="dim-card">
-      <h5>② 下载内容：提供哪些可下载的文件？</h5>
-      <p>CSV、PDF、JSON 等导出格式。</p>
-    </div>
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>下载内容</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">用户可以下载哪些内容？默认支持两种格式：</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· Excel：推荐词列表（关键词 + 搜索量 + 竞争度 + 潜力评分）</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· HTML 报告：完整分析报告，可在浏览器中打开查看</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">你觉得这两个够吗？还需要其他格式？</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">够了</span></div>
+            </div>
+          </div>
 
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>下载内容</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">用户可以下载哪些内容？默认支持两种格式：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· Excel：推荐词列表（关键词 + 搜索量 + 竞争度 + 潜力评分）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· HTML 报告：完整分析报告，可在浏览器中打开查看</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">你觉得这两个够吗？还需要其他格式？</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">够了</span></div>
-      </div>
-    </div>
+          <p style="margin-top: 16px">Plugin 将以上定义写入项目的结果呈现配置文件，并生成结果页模板。</p>
+        </div>
 
-    <p style="margin-top:16px">Plugin 将以上定义写入项目的结果呈现配置文件，并生成结果页模板。</p>
-  </div>
+        <!-- 4.4 -->
+        <div class="step-card" id="s4-4">
+          <div class="step-id">Step 4.4</div>
+          <h3>输出 Schema 定义（v1 预留）</h3>
+          <span class="actor plugin">Plugin</span>
 
-  <!-- 4.4 -->
-  <div class="step-card" id="s4-4">
-    <div class="step-id">Step 4.4</div>
-    <h3>输出 Schema 定义（v1 预留）</h3>
-    <span class="actor plugin">Plugin</span>
+          <div class="future-note">
+            <strong>v1 暂不支持 Skill 链路对接，此步骤仅预留数据结构。</strong>
+          </div>
 
-    <div class="future-note">
-      <strong>v1 暂不支持 Skill 链路对接，此步骤仅预留数据结构。</strong>
-    </div>
+          <p>当一个 Skill 的输出可以作为另一个 Skill 的输入时，需要定义标准化的输出 Schema。Plugin 在后端预留 <code>output_schema</code> 字段：</p>
 
-    <p>当一个 Skill 的输出可以作为另一个 Skill 的输入时，需要定义标准化的输出 Schema。Plugin 在后端预留 <code>output_schema</code> 字段：</p>
-
-    <div class="json-block">
-      <div class="json-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div> 后端存储的输出 Schema（v1 预留）</div>
-      <pre><span class="key">output_schema</span>:                    <span class="comment"># v1 预留，暂不启用</span>
+          <div class="json-block">
+            <div class="json-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              后端存储的输出 Schema（v1 预留）
+            </div>
+            <pre><span class="key">output_schema</span>:                    <span class="comment"># v1 预留，暂不启用</span>
   <span class="key">type</span>: <span class="str">keyword_analysis</span>
   <span class="key">fields</span>:
     - <span class="key">name</span>: <span class="str">keyword</span>
@@ -1201,248 +1542,342 @@
       <span class="key">type</span>: <span class="str">number</span>
     - <span class="key">name</span>: <span class="str">recommended_keywords</span>
       <span class="key">type</span>: <span class="str">array</span></pre>
+          </div>
+
+          <p>Plugin 在 4.3 完成后自动根据结果数据生成 <code>output_schema</code> 草稿，通过平台 API 写入后端，但不对 Creator 展示（避免增加 v1 的认知负担）。后续版本启用 Skill 链路功能时，这个 Schema 是对接的基础。</p>
+
+          <div class="design-note" style="margin-top: 20px"><strong>Phase 4 完成。</strong> Skill 开发完毕，可以进入发布流程。</div>
+        </div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- Phase 5 -->
+      <section id="phase5">
+        <div class="phase-header">
+          <div class="phase-num p5">5</div>
+          <div>
+            <h2>发布上线</h2>
+            <div class="phase-freq">每个版本一次</div>
+          </div>
+        </div>
+
+        <!-- 5.1 -->
+        <div class="step-card" id="s5-1">
+          <div class="step-id">Step 5.1</div>
+          <h3>发布前校验</h3>
+          <span class="actor plugin">Plugin</span>
+          <p>Creator 输入 <code>/minus publish</code>，Plugin 自动执行发布前校验。校验包含<strong>端到端验证</strong>——自动用已有的测试输入运行完整 pipeline，确认所有节点可正常工作。</p>
+
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>校验通过</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">帮我发布</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">开始发布前校验...</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> .minus/skill.json 格式正确</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 所有必填字段已填写（name、description、version、author — 后端校验）</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 输入定义完整</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 步骤定义完整（3/3 步骤均已在后端就绪）</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 结果呈现配置完整</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 依赖声明与实际使用一致</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 端到端运行通过（输入："wireless earbuds"）</span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">校验全部通过。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">当前版本号是 v0.1.0，你可以直接用这个版本号发布，</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">也可以改成你想要的版本号（比如 v1.0.0）。</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">改成 v1.0.0</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 版本号已更新为 v1.0.0。准备打包发布？</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="branch-box">
+            <p><strong>版本号规则：</strong>Creator 可以自定义版本号，但版本号不能回退。Plugin 在校验时会比对平台上已发布的最新版本，如果 Creator 输入的版本号低于或等于已发布版本，Plugin 会提示并要求修改。</p>
+          </div>
+
+          <div class="subsection">
+            <h4>校验清单</h4>
+          </div>
+
+          <table class="inner-table">
+            <thead>
+              <tr>
+                <th>校验项</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>.minus/skill.json</code> 格式</td>
+                <td>JSON 语法正确，<code>skill_id</code> 和 <code>api_key</code> 有效</td>
+              </tr>
+              <tr>
+                <td>必填字段</td>
+                <td>后端存储的 <code>name</code>、<code>description</code>、<code>version</code>、<code>author</code> 不为空</td>
+              </tr>
+              <tr>
+                <td>输入定义</td>
+                <td>后端 <code>input</code> 字段完整，type 和 label 已设置</td>
+              </tr>
+              <tr>
+                <td>步骤完整性</td>
+                <td>后端声明的每个步骤均有完整定义且状态为 completed</td>
+              </tr>
+              <tr>
+                <td>结果呈现</td>
+                <td>结果摘要、预览、下载配置已定义</td>
+              </tr>
+              <tr>
+                <td>依赖一致性</td>
+                <td><code>dependencies</code> 声明与实际使用的 API/包一致</td>
+              </tr>
+              <tr>
+                <td>端到端验证</td>
+                <td>用最近一次的测试输入运行完整 pipeline，所有步骤成功</td>
+              </tr>
+              <tr>
+                <td>版本号</td>
+                <td>符合语义化版本规范，且高于平台上已发布的最新版本</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="conv-mock" style="margin-top: 20px">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>校验失败</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">校验发现 2 个问题：</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="err">✗</span> description 为空 — 请描述这个 Skill 的用途</span>
+              </div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="err">✗</span> 步骤「竞争度分析」在后端缺少定义 — 请先完成该步骤的开发</span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">修复后重新输入 /minus publish 即可。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">或者告诉我问题，我帮你修。</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5.2 -->
+        <div class="step-card" id="s5-2">
+          <div class="step-id">Step 5.2</div>
+          <h3>打包</h3>
+          <span class="actor plugin">Plugin</span>
+          <p>校验通过后，Creator 确认发布，Plugin 将项目打包为标准格式。</p>
+
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>打包</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">发布</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在打包...</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 已生成发布包：关键词调研-v0.1.0.skill</span>
+              </div>
+              <div class="conv-line"><span class="role"></span> <span class="msg"> 包含：.minus/skill.json + 3 个步骤定义 + 结果呈现配置</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg"> 大小：12 KB</span></div>
+            </div>
+          </div>
+
+          <p>打包格式和内容的具体定义取决于 Minus 平台的运行时规范，此处不展开。</p>
+        </div>
+
+        <!-- 5.3 -->
+        <div class="step-card" id="s5-3">
+          <div class="step-id">Step 5.3</div>
+          <h3>上传至平台</h3>
+          <span class="actor plugin">Plugin</span>
+          <p>Plugin 使用 Creator 的凭证调用 Minus 平台 API，上传发布包。</p>
+
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>上传</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在上传至 Minus 平台...</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">✓</span> 上传成功！</span>
+              </div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">Skill ID：sk_8f3a2b</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">版本：v0.1.0</span></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg">状态：<span class="warn">待审核</span></span>
+              </div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">Minus 团队会在 1-3 个工作日内完成审核。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">审核结果会通过邮件通知你。</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">你也可以在开发者平台查看审核状态：</span></div>
+              <div class="conv-line">
+                <span class="role"></span> <span class="msg"><span class="ok">https://developers.minusai.com/skills/sk_8f3a2b</span></span>
+              </div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">也可以随时在 Session 中问我审核进度。</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5.4 -->
+        <div class="step-card" id="s5-4">
+          <div class="step-id">Step 5.4</div>
+          <h3>审核</h3>
+          <span class="actor minus">Minus 团队</span>
+          <p>审核由 Minus 团队在平台侧完成，Plugin 不参与。</p>
+
+          <table class="inner-table" style="margin-top: 16px">
+            <thead>
+              <tr>
+                <th>审核维度</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>功能完整性</td>
+                <td>Skill 是否能正常运行，步骤衔接是否顺畅</td>
+              </tr>
+              <tr>
+                <td>内容合规</td>
+                <td>不含违规内容，符合平台使用条款</td>
+              </tr>
+              <tr>
+                <td>质量标准</td>
+                <td>输出质量是否达到可发布水准</td>
+              </tr>
+              <tr>
+                <td>安全性</td>
+                <td>数据调用是否在授权范围内，无越权操作</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="subsection" style="margin-top: 20px">
+            <h4>审核结果通知</h4>
+            <ul>
+              <li><strong style="color: var(--green)">通过</strong> → 页面出现「预览」和「发布」两个按钮</li>
+              <li><strong style="color: var(--rose)">未通过</strong> → 列出失败原因和整改意见，无任何按钮，修改后重新 <code>/minus publish</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 5.5 -->
+        <div class="step-card" id="s5-5">
+          <div class="step-id">Step 5.5</div>
+          <h3>预览版 → 正式发布</h3>
+          <span class="actor creator">Creator</span>
+          <p>审核通过后，Skill 先以预览版形式上线。Creator 可以在 Minus 平台上自行测试预览版，确认无误后在开发者平台点击"正式发布"。</p>
+          <p style="margin-top: 8px">正式发布后，Skill 对所有 Minus 用户可见。</p>
+        </div>
+
+        <!-- 5.6 -->
+        <div class="step-card" id="s5-6">
+          <div class="step-id">Step 5.6</div>
+          <h3>版本更新</h3>
+          <span class="actor both">Creator + Plugin</span>
+          <p>后续更新 Skill 时，Creator 告诉 Plugin 新的版本号（Plugin 通过平台 API 更新后端），然后重新 <code>/minus publish</code>。</p>
+
+          <div class="conv-mock">
+            <div class="conv-header">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>版本更新</span>
+            </div>
+            <div class="conv-body">
+              <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">检测到版本变更：v0.1.0 → v0.2.0</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">本次更新内容：</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2 优化了竞争度算法</span></div>
+              <div class="conv-line"><span class="role"></span> <span class="msg">· 新增步骤 4：关键词分组</span></div>
+              <div class="conv-line blank"></div>
+              <div class="conv-line"><span class="role plugin"></span> <span class="msg">开始发布前校验...</span></div>
+            </div>
+          </div>
+
+          <p>平台侧自动保留历史版本，支持回滚。</p>
+
+          <div class="design-note" style="margin-top: 20px"><strong>Phase 5 完成。</strong> Skill 已上线。</div>
+        </div>
+      </section>
     </div>
 
-    <p>Plugin 在 4.3 完成后自动根据结果数据生成 <code>output_schema</code> 草稿，通过平台 API 写入后端，但不对 Creator 展示（避免增加 v1 的认知负担）。后续版本启用 Skill 链路功能时，这个 Schema 是对接的基础。</p>
-
-    <div class="design-note" style="margin-top:20px">
-      <strong>Phase 4 完成。</strong> Skill 开发完毕，可以进入发布流程。
-    </div>
-  </div>
-</section>
-
-<hr class="divider">
-
-<!-- Phase 5 -->
-<section id="phase5">
-  <div class="phase-header">
-    <div class="phase-num p5">5</div>
-    <div>
-      <h2>发布上线</h2>
-      <div class="phase-freq">每个版本一次</div>
-    </div>
-  </div>
-
-  <!-- 5.1 -->
-  <div class="step-card" id="s5-1">
-    <div class="step-id">Step 5.1</div>
-    <h3>发布前校验</h3>
-    <span class="actor plugin">Plugin</span>
-    <p>Creator 输入 <code>/minus publish</code>，Plugin 自动执行发布前校验。校验包含<strong>端到端验证</strong>——自动用已有的测试输入运行完整 pipeline，确认所有节点可正常工作。</p>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>校验通过</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">帮我发布</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">开始发布前校验...</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> .minus/skill.json 格式正确</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 所有必填字段已填写（name、description、version、author — 后端校验）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 输入定义完整</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 步骤定义完整（3/3 步骤均已在后端就绪）</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 结果呈现配置完整</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 依赖声明与实际使用一致</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 端到端运行通过（输入："wireless earbuds"）</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">校验全部通过。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">当前版本号是 v0.1.0，你可以直接用这个版本号发布，</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">也可以改成你想要的版本号（比如 v1.0.0）。</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">改成 v1.0.0</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg"><span class="ok">✓</span> 版本号已更新为 v1.0.0。准备打包发布？</span></div>
+    <!-- Footer -->
+    <div class="container">
+      <div class="doc-footer">
+        <p>Minus Creator Plugin Flow — Dev & Publish · <span class="date">2026-05</span></p>
       </div>
     </div>
 
-    <div class="branch-box">
-      <p><strong>版本号规则：</strong>Creator 可以自定义版本号，但版本号不能回退。Plugin 在校验时会比对平台上已发布的最新版本，如果 Creator 输入的版本号低于或等于已发布版本，Plugin 会提示并要求修改。</p>
-    </div>
+    <script>
+      ;(function () {
+        const links = document.querySelectorAll('.toc a')
+        const ids = Array.from(links).map(a => a.dataset.target)
+        const sections = ids.map(id => document.getElementById(id)).filter(Boolean)
 
-    <div class="subsection">
-      <h4>校验清单</h4>
-    </div>
+        links.forEach(a => {
+          a.addEventListener('click', function (e) {
+            e.preventDefault()
+            const target = document.getElementById(this.dataset.target)
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          })
+        })
 
-    <table class="inner-table">
-      <thead><tr><th>校验项</th><th>说明</th></tr></thead>
-      <tbody>
-        <tr><td><code>.minus/skill.json</code> 格式</td><td>JSON 语法正确，<code>skill_id</code> 和 <code>api_key</code> 有效</td></tr>
-        <tr><td>必填字段</td><td>后端存储的 <code>name</code>、<code>description</code>、<code>version</code>、<code>author</code> 不为空</td></tr>
-        <tr><td>输入定义</td><td>后端 <code>input</code> 字段完整，type 和 label 已设置</td></tr>
-        <tr><td>步骤完整性</td><td>后端声明的每个步骤均有完整定义且状态为 completed</td></tr>
-        <tr><td>结果呈现</td><td>结果摘要、预览、下载配置已定义</td></tr>
-        <tr><td>依赖一致性</td><td><code>dependencies</code> 声明与实际使用的 API/包一致</td></tr>
-        <tr><td>端到端验证</td><td>用最近一次的测试输入运行完整 pipeline，所有步骤成功</td></tr>
-        <tr><td>版本号</td><td>符合语义化版本规范，且高于平台上已发布的最新版本</td></tr>
-      </tbody>
-    </table>
+        function onScroll() {
+          const scrollY = window.scrollY + 120
+          let current = ''
+          for (let i = sections.length - 1; i >= 0; i--) {
+            if (sections[i].offsetTop <= scrollY) {
+              current = sections[i].id
+              break
+            }
+          }
+          links.forEach(a => {
+            a.classList.toggle('active', a.dataset.target === current)
+          })
+        }
 
-    <div class="conv-mock" style="margin-top:20px">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>校验失败</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">校验发现 2 个问题：</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="err">✗</span> description 为空 — 请描述这个 Skill 的用途</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="err">✗</span> 步骤「竞争度分析」在后端缺少定义 — 请先完成该步骤的开发</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">修复后重新输入 /minus publish 即可。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">或者告诉我问题，我帮你修。</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 5.2 -->
-  <div class="step-card" id="s5-2">
-    <div class="step-id">Step 5.2</div>
-    <h3>打包</h3>
-    <span class="actor plugin">Plugin</span>
-    <p>校验通过后，Creator 确认发布，Plugin 将项目打包为标准格式。</p>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>打包</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role creator">Creator</span> <span class="msg">发布</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在打包...</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 已生成发布包：关键词调研-v0.1.0.skill</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">  包含：.minus/skill.json + 3 个步骤定义 + 结果呈现配置</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">  大小：12 KB</span></div>
-      </div>
-    </div>
-
-    <p>打包格式和内容的具体定义取决于 Minus 平台的运行时规范，此处不展开。</p>
-  </div>
-
-  <!-- 5.3 -->
-  <div class="step-card" id="s5-3">
-    <div class="step-id">Step 5.3</div>
-    <h3>上传至平台</h3>
-    <span class="actor plugin">Plugin</span>
-    <p>Plugin 使用 Creator 的凭证调用 Minus 平台 API，上传发布包。</p>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>上传</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">正在上传至 Minus 平台...</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">✓</span> 上传成功！</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">Skill ID：sk_8f3a2b</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">版本：v0.1.0</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">状态：<span class="warn">待审核</span></span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">Minus 团队会在 1-3 个工作日内完成审核。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">审核结果会通过邮件通知你。</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">你也可以在开发者平台查看审核状态：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg"><span class="ok">https://developers.minusai.com/skills/sk_8f3a2b</span></span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">也可以随时在 Session 中问我审核进度。</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 5.4 -->
-  <div class="step-card" id="s5-4">
-    <div class="step-id">Step 5.4</div>
-    <h3>审核</h3>
-    <span class="actor minus">Minus 团队</span>
-    <p>审核由 Minus 团队在平台侧完成，Plugin 不参与。</p>
-
-    <table class="inner-table" style="margin-top:16px">
-      <thead><tr><th>审核维度</th><th>说明</th></tr></thead>
-      <tbody>
-        <tr><td>功能完整性</td><td>Skill 是否能正常运行，步骤衔接是否顺畅</td></tr>
-        <tr><td>内容合规</td><td>不含违规内容，符合平台使用条款</td></tr>
-        <tr><td>质量标准</td><td>输出质量是否达到可发布水准</td></tr>
-        <tr><td>安全性</td><td>数据调用是否在授权范围内，无越权操作</td></tr>
-      </tbody>
-    </table>
-
-    <div class="subsection" style="margin-top:20px">
-      <h4>审核结果通知</h4>
-      <ul>
-        <li><strong style="color:var(--green)">通过</strong> → 页面出现「预览」和「发布」两个按钮</li>
-        <li><strong style="color:var(--rose)">未通过</strong> → 列出失败原因和整改意见，无任何按钮，修改后重新 <code>/minus publish</code></li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- 5.5 -->
-  <div class="step-card" id="s5-5">
-    <div class="step-id">Step 5.5</div>
-    <h3>预览版 → 正式发布</h3>
-    <span class="actor creator">Creator</span>
-    <p>审核通过后，Skill 先以预览版形式上线。Creator 可以在 Minus 平台上自行测试预览版，确认无误后在开发者平台点击"正式发布"。</p>
-    <p style="margin-top:8px">正式发布后，Skill 对所有 Minus 用户可见。</p>
-  </div>
-
-  <!-- 5.6 -->
-  <div class="step-card" id="s5-6">
-    <div class="step-id">Step 5.6</div>
-    <h3>版本更新</h3>
-    <span class="actor both">Creator + Plugin</span>
-    <p>后续更新 Skill 时，Creator 告诉 Plugin 新的版本号（Plugin 通过平台 API 更新后端），然后重新 <code>/minus publish</code>。</p>
-
-    <div class="conv-mock">
-      <div class="conv-header"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span>版本更新</span></div>
-      <div class="conv-body">
-        <div class="conv-line"><span class="role plugin">Plugin</span> <span class="msg">检测到版本变更：v0.1.0 → v0.2.0</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">本次更新内容：</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 步骤 2 优化了竞争度算法</span></div>
-        <div class="conv-line"><span class="role"></span> <span class="msg">· 新增步骤 4：关键词分组</span></div>
-        <div class="conv-line blank"></div>
-        <div class="conv-line"><span class="role plugin"></span> <span class="msg">开始发布前校验...</span></div>
-      </div>
-    </div>
-
-    <p>平台侧自动保留历史版本，支持回滚。</p>
-
-    <div class="design-note" style="margin-top:20px">
-      <strong>Phase 5 完成。</strong> Skill 已上线。
-    </div>
-  </div>
-</section>
-
-</div>
-
-<!-- Footer -->
-<div class="container">
-  <div class="doc-footer">
-    <p>Minus Creator Plugin Flow — Dev & Publish · <span class="date">2026-05</span></p>
-  </div>
-</div>
-
-<script>
-(function(){
-  const links = document.querySelectorAll('.toc a');
-  const ids = Array.from(links).map(a => a.dataset.target);
-  const sections = ids.map(id => document.getElementById(id)).filter(Boolean);
-
-  links.forEach(a => {
-    a.addEventListener('click', function(e){
-      e.preventDefault();
-      const target = document.getElementById(this.dataset.target);
-      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
-    });
-  });
-
-  function onScroll(){
-    const scrollY = window.scrollY + 120;
-    let current = '';
-    for(let i = sections.length - 1; i >= 0; i--){
-      if(sections[i].offsetTop <= scrollY){
-        current = sections[i].id;
-        break;
-      }
-    }
-    links.forEach(a => {
-      a.classList.toggle('active', a.dataset.target === current);
-    });
-  }
-
-  window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-})();
-</script>
-</body>
+        window.addEventListener('scroll', onScroll, { passive: true })
+        onScroll()
+      })()
+    </script>
+  </body>
 </html>

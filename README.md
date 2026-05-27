@@ -41,9 +41,9 @@ node --test ~/minus-platform-develop/minus-plugin/tests/integration.test.js     
 
 # ── E2E 测试（真实调用 Claude API，需登录态）──
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-autostart.sh                # 自动启动：dev server 启动 + 预览地址输出
-bash ~/minus-platform-develop/minus-plugin/tests/e2e-three-step.sh               # 三步法流程完整性
-bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh                 # 开发全流程：三步法 + 四维度 + 结果呈现
-bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 1       # 只测三步法（输入→步骤→输出）
+bash ~/minus-platform-develop/minus-plugin/tests/e2e-three-step.sh               # 两步法流程完整性
+bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh                 # 开发全流程：两步法 + 四维度 + 结果呈现
+bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 1       # 只测两步法（输入→步骤）
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 2       # 只测逐节点四维度（数据→逻辑→输出→确认）
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 3       # 只测结果呈现设计
 E2E_KEEP=1 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh     # 保留临时项目不删（调试用）

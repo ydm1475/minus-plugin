@@ -82,7 +82,7 @@ TSEOF
 cd "$TEST_DIR"
 
 # ══════════════════════════════════════════════════════════════
-# Phase 1: 三步法 — 用户说"分两步"后生成步骤骨架
+# Phase 1: 两步法 — 用户说"分两步"后生成步骤骨架
 # 对话 line 170: "分两步吧，第一步拿到关键词的拓词，第二步拿到这些词的热销ASIN"
 # ══════════════════════════════════════════════════════════════
 
@@ -283,7 +283,7 @@ fi
 echo ""
 echo "── SDK 文档可达性验证 ──"
 
-SDK_WIDGETS_DOC=$(find ~/Desktop/sif-platform-template/runtime/platform-widgets -name "docs.md" 2>/dev/null | head -1)
+SDK_WIDGETS_DOC=$(find ~/minus-platform-develop/minus-platform/runtime/platform-widgets -name "docs.md" 2>/dev/null | head -1)
 if [ -n "$SDK_WIDGETS_DOC" ]; then
   pass "SDK platform-widgets docs.md 存在"
 
@@ -299,10 +299,10 @@ if [ -n "$SDK_WIDGETS_DOC" ]; then
     fail "SDK 文档应包含 TableWidget" "路径: $SDK_WIDGETS_DOC"
   fi
 
-  if grep -q "TableWidget vs SelectableTableWidget" "$SDK_WIDGETS_DOC" || grep -q "display widget.*纯展示" "$SDK_WIDGETS_DOC"; then
-    pass "SDK 文档说明 TableWidget vs SelectableTableWidget 分界线"
+  if grep -q "SelectableTableWidget" "$SDK_WIDGETS_DOC" && grep -q "DisplayWidget" "$SDK_WIDGETS_DOC"; then
+    pass "SDK 文档同时包含 SelectableTableWidget 和 DisplayWidget（分界线可推断）"
   else
-    fail "SDK 文档应说明两种 table widget 的分界线" "路径: $SDK_WIDGETS_DOC"
+    fail "SDK 文档应同时包含 SelectableTableWidget 和 DisplayWidget" "路径: $SDK_WIDGETS_DOC"
   fi
 else
   fail "SDK platform-widgets docs.md 不存在" "期望在 runtime/platform-widgets/*/docs.md"

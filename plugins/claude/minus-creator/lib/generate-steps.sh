@@ -166,30 +166,12 @@ console.log('✓ ${MAIN_TSX} 已更新 ${STEP_COUNT} 个步骤渲染');
 # ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
 echo "$STEP_COUNT" > .minus/total-steps
 
-# ── 三步法第三步：定义输出（必须在节点开发之前完成）──
-echo ""
-echo "═══════════════════════════════════════════════════════"
-echo "  ⛔ 骨架已生成，但三步法还剩最后一步！"
-echo "  必须先问 Creator 以下问题，确认后才能进入节点开发："
-echo "═══════════════════════════════════════════════════════"
-echo ""
-echo "原样输出以下问题（不要改写、不要跳过）："
-echo ""
-echo "「所有步骤跑完后，你想额外给用户展示什么？」"
-echo "「比如一句话总结运行结果、一个可下载的文件、还是不需要额外的东西」"
-echo ""
-echo "Creator 回答后，用以下命令保存意图（一行命令，原文存储）："
-echo "  echo \"Creator的回答\" > .minus/result-intent.txt"
-echo ""
-echo "保存后再进入下面的逐节点开发流程。"
-echo ""
-
 # ── 输出 node-dev.md 指令（硬编码注入，不依赖 agent 自觉去 Read）──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NODE_DEV="$SCRIPT_DIR/../agents/node-dev.md"
 if [ -f "$NODE_DEV" ]; then
   echo "═══════════════════════════════════════════════════════"
-  echo "  Creator 确认输出定义后，逐节点开发必须严格按以下流程执行："
+  echo "  步骤骨架已生成。逐节点开发必须严格按以下流程执行："
   echo "═══════════════════════════════════════════════════════"
   echo ""
   # 去掉 frontmatter，只输出正文
