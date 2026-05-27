@@ -215,10 +215,19 @@ cd ~/minus/{项目名称} && claude
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
 3. 原样输出（不改写）：
-   「你现在看到的是 Skill 的初始页面，展示了：」
-   「 · 名称、描述、适用场景、标签等基本信息」
-   「 · 这些都是默认值，随时告诉我修改」
-   「 · 用户输入框还没有，等下我们设计完就会加上」
+   「你现在看到的是 Skill 的初始页面，目前只展示了名称。」
+   「描述、适用场景、标签这些信息可以随时添加，你想现在就补充，还是先设计 Skill？」
+
+4. 根据 Creator 选择分支：
+
+   **选择"现在补充"：** 逐个引导补充基础信息，每确认一项就用 `skill_update` 写入后端：
+   - 先问描述："用一两句话介绍一下这个 Skill 是做什么的？"
+   - 再问标签：先调用 `skill_tag_list` 获取可选标签列表，展示给 Creator 选择（Creator 选，不是自己编）
+   - 补充完后进入结构设计第一个问题（见下方）
+
+   **选择"先设计"：** 跳过补充，直接进入结构设计第一个问题（见下方）
+
+   **结构设计第一个问题（两个分支最终都到这里，原样输出）：**
    「接下来我们来设计这个 Skill。」
    「第一个问题：用户使用这个 Skill 时，需要提供什么信息？」
    「比如关键词、ASIN、品类……」
@@ -308,6 +317,11 @@ Plugin: ✓ 输入定义确认。
 6. 更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json` 中的 placeholder
 7. 更新 `renderHome` 调用，传入 `onStart`
 8. 数量限制通过验证函数的第二个参数 `{ min, max }` 控制，具体签名读 SDK 类型定义
+9. 同步更新 `renderHistoryItem` 中的主标识字段名，与 `handleSubmit` 中 `onStart` 的字段名一致：
+   - keyword → `label: inp?.keywords ?? '—'`，`meta: inp?.country || undefined`
+   - asin → `label: inp?.asins ?? '—'`，`meta: inp?.country || undefined`
+   - file → `label: inp?.fileName ?? '—'`
+   - default/custom → `label: inp?.text ?? '—'`
 
 参考现有模板（`asin/main.tsx.tpl` 或 `keyword/main.tsx.tpl`）的 Home 组件结构来添加。
 
@@ -316,6 +330,7 @@ Plugin: ✓ 输入定义确认。
 ⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
 ⛔ 禁止：在 Creator 确认输入类型之前就添加输入组件。
 ⛔ 禁止：把 AmazonSearchBar 替换为原生 textarea 或 input。AmazonSearchBar 是平台组件，placeholder 通过 locale 文件控制，不是通过 HTML 属性。
+⛔ 禁止：更新 Home 输入组件后不同步更新 renderHistoryItem。两者的字段名必须匹配。
 
 ### 第二步：拆解步骤
 
@@ -360,10 +375,10 @@ Plugin: ✓ 步骤结构确认。
 
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-steps.sh" "步骤1名称" "步骤2名称" "步骤3名称"
+bash "$PLUGIN_ROOT/lib/generate-steps.sh" --input-type keyword "步骤1名称" "步骤2名称" "步骤3名称"
 ```
 
-此脚本会自动更新 `pipeline.py`（生成 step_N 方法）和 `frontend/src/main.tsx`（更新 buildSteps 渲染配置），保证前后端代码和后端步骤定义数量一致。
+`--input-type` 的值对应第一步确认的输入类型（keyword/asin/file/default）。脚本会自动更新 `pipeline.py`（生成 step_N 方法）、`frontend/src/main.tsx`（更新 buildSteps 渲染配置和 renderHistoryItem 字段名），保证前后端代码和后端步骤定义数量一致。
 
 **添加新步骤（已有步骤不受影响）：**
 
