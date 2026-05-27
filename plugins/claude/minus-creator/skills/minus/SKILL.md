@@ -296,6 +296,8 @@ Creator: 就写"输入主关键词，如 wireless earbuds"
 Plugin: ✓ 输入定义确认。
 ```
 
+⛔ 禁止：跳过提示语的提问。不管什么输入类型（ASIN、关键词、文件等），都必须问 Creator 输入框的提示语怎么写。
+
 确认后更新前端代码：
 
 **根据输入类型在前端 `frontend/src/main.tsx` 的 Home 组件中添加输入区域：**
