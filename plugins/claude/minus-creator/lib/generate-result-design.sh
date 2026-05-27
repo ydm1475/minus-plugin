@@ -46,38 +46,13 @@ set +e
 echo "GATE_PASSED"
 echo "TOTAL_STEPS=$TOTAL_STEPS"
 
-# ── 数据全景：从 pipeline.py 提取各步骤的 payload ──
-
-echo ""
-echo "═══ 各步骤产出数据全景 ═══"
-
-if [ -f "pipeline.py" ]; then
-  node -e "
-const fs = require('fs');
-const code = fs.readFileSync('pipeline.py', 'utf8');
-const payloads = [...code.matchAll(/step_(\d+)[\s\S]*?payload=\{([^}]*)\}/g)];
-for (const m of payloads) {
-  const stepNum = m[1];
-  const fields = [...m[2].matchAll(/['\"](\w+)['\"]\s*:/g)].map(f => f[1]);
-  if (fields.length > 0) {
-    console.log('步骤 ' + stepNum + ' 输出: { ' + fields.join(', ') + ' }');
-  }
-}
-if (payloads.length === 0) {
-  console.log('(未解析到 payload 字段，请手动确认各步骤输出)');
-}
-" 2>/dev/null || echo "(pipeline.py 解析失败，请手动确认各步骤输出)"
-else
-  echo "(pipeline.py 不存在)"
-fi
-
-# ── 从后端获取步骤名称（如果 step-tracker 有记录）──
+# ── 步骤名称 ──
 
 echo ""
 for i in $(seq 1 "$TOTAL_STEPS"); do
   NAME_FILE="$TRACKER_DIR/step_${i}_name"
   if [ -f "$NAME_FILE" ]; then
-    echo "步骤 $i 名称: $(cat "$NAME_FILE")"
+    echo "步骤 $i: $(cat "$NAME_FILE")"
   fi
 done
 
@@ -91,12 +66,14 @@ cat << 'GUIDE'
 ═══════════════════════════════════════════════════════
 
 ① 结果摘要
-  先向 Creator 展示上面的「各步骤产出数据全景」，
-  然后问：结果页顶部的摘要怎么定义？
+  先读 pipeline.py 中各步骤的 API 调用和 payload，
+  结合接口文档（用 get_endpoint_details 查看响应字段），
+  用通俗语言向 Creator 描述每步产出了什么数据。
+  不要展示代码变量名（如 rows、country），要说明白数据含义。
   示例提问（原样输出，不要改写）：
 
   「所有步骤开发完成。各步骤产出的数据：」
-  「 · 步骤 1：{步骤1名称}（{步骤1输出字段}）」
+  「 · 步骤 1：{步骤名} — {用通俗语言描述产出数据，如"相似关键词列表，包含搜索量、竞争度等"}」
   「 · 步骤 2：...」
   「」
   「Skill 运行结束后，结果页顶部会有一段摘要来总结分析结论。」
