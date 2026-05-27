@@ -8,6 +8,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/project-detector.sh\"",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-references.sh\"",
+            "timeout": 5000
           }
         ]
       }

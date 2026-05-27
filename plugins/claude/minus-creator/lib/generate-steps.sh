@@ -1,20 +1,25 @@
 #!/bin/bash
 # generate-steps.sh
 # 根据步骤列表自动生成 pipeline.py 和 main.tsx 的骨架代码
-# 用法: generate-steps.sh "步骤1名称" "步骤2名称" "步骤3名称" ...
+# 用法: generate-steps.sh [--input-type keyword|asin|file|default] "步骤1名称" ...
 #       generate-steps.sh --append "新步骤名称" ...
 # 必须在 Skill 项目根目录下执行
 
 set -euo pipefail
 
 APPEND_MODE=false
-if [ "${1:-}" = "--append" ]; then
-  APPEND_MODE=true
-  shift
-fi
+INPUT_TYPE=""
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --append) APPEND_MODE=true; shift ;;
+    --input-type) INPUT_TYPE="$2"; shift 2 ;;
+    *) echo "未知参数: $1" >&2; exit 1 ;;
+  esac
+done
 
 if [ $# -eq 0 ]; then
-  echo "用法: generate-steps.sh [--append] \"步骤1名称\" \"步骤2名称\" ..." >&2
+  echo "用法: generate-steps.sh [--input-type keyword|asin|file|default] \"步骤1名称\" ..." >&2
+  echo "       generate-steps.sh --append \"新步骤名称\" ..." >&2
   exit 1
 fi
 
@@ -162,6 +167,29 @@ code = code.replace(pattern, '\$1' + newSteps + '\$3');
 fs.writeFileSync('${MAIN_TSX}', code);
 console.log('✓ ${MAIN_TSX} 已更新 ${STEP_COUNT} 个步骤渲染');
 " 2>&1
+
+# ── 根据输入类型更新 renderHistoryItem ──
+if [ "$APPEND_MODE" = false ] && [ -n "$INPUT_TYPE" ]; then
+  case "$INPUT_TYPE" in
+    keyword) LABEL_FIELD="keywords" ;;
+    asin)    LABEL_FIELD="asins" ;;
+    file)    LABEL_FIELD="fileName" ;;
+    *)       LABEL_FIELD="text" ;;
+  esac
+
+  node -e "
+const fs = require('fs');
+let code = fs.readFileSync('${MAIN_TSX}', 'utf8');
+const pattern = /label:\s*inp\?\\.\w+\s*\?\?\s*'—'/;
+if (pattern.test(code)) {
+  code = code.replace(pattern, \"label: inp?.${LABEL_FIELD} ?? '—'\");
+  fs.writeFileSync('${MAIN_TSX}', code);
+  console.log('✓ renderHistoryItem 已更新为 inp?.${LABEL_FIELD}');
+} else {
+  console.log('⚠ 未找到 renderHistoryItem label 模式，跳过');
+}
+" 2>&1
+fi
 
 # ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
 echo "$STEP_COUNT" > .minus/total-steps
