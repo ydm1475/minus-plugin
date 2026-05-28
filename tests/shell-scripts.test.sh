@@ -1104,6 +1104,50 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
   fi
 )
 
+echo "═══ auth fallback prohibition ═══"
+
+# Test: SKILL.md must prohibit manual credential writes when MCP tool unavailable
+(
+  if grep -q "禁止.*手动写入.*credentials" "$SKILL_MD"; then
+    pass "SKILL.md: prohibits manual credentials.json write on auth tool failure"
+  else
+    fail "SKILL.md: prohibits manual credentials.json write on auth tool failure" "not found"
+  fi
+)
+
+echo "═══ MCP Server dependencies ═══"
+
+MCP_PKG="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/package.json"
+
+# Test: zod must be declared as a direct dependency (not just a transitive dep)
+(
+  if grep -q '"zod"' "$MCP_PKG"; then
+    pass "MCP package.json: zod is a declared dependency"
+  else
+    fail "MCP package.json: zod is a declared dependency" "missing — will crash after plugin cache copy"
+  fi
+)
+
+echo "═══ install.sh ═══"
+
+INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
+
+# Test: install.sh exists and contains usage instructions
+(
+  if [ -f "$INSTALL_SH" ]; then
+    pass "install.sh: exists"
+  else
+    fail "install.sh: exists" "not found"
+  fi
+)
+(
+  if grep -q "/minus" "$INSTALL_SH" && grep -q "重启" "$INSTALL_SH"; then
+    pass "install.sh: outputs usage instructions"
+  else
+    fail "install.sh: outputs usage instructions" "missing usage instructions in output"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════
