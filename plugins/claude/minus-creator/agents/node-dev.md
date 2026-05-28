@@ -55,13 +55,14 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
 
 「下一个问题：拿到这些数据之后，怎么处理？」
 
-「比如：直接透传原始数据？做聚合排序？用大模型做分析总结？」
+「比如：直接透传原始数据？做聚合排序？按某个字段筛选/排序？」
 
 ### ② 处理逻辑
 
 处理逻辑统一用确定性代码：
 - 格式化、排序、过滤、聚合 → 纯代码
 - 分析摘要、趋势解读 → 根据数据结构生成模板拼接代码
+⛔ 禁止提供"大模型生成"选项——SDK 不支持 LLM 调用
 
 Creator 确认后，执行：
 ```bash
@@ -200,31 +201,11 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 ### 后端代码（pipeline.py）
 
-在 `step_N` 方法中按三层生成：
-
-```python
-async def step_N(self, ctx: PipelineContext) -> StepOutcome:
-    # 第一层：数据获取（维度①意图）
-    data = await ctx.sif.request(...)
-
-    # 第二层：数据处理（维度②意图）
-    processed = ...  # 排序/过滤/聚合/LLM
-
-    # 第三层：输出（维度③+④意图）
-    return StepOutcome.complete(payload=processed)    # confirm_mode=auto
-    # 或
-    return StepOutcome.input_required(payload=processed)  # confirm_mode=interactive
-```
+⛔ **写后端代码前，必须先读项目 CLAUDE.md 中列出的后端 SDK 开发手册**（如 THIRD_PARTY_SKILL_GUIDE.md），确认 `PipelineContext` 各字段的行为、`StepOutcome` 的用法、跨步骤数据传递机制。**禁止凭记忆写。**
 
 ### 前端代码（frontend/src/main.tsx）
 
-根据维度③（展示类型）和维度④（是否交互）选择组件。**具体组件的 props 和用法，查项目 CLAUDE.md 里列出的 SDK 开发手册**，不要凭记忆写。
-
-选择原则：
-- **纯展示表格**（不需要交互）→ 用 display widget。⛔ 禁止用 interactive widget 做纯展示——它在 auto-complete 步骤会显示空
-- **需要用户勾选确认的表格** → 用 interactive widget
-- **最后一步的最终输出**（摘要、下载文件等）→ 在 FlowApp 的 renderCompletion prop 中使用 CompletionPanel，后端 payload 返回对应字段（filename/fileId/sizeBytes），前端从 stepHistory 读取。⛔ 禁止手写 inline HTML/JSX 实现摘要或下载，⛔ 禁止在 StepConfig.render 里放 CompletionPanel
-- **非表格展示**（摘要/卡片等，非最后一步）→ 用普通 `render` 函数
+⛔ **写前端代码前，必须先读项目 CLAUDE.md 中列出的前端 SDK 开发手册**（如 frontend-guide.md），根据当前步骤的 `CONFIRM_MODE`（auto/interactive）和展示需求，从文档中查找对应的组件用法和示例代码。**禁止凭记忆猜测组件选择、prop 名称或回调签名。**
 
 ### 代码生成后
 

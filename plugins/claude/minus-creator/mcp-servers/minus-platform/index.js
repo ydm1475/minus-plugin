@@ -81,17 +81,20 @@ async function apiRequest(method, endpoint, { body, needsAuth = true, _retried =
     headers["Cookie"] = `MINUS_AI_SID=${creds.session_id}`;
   }
 
-  const options = { method, headers };
+  const options = { method, headers, signal: AbortSignal.timeout(15_000) };
   if (body) options.body = JSON.stringify(body);
 
   let response;
   try {
     response = await fetch(url, options);
   } catch (err) {
+    const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
     return {
       error: true,
-      code: "NETWORK_ERROR",
-      message: `网络连接失败：${err.message}`,
+      code: isTimeout ? "TIMEOUT" : "NETWORK_ERROR",
+      message: isTimeout
+        ? `请求超时（15s）：${endpoint}`
+        : `网络连接失败：${err.message}`,
     };
   }
 
