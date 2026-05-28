@@ -77,7 +77,7 @@ cat << 'GUIDE'
   「 · 步骤 2：...」
   「」
   「Skill 运行结束后，结果页底部会有一段摘要来总结分析结论。」
-  「你想怎么定义这段摘要？由大模型自动生成还是你定义模板？要重点突出哪些数据？」
+  「你想怎么定义这段摘要？要重点突出哪些数据？」
 
 ② 下载内容
   Creator 确认摘要后，问：
@@ -89,6 +89,12 @@ cat << 'GUIDE'
   「HTML 报告里你想呈现哪些信息？比如哪些数据表格、图表、分析结论……」
 
 注意：Excel 默认用 .xlsx 格式（openpyxl），不要用 CSV，除非 Creator 明确指定 CSV。
+
+文件名命名规范：{Skill名称}-{country}-{主要输入}-{时间戳}.{后缀}
+  示例：竞品分析-US-B01NBNDC1T-2026-05-27 11点09分.xlsx
+  时间戳格式固定为 datetime.now().strftime("%Y-%m-%d %H点%M分")
+  Skill 名称从 skill.json 的 name 字段取，不要硬编码。
+  主要输入根据业务逻辑决定（如 ASIN、关键词），由 Creator 确认的 entry_params 中的关键字段。
 
 两项确认完成后：
   1. 生成结果页面代码（查 SDK 文档了解 CompletionPanel 用法）

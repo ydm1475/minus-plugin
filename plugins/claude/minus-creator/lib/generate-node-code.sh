@@ -67,18 +67,16 @@ FRONTEND_TEMPLATE=interactive
 TEMPLATE
 elif [ "$CONFIRM_MODE" = "auto" ]; then
   cat << 'TEMPLATE'
-FRONTEND_TEMPLATE=readonly
-# 前端使用 readonly 模式（无 interactiveProps）：
+FRONTEND_TEMPLATE=display
+# 纯展示步骤（auto-complete）使用普通 render 函数：
 #
-# defineWidgetStep<SelectableTableProps, SelectableRow[]>({
-#   widget: SelectableTableWidget,
-#   props: ({ data }) => ({
-#     dataSource: (data.xxx as SelectableRow[]) ?? [],
-#     columns: [...],
-#   }),
-#   confirmedKey: 'xxx',
-# }),
+# {
+#   render: ({ data }) => (
+#     <组件 props={...} />
+#   ),
+# },
 #
+# 查 SDK 文档了解可用的 display widget。
 # 后端使用 StepOutcome.complete(payload={...})
 TEMPLATE
 fi
