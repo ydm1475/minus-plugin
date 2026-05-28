@@ -110,7 +110,9 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
 
-**scaffold 成功后自动生成基础信息：** 根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
+**scaffold 成功后：**
+原样输出："项目创建成功！现在自动生成描述和适用场景。"
+然后根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 
