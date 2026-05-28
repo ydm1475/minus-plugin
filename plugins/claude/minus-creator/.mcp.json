@@ -8,6 +8,6 @@
   },
   "sif-api-mcp": {
     "command": "npx",
-    "args": ["-y", "mcp-remote", "https://prism.sif.com/mcp-server/api-docs", "--header", "Authorization: Bearer sifapi260514mbcpfxgdhe7nentk"]
+    "args": ["-y", "mcp-remote", "https://prism.sif.com/mcp-server/api-docs"]
   }
 }
