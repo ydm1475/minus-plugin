@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MARKETPLACE_DIR="$(dirname "$SCRIPT_DIR")"
+MARKETPLACE_DIR="$SCRIPT_DIR/plugins/claude"
 PLUGIN_NAME="minus-creator"
 MARKETPLACE_NAME="minus-plugin"
 
