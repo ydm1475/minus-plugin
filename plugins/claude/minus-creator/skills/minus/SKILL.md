@@ -59,6 +59,7 @@ Step B：等 Creator 提供 API Key
 Step C：用 `mcp__minus-platform__auth_dev_session` 验证 API Key
 Step D：成功 → 完成认证
 失败 → 提示"API Key 无效，请检查后重新输入"
+⛔ 禁止：如果 auth_dev_session 工具不可用或调用异常，禁止手动写入 credentials.json 或用任何方式绕过验证。必须提示"认证服务暂时不可用，请稍后用 /minus 重试"并终止流程。
 
 仅使用 minus-platform MCP server 的 auth_dev_session 工具登录，不要使用其他任何 MCP server 的登录/认证功能。
 
@@ -114,7 +115,7 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 如果 `create-skill` 命令不可用，提示 Creator 先安装：
 
 ```bash
-cd ~/minus-platform-develop/minus-platform/packages/create-skill && pnpm link --global
+npm install -g @minus-ai/create-skill@beta
 ```
 
 **如果选"打开已有"：引导新开对话并打开项目文件夹**
