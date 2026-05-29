@@ -1456,6 +1456,93 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 )
 
 # ══════════════════════════════════════════════════════
+echo ""
+echo "═══ uninstall.sh ═══"
+# ══════════════════════════════════════════════════════
+
+UNINSTALL_SH="$LIB_DIR/uninstall.sh"
+
+# Test: uninstall.sh exists
+(
+  if [ -f "$UNINSTALL_SH" ]; then
+    pass "uninstall.sh: exists"
+  else
+    fail "uninstall.sh: exists" "not found"
+  fi
+)
+
+# Test: data 目录用 glob 清理（覆盖 minus-creator-inline 与 minus-creator-minus-plugin 两种命名）
+(
+  if grep -q 'plugins/data/minus-creator\*' "$UNINSTALL_SH" \
+     && ! grep -q 'plugins/data/minus-creator-inline"' "$UNINSTALL_SH"; then
+    pass "uninstall.sh: data 目录 glob 清理（不再写死 -inline）"
+  else
+    fail "uninstall.sh: data glob" "仍写死 minus-creator-inline 或未用 glob"
+  fi
+)
+
+# Test: 清理散落副本 / 解压目录（~/.claude/claude/minus-creator、minus-installer、解压目录）
+(
+  if grep -q '.claude/claude/minus-creator' "$UNINSTALL_SH" \
+     && grep -q '.claude/minus-installer' "$UNINSTALL_SH" \
+     && grep -q '.minus-creator-plugin' "$UNINSTALL_SH"; then
+    pass "uninstall.sh: 清理散落副本/解压目录"
+  else
+    fail "uninstall.sh: 散落副本清理" "missing claude/minus-creator / minus-installer / .minus-creator-plugin"
+  fi
+)
+
+# Test: 不碰对话历史和登录凭证（projects/ 与 ~/.minus 不在删除范围）
+# 只看行首的实际 rm 命令，排除末尾 echo 帮助文字里的 "rm -rf ~/.minus" 示例。
+# 注意 .minus-creator-plugin 是合法清理项，故 .minus 后必须紧跟 " / 或行尾才算误删凭证。
+(
+  if ! grep -Eq '^[[:space:]]*rm -rf.*\.claude/projects' "$UNINSTALL_SH" \
+     && ! grep -Eq '^[[:space:]]*rm -rf.*\.minus("|/|$)' "$UNINSTALL_SH"; then
+    pass "uninstall.sh: 不删对话历史 / 不删 ~/.minus 凭证"
+  else
+    fail "uninstall.sh: 误删用户数据" "脚本里出现了删除 projects/ 或 ~/.minus 的命令"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ pack.sh ═══"
+# ══════════════════════════════════════════════════════
+
+PACK_SH="$LIB_DIR/pack.sh"
+
+# Test: pack.sh exists
+(
+  if [ -f "$PACK_SH" ]; then
+    pass "pack.sh: exists"
+  else
+    fail "pack.sh: exists" "not found"
+  fi
+)
+
+# Test: 打包前重建 bundle，且用 >=18 node（老 node 跑不了 ESM build.mjs）
+(
+  if grep -q 'build.mjs' "$PACK_SH" \
+     && grep -q 'VOLTA_HOME' "$PACK_SH" \
+     && grep -q '\-lt 18' "$PACK_SH"; then
+    pass "pack.sh: 重建 bundle 并解析 >=18 node"
+  else
+    fail "pack.sh: 重建 bundle + node>=18" "missing build.mjs / Volta 回退 / node 版本判断"
+  fi
+)
+
+# Test: 排除 node_modules，且打包后校验 dist 进包、node_modules 没进包
+(
+  if grep -q 'node_modules' "$PACK_SH" \
+     && grep -q 'dist/minus-platform.cjs' "$PACK_SH" \
+     && grep -q 'grep -c node_modules' "$PACK_SH"; then
+    pass "pack.sh: 排除 node_modules 并校验产物"
+  else
+    fail "pack.sh: 排除 node_modules + 校验" "missing node_modules 排除或打包后校验"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════
 

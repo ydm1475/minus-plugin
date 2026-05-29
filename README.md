@@ -86,3 +86,16 @@ bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/bin/minu
 # 改完源码后同步到 Claude Code 安装目录
 bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/lib/sync-plugin.sh
 ```
+
+## 打包（可分发 zip）
+
+```bash
+# 重建 MCP bundle 并打包成可分发 zip（默认输出到 ~/Desktop）
+bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/lib/pack.sh
+
+# 指定输出目录
+bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/lib/pack.sh /path/to/out
+```
+
+产物 `minus-creator-v{版本}.zip` 含 marketplace 根目录（`.claude-plugin/marketplace.json` + `minus-creator/`），
+已内联 MCP 依赖、排除 `node_modules`。接收方解压后：`claude plugin marketplace add ./claude && claude plugin install minus-creator@minus-plugin`。
