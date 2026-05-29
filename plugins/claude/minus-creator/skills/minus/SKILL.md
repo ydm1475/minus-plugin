@@ -96,13 +96,24 @@ Plugin: 你有这些本地项目：
 
 **Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
 
+⚠️ **不要裸调 `create-skill`。** 它带 `#!/usr/bin/env node`，裸调会落到 PATH 上的老 node
+（实测有 v12/v13），崩在 `??` 语法。必须先用 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
+把它的目录前置到 PATH 再调用——这样 create-skill 的 shebang 就会拿到够新的 node。
+
 ```bash
-cd ~/minus && create-skill "项目名称" --non-interactive
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/resolve-node.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+NODE_BIN=$(sh "$PLUGIN_ROOT/lib/resolve-node.sh")
+if [ -z "$NODE_BIN" ]; then
+  echo "NO_GOOD_NODE"
+else
+  cd ~/minus && PATH="$(dirname "$NODE_BIN"):$PATH" create-skill "项目名称" --non-interactive
+fi
 ```
 
-⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
-⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
-✅ 必须：通过 Bash tool 执行 `create-skill` CLI 命令
+- 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥18，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
+- ⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
+- ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
+- ✅ 必须：通过 Bash tool 执行上面这段（经 resolve-node.sh 解析 node）
 
 描述由 agent 根据项目名称自动生成，输入类型默认为 asin（页面自带 ASIN 输入框 + 国家选择器）。结构设计第一步确认输入类型后，如果 Creator 要的不是 ASIN，再切换。
 

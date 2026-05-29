@@ -1306,6 +1306,16 @@ echo "═══ auth fallback prohibition ═══"
   fi
 )
 
+# Test: create-skill 经 resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
+(
+  if grep -q 'resolve-node.sh' "$SKILL_MD" \
+     && grep -q 'PATH="$(dirname "$NODE_BIN"):$PATH" create-skill' "$SKILL_MD"; then
+    pass "SKILL.md: create-skill 经 resolve-node.sh 解析 node 后调用"
+  else
+    fail "SKILL.md: create-skill 解析 node" "still bare create-skill or missing resolve-node.sh"
+  fi
+)
+
 echo "═══ MCP Server dependencies ═══"
 
 MCP_PKG="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/package.json"
@@ -1420,6 +1430,31 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
     pass "launch.sh: 无可用 node 时给「建议 Node 24」人话报错"
   else
     fail "launch.sh: 无 node 报错" "out: $OUT"
+  fi
+)
+
+echo "═══ resolve-node.sh ═══"
+
+RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
+
+# Test: resolve-node.sh 存在且与 launch.sh 同序探测（>=18，含 Volta image）
+(
+  if [ -f "$RESOLVE_NODE" ] \
+     && grep -q 'MIN_MAJOR=18' "$RESOLVE_NODE" \
+     && grep -q '.volta/tools/image/node' "$RESOLVE_NODE"; then
+    pass "resolve-node.sh: 存在且探测 >=18 node（含 Volta image）"
+  else
+    fail "resolve-node.sh: 探测逻辑" "missing file/MIN_MAJOR/volta image candidate"
+  fi
+)
+
+# Test: 无可用 node 时 exit 1 且无输出（调用方据此报错）
+(
+  if OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-rn-$$ /bin/sh "$RESOLVE_NODE" 2>&1); then RC=0; else RC=$?; fi
+  if [ "$RC" -ne 0 ] && [ -z "$OUT" ]; then
+    pass "resolve-node.sh: 无可用 node 时 exit 非 0 且无输出"
+  else
+    fail "resolve-node.sh: 无 node 行为" "rc=$RC out=[$OUT]"
   fi
 )
 
