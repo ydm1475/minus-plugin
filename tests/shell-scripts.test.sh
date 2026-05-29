@@ -1295,6 +1295,17 @@ echo "═══ auth fallback prohibition ═══"
   fi
 )
 
+# Test: 登录检查走 auth_status 工具，不再用 ! 钩子裸读 credentials.json
+# （裸 cat 凭证文件会撞 Auto Mode 敏感分类器被拦、且依赖 PATH 上有 node）
+(
+  if grep -q 'mcp__minus-platform__auth_status' "$SKILL_MD" \
+     && ! grep -q '!`cat ~/.minus/credentials.json' "$SKILL_MD"; then
+    pass "SKILL.md: 登录检查走 auth_status，无裸 cat credentials.json 钩子"
+  else
+    fail "SKILL.md: 登录检查走 auth_status" "still has !cat credentials hook or missing auth_status check"
+  fi
+)
+
 echo "═══ MCP Server dependencies ═══"
 
 MCP_PKG="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/package.json"

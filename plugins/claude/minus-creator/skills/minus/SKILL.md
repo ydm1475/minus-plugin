@@ -38,10 +38,16 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate
 客户端类型：
 !`PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-client.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname); bash "$PLUGIN_ROOT/lib/detect-client.sh" 2>/dev/null || echo "cli"`
 
-登录状态快速检查：
-!`cat ~/.minus/credentials.json 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log('LOGGED_IN user='+d.user_id)}catch{console.log('NOT_LOGGED_IN')}" 2>/dev/null || echo "NOT_LOGGED_IN"`
+登录状态：进入「行为规则」后用 `mcp__minus-platform__auth_status` 工具检查（不再用 shell 读凭证文件——裸读 `~/.minus/credentials.json` 会撞 Auto Mode 敏感分类器被拦，且依赖 PATH 上有 node）。
 
 ## 行为规则
+
+**第一步：检查登录态** —— 调用 `mcp__minus-platform__auth_status`：
+- 返回已登录 → 按下面 2 / 3 分支处理
+- 返回未登录（含 NOT_LOGGED_IN / 未登录）→ 走下面「1. 未登录」分支
+- 工具不可用 / 调用异常 → 原样输出"Minus 服务未就绪，请重启 Claude Code 会话后再用 /minus"并终止流程
+
+> auth_status 是只读状态查询，是判定登录态的手段，不属于 Step A 禁止的"登录动作"，不受其约束。
 
 根据检测结果，按以下优先级处理：
 
@@ -53,7 +59,7 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate
 
 Step A：原样输出："欢迎使用 Minus Creator Plugin！请输入你的开发者 API Key。"
 原样输出："（在 Minus 开发者平台的「设置 → API Key」页面获取）"
-⛔ 禁止：在 Creator 回答之前调用任何 auth 相关的 MCP tool
+⛔ 禁止：在 Creator 回答之前调用 `auth_dev_session` 等任何登录/认证动作类 MCP tool（只读的 auth_status 不在此列）
 ⛔ 禁止：自动使用 userEmail 或系统上下文中的任何信息
 Step B：等 Creator 提供 API Key
 Step C：用 `mcp__minus-platform__auth_dev_session` 验证 API Key
@@ -137,8 +143,8 @@ Plugin: 请按以下步骤打开项目：
 项目已创建！接下来请：
 
 1. 新开一个对话
-2. 选择 `~/minus/{项目名称}/` 文件夹作为工作目录
-3. 输入 `/minus` 进入开发
+2. **选择 `~/minus/{项目名称}` 文件夹作为工作目录**
+3. **输入 `/minus` 进入开发**
 
 用命令行的话直接运行：
 
@@ -191,6 +197,7 @@ cd ~/minus/{项目名称} && claude
       ⚠️ **`runtimeExecutable` 必须写 pnpm 的绝对路径，不能写裸 `"pnpm"`。** Claude_Preview 是被客户端 spawn 的非交互进程，拿到的是 launchd PATH（GUI 启动不含 `~/.volta/bin`），裸 `"pnpm"` 会落到系统老 Node 上导致 Preview 崩。优先用 Volta 管理的 pnpm shim 绝对路径。
 
       用下面这段生成（已存在则跳过）：
+
       ```bash
       mkdir -p .claude
       if [ ! -f .claude/launch.json ]; then
@@ -219,6 +226,7 @@ cd ~/minus/{项目名称} && claude
       EOF
       fi
       ```
+
    4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
    5. 告诉 Creator 预览地址
 
@@ -239,10 +247,10 @@ cd ~/minus/{项目名称} && claude
       `detect-preview-port.sh` 会自动等待端口就绪（最多 15s）。**检测成功后脚本会自动打开预览**（CLI 打开浏览器，Desktop 只输出 URL），无需额外调用。
    4. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
 
-5. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
+4. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
-6. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
+5. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重启前后端 dev server
    - 重新检测预览端口（步骤 3 分支 B）
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
@@ -474,11 +482,13 @@ Plugin 引导 Creator 按顺序开发每个 pipeline 节点。
 **所有 pipeline 节点开发完成后**，执行 `generate-result-design.sh` 进入结果呈现设计。
 
 **调用方式：**
+
 ```bash
 bash "$PLUGIN_ROOT/lib/generate-result-design.sh"
 ```
 
 脚本会：
+
 1. 门禁检查——所有步骤四维度必须全部完成，否则拒绝执行
 2. 从 pipeline.py 提取各步骤的 payload 数据全景
 3. 输出两维度引导模板（结果摘要 + 下载内容）
