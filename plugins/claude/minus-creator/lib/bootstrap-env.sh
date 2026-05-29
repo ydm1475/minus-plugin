@@ -7,8 +7,8 @@
 # （如 macOS 上 localhost IPv6 解析 + Node18 autoSelectFamily=false 引发的代理 504）。
 #
 # 职责（缺什么补什么，已就绪则跳过）：
-#   1. 保障 Node>=24 运行时：缺失或版本过旧都通过 Volta 安装/选中 node@24（硬下限）
-#   2. pnpm —— 不走 corepack，pin 死版本（优先 Volta，否则 npm 全局装指定版本）
+#   1. 保障 Node 运行时：缺失或版本过旧都通过 Volta 安装/选中 node@NODE_TARGET（版本见 toolchain.sh）
+#   2. pnpm —— 不走 corepack，pin 死版本，统一经 Volta 安装（免 sudo，不碰 /usr/local）
 #   3. uv —— Unix 用官方 curl，Windows 用 PowerShell installer
 #   4. 安装项目依赖（pnpm install / uv venv + uv pip install -e .）
 #
@@ -38,6 +38,20 @@ finish_fail() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# ── 工具链版本：从单源 toolchain.sh 读取（见该文件注释）──────────
+# 必须在用到 NODE_FLOOR/PNPM_PIN 之前 source。被 install.sh source 时也会带上这些值。
+TOOLCHAIN_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/toolchain.sh"
+# shellcheck source=/dev/null
+[ -f "$TOOLCHAIN_SH" ] && . "$TOOLCHAIN_SH"
+# 兜底默认：清单缺失也不致命（保持与清单一致的安全值）。
+NODE_FLOOR="${NODE_FLOOR:-24}"
+NODE_TARGET="${NODE_TARGET:-$NODE_FLOOR}"
+PNPM_PIN="${PNPM_TARGET:-11.4.0}"        # 全脚本沿用 PNPM_PIN 这个名字
+PYTHON_TARGET="${PYTHON_TARGET:-3.12}"
+
+# 最近一次安装尝试的真实错误（供 finish_fail 透出，不再用 || true 吞掉）。
+LAST_ERR=""
+
 # ── OS 探测（复用 project-detector.sh 的判断口径，可被 BOOTSTRAP_OS 覆盖）──
 detect_os() {
   if [ -n "${BOOTSTRAP_OS:-}" ]; then
@@ -65,7 +79,7 @@ win_local_bin() {
 # IPv6 ::1，而本地后端只绑 IPv4 → dev 代理连 ::1 失败秒回 504。只放行 24+ 从根上避开
 # 这类与 Node 版本耦合的诡异 bug。用 Volta 而非 fnm：Volta 的 shim 是 PATH 上的真二进制，
 # 非交互式 spawn（含 GUI 客户端起 dev）也能被接管，不像 fnm 依赖 shell hook。
-NODE_FLOOR=24
+# NODE_FLOOR / NODE_TARGET 来自 toolchain.sh（已在文件顶部 source）。
 
 # 当前 node/npm 是否就绪且主版本 >= NODE_FLOOR
 node_major_ok() {
@@ -75,19 +89,38 @@ node_major_ok() {
   [ -n "$major" ] && [ "$major" -ge "$NODE_FLOOR" ] 2>/dev/null
 }
 
-# 通过 Volta 安装并选中 node@NODE_FLOOR（mac/linux）。成功 0 / 失败 1。
-provision_node_via_volta() {
-  if ! have volta; then
-    have curl || return 1
-    say "安装 Volta（Node 版本管理器，单次安装全局共享）……"
-    curl -fsSL https://get.volta.sh | bash -s -- --skip-setup >/dev/null 2>&1 || true
-  fi
+# 把 ~/.volta/bin prepend 进 PATH 并刷新命令缓存（幂等，无网络）。
+# 专治「Volta 已装但不在当前 PATH」——非交互 spawn / 系统 Node 达标分支下，
+# 之前没人 export 过这段 PATH，已装的 Volta shim 就检测不到。返回 volta 是否可用。
+volta_on_path() {
   export VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
-  export PATH="$VOLTA_HOME/bin:$PATH"
+  case ":$PATH:" in
+    *":$VOLTA_HOME/bin:"*) ;;
+    *) export PATH="$VOLTA_HOME/bin:$PATH" ;;
+  esac
   hash -r 2>/dev/null || true
-  have volta || return 1
-  say "通过 Volta 安装并选中 Node ${NODE_FLOOR}（可能需要几分钟）……"
-  volta install "node@${NODE_FLOOR}" >/dev/null 2>&1 || true
+  have volta
+}
+
+# 确保 Volta 可用：先看是否已装（仅 PATH，无网络）；没有才在 Unix 上 curl 安装。
+# windows / 无 curl 直接 return 1。返回 volta 是否最终可用。
+ensure_volta() {
+  volta_on_path && return 0
+  [ "$OS" = "windows" ] && return 1
+  have curl || return 1
+  say "安装 Volta（Node 版本管理器，单次安装全局共享）……"
+  curl -fsSL https://get.volta.sh | bash -s -- --skip-setup >/dev/null 2>&1 || true
+  volta_on_path
+}
+
+# 通过 Volta 安装并选中 node@NODE_TARGET（mac/linux）。成功 0 / 失败 1。
+provision_node_via_volta() {
+  if ! ensure_volta; then
+    LAST_ERR="无法获取 Volta（未安装且自动安装失败；需联网从 https://get.volta.sh 下载）。"
+    return 1
+  fi
+  say "通过 Volta 安装并选中 Node ${NODE_TARGET}（可能需要几分钟）……"
+  LAST_ERR="$(volta install "node@${NODE_TARGET}" 2>&1)"
   hash -r 2>/dev/null || true
   node_major_ok
 }
@@ -118,7 +151,7 @@ ensure_node() {
         "winget install -e --id Volta.Volta --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
       hash -r 2>/dev/null || true
       if have volta; then
-        volta install "node@${NODE_FLOOR}" >/dev/null 2>&1 || true
+        LAST_ERR="$(volta install "node@${NODE_TARGET}" 2>&1)"
         hash -r 2>/dev/null || true
         if node_major_ok; then
           say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
@@ -137,55 +170,50 @@ ensure_node() {
   fi
 
   if have node; then
-    finish_fail NODE_TOO_OLD "当前 Node 低于 v${NODE_FLOOR} 且自动升级失败。请安装 Node v${NODE_FLOOR}+（推荐 'curl https://get.volta.sh | bash' 后 'volta install node@${NODE_FLOOR}'）后重跑 /minus。"
+    finish_fail NODE_TOO_OLD "当前 Node 低于 v${NODE_FLOOR} 且自动升级失败。真实错误：${LAST_ERR:-（无输出）}。请安装 Node v${NODE_TARGET}（推荐 'curl https://get.volta.sh | bash' 后 'volta install node@${NODE_TARGET}'）后重跑 /minus。"
   fi
-  finish_fail NO_NODE "Node.js 自动安装失败。请手动安装 Node v${NODE_FLOOR}+（推荐 https://volta.sh）后重跑 /minus。"
+  finish_fail NO_NODE "Node.js 自动安装失败。真实错误：${LAST_ERR:-（无输出）}。请手动安装 Node v${NODE_TARGET}（推荐 https://volta.sh）后重跑 /minus。"
 }
 
 # ════════════════════════════════════════════
 # pnpm（不走 corepack，pin 死版本）
 # ════════════════════════════════════════════
-# 不用 @latest：pnpm 的次版本会引入破坏性策略变更（如 onlyBuiltDependencies 从
-# package.json 迁到 pnpm-workspace.yaml、忽略构建脚本时硬报错 ERR_PNPM_IGNORED_BUILDS），
-# 浮动版本会让客户机器随时间漂移到未验证的 pnpm 上踩雷。统一 pin 到验证过的版本。
-# 优先用 Volta 装（与 Node 同源管理，shim 在 PATH 上、非交互 spawn 也能接管）；
-# 无 Volta 才退回 npm 全局装指定版本。
-PNPM_PIN=11.4.0
+# 版本来自 toolchain.sh（PNPM_PIN ← PNPM_TARGET，已在文件顶部赋值）。
+# 统一经 Volta 安装：Volta 装到 ~/.volta（用户可写、免 sudo），不碰 /usr/local，
+# 从根上避开「npm i -g 写系统目录」的 EACCES。VOLTA_FEATURE_PNPM=1 兼容旧版 Volta
+# （pnpm 支持曾是实验特性需此 flag；新版无需，加了无害）。
+# 不再保留 npm -g 兜底：它是唯一会写 /usr/local 触发 EACCES 的来源，已砍。
 
 ensure_pnpm() {
-  # pnpm 存在、能跑、且就是 pin 的版本 → 就绪
-  if have pnpm && pnpm --version >/dev/null 2>&1; then
-    local cur
-    cur=$(pnpm --version 2>/dev/null)
-    if [ "$cur" = "$PNPM_PIN" ]; then
-      say "pnpm 已就绪（${cur}）。"
-      return 0
-    fi
-    say "检测到 pnpm ${cur}，切换到 pin 版本 ${PNPM_PIN}……"
+  # 判定依据始终是「pnpm@pin 能不能跑」，而不是「某条安装命令退没退出 0」。
+  pnpm_ok() { have pnpm && [ "$(pnpm --version 2>/dev/null)" = "$PNPM_PIN" ]; }
+
+  # 暴露可能已装但不在 PATH 的 Volta（仅 PATH，无网络）；再看现状是否已达标。
+  volta_on_path || true
+  if pnpm_ok; then
+    say "pnpm 已就绪（$(pnpm --version 2>/dev/null)）。"
+    return 0
+  fi
+
+  if have pnpm; then
+    say "检测到 pnpm $(pnpm --version 2>/dev/null)，切换到 pin 版本 ${PNPM_PIN}（经 Volta，免 sudo）……"
   else
-    say "安装 pnpm@${PNPM_PIN}（不走 corepack）……"
+    say "安装 pnpm@${PNPM_PIN}（经 Volta，免 sudo）……"
   fi
 
-  # 优先 Volta（已由 ensure_node 装好/选好 Node 时通常已就绪）
-  if have volta; then
-    if volta install "pnpm@${PNPM_PIN}" >/dev/null 2>&1; then
-      hash -r 2>/dev/null || true
-      if have pnpm && [ "$(pnpm --version 2>/dev/null)" = "$PNPM_PIN" ]; then
-        say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，Volta 管理）。"
-        return 0
-      fi
-    fi
-  fi
-
-  # 退回 npm 全局装指定版本
-  if npm i -g "pnpm@${PNPM_PIN}" >/dev/null 2>&1; then
+  if ensure_volta; then
+    LAST_ERR="$(VOLTA_FEATURE_PNPM=1 volta install "pnpm@${PNPM_PIN}" 2>&1)"
     hash -r 2>/dev/null || true
-    if have pnpm; then
-      say "pnpm 安装完成（$(pnpm --version 2>/dev/null)）。"
+    if pnpm_ok; then
+      say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，Volta 管理）。"
       return 0
     fi
+  else
+    LAST_ERR="无法获取 Volta（未安装且自动安装失败；需联网从 https://get.volta.sh 下载）。"
   fi
-  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。请手动运行：npm i -g pnpm@${PNPM_PIN}"
+
+  # 真实错误透出，不再吞掉——这样下次失败能一眼看出是网络、Volta 还是版本问题。
+  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。真实错误：${LAST_ERR:-（无输出）}。手动可试：curl https://get.volta.sh | bash 后 VOLTA_FEATURE_PNPM=1 volta install pnpm@${PNPM_PIN}"
 }
 
 # ════════════════════════════════════════════

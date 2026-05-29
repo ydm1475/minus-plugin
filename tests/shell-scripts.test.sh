@@ -11,19 +11,41 @@ LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/lib"
 # ── Test Framework ──
 
 RESULTS_FILE=$(mktemp)
-echo "0 0" > "$RESULTS_FILE"
+echo "0 0 0" > "$RESULTS_FILE"
 
 pass() {
   echo "  ✓ $1"
-  read P F < "$RESULTS_FILE"
-  echo "$((P + 1)) $F" > "$RESULTS_FILE"
+  read P F S < "$RESULTS_FILE"
+  echo "$((P + 1)) $F $S" > "$RESULTS_FILE"
 }
 
 fail() {
   echo "  ✗ $1"
   echo "    $2"
-  read P F < "$RESULTS_FILE"
-  echo "$P $((F + 1))" > "$RESULTS_FILE"
+  read P F S < "$RESULTS_FILE"
+  echo "$P $((F + 1)) $S" > "$RESULTS_FILE"
+}
+
+# 跳过：测试前提在本机无法成立（如「无可用 node」却本机系统路径确有新 node）。
+# 不计为失败，但单独计数透出，避免悄悄掩盖。
+skip() {
+  echo "  ○ $1 (skipped: $2)"
+  read P F S < "$RESULTS_FILE"
+  echo "$P $F $((S + 1))" > "$RESULTS_FILE"
+}
+
+# 本机在 resolve-node.sh/launch.sh 探测的「绝对系统路径」上是否已有 >=18 node。
+# 这些路径（/usr/local/bin、/opt/homebrew/bin、~/.volta、~/.nvm）绕过 PATH，
+# 故「PATH=/usr/bin:/bin 模拟无 node」在这类机器上不成立——对应测试应 skip 而非 fail。
+host_has_abs_modern_node() {
+  for c in /usr/local/bin/node /opt/homebrew/bin/node \
+           "$HOME"/.volta/tools/image/node/*/bin/node "$HOME"/.volta/bin/node \
+           "$HOME"/.nvm/versions/node/*/bin/node; do
+    [ -x "$c" ] || continue
+    m=$("$c" -p "process.versions.node.split('.')[0]" 2>/dev/null) || continue
+    [ -n "$m" ] && [ "$m" -ge 18 ] 2>/dev/null && return 0
+  done
+  return 1
 }
 
 assert_contains() {
@@ -1063,6 +1085,17 @@ write_stub() {
   fi
 )
 
+# Test: 版本单源——toolchain.sh 存在且 bootstrap source 了它（不在 bootstrap 内联版本号）
+(
+  TC="$(dirname "$BS")/toolchain.sh"
+  if [ -f "$TC" ] && grep -q 'NODE_TARGET=' "$TC" && grep -q 'NODE_FLOOR=' "$TC" \
+     && grep -q 'toolchain.sh' "$BS" && grep -qE '\.[[:space:]]+"\$TOOLCHAIN_SH"' "$BS"; then
+    pass "bootstrap-env: 版本单源于 toolchain.sh 并被 source"
+  else
+    fail "bootstrap-env: 版本单源 toolchain.sh" "toolchain.sh 缺失/缺字段 或 bootstrap 未 source"
+  fi
+)
+
 # Test: Node < 24 且无法装 Volta（curl 失败）→ 升级失败 NODE_TOO_OLD，绝不放行旧 Node
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
@@ -1132,11 +1165,13 @@ write_stub() {
 )
 
 # Test: pnpm 被 pin 死版本，绝不用 @latest（浮动版本会随时间漂到未验证 pnpm 上踩雷）
+# 版本号现单源于 toolchain.sh（PNPM_TARGET），bootstrap 仅引用、不再内联字面量。
 (
-  if grep -qE 'PNPM_PIN=[0-9]' "$BS" && ! grep -q 'pnpm@latest' "$BS"; then
-    pass "bootstrap-env: pnpm pin 死版本，无 pnpm@latest"
+  TC="$(dirname "$BS")/toolchain.sh"
+  if grep -qE 'PNPM_TARGET=[0-9]' "$TC" && ! grep -q 'pnpm@latest' "$BS"; then
+    pass "bootstrap-env: pnpm pin 死版本（单源 toolchain.sh），无 pnpm@latest"
   else
-    fail "bootstrap-env: pnpm pin 死版本" "still uses pnpm@latest or missing PNPM_PIN"
+    fail "bootstrap-env: pnpm pin 死版本" "toolchain.sh 缺 PNPM_TARGET 字面量 或 bootstrap 用了 pnpm@latest"
   fi
 )
 
@@ -1155,6 +1190,86 @@ write_stub() {
     pass "bootstrap-env: pnpm 版本不符 → 经 Volta 切到 pin 版本"
   else
     fail "bootstrap-env: pnpm 切到 pin 版本" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log")"
+  fi
+)
+
+# Test: Volta 已装但不在 PATH + pnpm≠pin + npm 失败 → 经 Volta 装上 pin、npm 未被调用
+# 复现本机场景：Volta shim 在 ~/.volta/bin 却不在 PATH，npm 全局目录不可写（exit 1）。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.volta/bin" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 1"
+  write_stub "$SB" pnpm "case \"\$1\" in --version|-v) if [ -f $TMP/pnpm-installed ]; then echo 11.4.0; else echo 9.1.0; fi;; *) echo ok;; esac"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # volta 桩落在 ~/.volta/bin（不在 PATH）；install pnpm@pin 时翻转 pnpm 桩版本
+  write_stub "$TMP/.volta/bin" volta "echo \"volta \$*\" >> $TMP/volta.log; case \"\$1 \$2\" in \"install pnpm@11.4.0\") touch $TMP/pnpm-installed;; esac"
+  : > "$TMP/npm.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: Volta 装了不在 PATH + npm 不可写 → 经 Volta 成功，npm 未被调用"
+  else
+    fail "bootstrap-env: Volta 不在 PATH 仍可用" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log"); npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
+# Test: 已装 Volta 时优先用 Volta，不退回 npm
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 0"
+  write_stub "$SB" pnpm "case \"\$1\" in --version|-v) if [ -f $TMP/pnpm-installed ]; then echo 11.4.0; else echo 9.1.0; fi;; *) echo ok;; esac"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; case \"\$1 \$2\" in \"install pnpm@11.4.0\") touch $TMP/pnpm-installed;; esac"
+  : > "$TMP/npm.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: 已装 Volta 时优先 Volta，不碰 npm"
+  else
+    fail "bootstrap-env: 优先 Volta" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log"); npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
+# Test【核心保证】: 即便 npm 可写也统一走 Volta —— 绝不用 npm -g 写 /usr/local（EACCES 来源已砍）
+# 旧设计会在 npm 可写时优先 npm；现已统一经 Volta（免 sudo），从根上规避 EACCES。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; case \"\$*\" in *pnpm@11.4.0*) touch $TMP/pnpm-installed;; esac; exit 0"
+  write_stub "$SB" pnpm "case \"\$1\" in --version|-v) if [ -f $TMP/pnpm-installed ]; then echo 11.4.0; else echo 9.1.0; fi;; *) echo ok;; esac"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # curl 桩模拟 get.volta.sh：装一个可用 volta 桩进 ~/.volta/bin
+  write_stub "$SB" curl "echo curl >> $TMP/curl.log; mkdir -p $TMP/.volta/bin; printf '#!/bin/bash\necho \"volta \$*\" >> %s\ncase \"\$1 \$2\" in \"install pnpm@11.4.0\") touch %s;; esac\n' $TMP/volta.log $TMP/pnpm-installed > $TMP/.volta/bin/volta; chmod +x $TMP/.volta/bin/volta"
+  : > "$TMP/npm.log"; : > "$TMP/curl.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: npm 可写也统一走 Volta，绝不调用 npm -g"
+  else
+    fail "bootstrap-env: 统一走 Volta 不用 npm" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log"); volta.log: $(cat "$TMP/volta.log")"
+  fi
+)
+
+# Test: 无 Volta 且 npm 失败 → 自动装 Volta 兜底，最终经 Volta 装上 pin
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 1"
+  write_stub "$SB" pnpm "case \"\$1\" in --version|-v) if [ -f $TMP/pnpm-installed ]; then echo 11.4.0; else echo 9.1.0; fi;; *) echo ok;; esac"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # curl 桩模拟 get.volta.sh：把一个可用 volta 桩落进 ~/.volta/bin
+  write_stub "$SB" curl "echo curl >> $TMP/curl.log; mkdir -p $TMP/.volta/bin; printf '#!/bin/bash\necho \"volta \$*\" >> %s\ncase \"\$1 \$2\" in \"install pnpm@11.4.0\") touch %s;; esac\n' $TMP/volta.log $TMP/pnpm-installed > $TMP/.volta/bin/volta; chmod +x $TMP/.volta/bin/volta"
+  : > "$TMP/npm.log"; : > "$TMP/curl.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && [ -s "$TMP/curl.log" ] && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0"; then
+    pass "bootstrap-env: 无 Volta + npm 失败 → 自动装 Volta 兜底成功"
+  else
+    fail "bootstrap-env: 自动装 Volta 兜底" "out: $OUTPUT; curl.log: $(cat "$TMP/curl.log"); volta.log: $(cat "$TMP/volta.log")"
   fi
 )
 
@@ -1425,11 +1540,15 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 
 # Test: 没有任何 >=18 node 时，launch.sh 给人话报错（口径：建议 Node 24），而非神秘失败
 (
-  OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-$$ /bin/sh "$LAUNCH_SH" </dev/null 2>&1 || true)
-  if echo "$OUT" | grep -q '建议使用 Node 24'; then
-    pass "launch.sh: 无可用 node 时给「建议 Node 24」人话报错"
+  if host_has_abs_modern_node; then
+    skip "launch.sh: 无可用 node 时给「建议 Node 24」人话报错" "本机系统路径已有 >=18 node，无法模拟无 node"
   else
-    fail "launch.sh: 无 node 报错" "out: $OUT"
+    OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-$$ /bin/sh "$LAUNCH_SH" </dev/null 2>&1 || true)
+    if echo "$OUT" | grep -q '建议使用 Node 24'; then
+      pass "launch.sh: 无可用 node 时给「建议 Node 24」人话报错"
+    else
+      fail "launch.sh: 无 node 报错" "out: $OUT"
+    fi
   fi
 )
 
@@ -1450,11 +1569,15 @@ RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
 
 # Test: 无可用 node 时 exit 1 且无输出（调用方据此报错）
 (
-  if OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-rn-$$ /bin/sh "$RESOLVE_NODE" 2>&1); then RC=0; else RC=$?; fi
-  if [ "$RC" -ne 0 ] && [ -z "$OUT" ]; then
-    pass "resolve-node.sh: 无可用 node 时 exit 非 0 且无输出"
+  if host_has_abs_modern_node; then
+    skip "resolve-node.sh: 无可用 node 时 exit 非 0 且无输出" "本机系统路径已有 >=18 node，无法模拟无 node"
   else
-    fail "resolve-node.sh: 无 node 行为" "rc=$RC out=[$OUT]"
+    if OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-rn-$$ /bin/sh "$RESOLVE_NODE" 2>&1); then RC=0; else RC=$?; fi
+    if [ "$RC" -ne 0 ] && [ -z "$OUT" ]; then
+      pass "resolve-node.sh: 无可用 node 时 exit 非 0 且无输出"
+    else
+      fail "resolve-node.sh: 无 node 行为" "rc=$RC out=[$OUT]"
+    fi
   fi
 )
 
@@ -1581,13 +1704,13 @@ PACK_SH="$LIB_DIR/pack.sh"
 # Summary
 # ══════════════════════════════════════════════════════
 
-read PASS FAIL < "$RESULTS_FILE"
-TOTAL=$((PASS + FAIL))
+read PASS FAIL SKIP < "$RESULTS_FILE"
+TOTAL=$((PASS + FAIL + SKIP))
 rm -f "$RESULTS_FILE"
 
 echo ""
 echo "═══════════════════════════════"
-echo "  Results: $PASS passed, $FAIL failed (total: $TOTAL)"
+echo "  Results: $PASS passed, $FAIL failed, $SKIP skipped (total: $TOTAL)"
 echo "═══════════════════════════════"
 
 if [ "$FAIL" -gt 0 ]; then
