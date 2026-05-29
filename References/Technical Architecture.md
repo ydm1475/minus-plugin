@@ -84,7 +84,10 @@ minus-creator-plugin/
 │
 ├── mcp-servers/
 │   ├── minus-platform/              # Minus 平台 API 服务
-│   │   ├── index.js                 # MCP Server 入口
+│   │   ├── index.js                 # MCP Server 源码入口
+│   │   ├── build.mjs                # esbuild 打包脚本（index.js → dist bundle）
+│   │   ├── dist/minus-platform.cjs  # 自包含 bundle（提交进仓库，.mcp.json 实际跑它）
+│   │   ├── launch.sh                # MCP 启动器（探测 >=18 node 再跑 bundle，绕开老 node 遮挡）
 │   │   └── package.json
 │   └── ...
 │
@@ -124,15 +127,25 @@ minus-creator-plugin/
 
 ### 2.2 .mcp.json
 
-> 注意：`args` 指向 esbuild 打出的自包含 bundle `dist/minus-platform.cjs`（依赖已内联），
+> 注意：`command` 走 `/bin/sh launch.sh`，**不直接调 `node`**。原因是客户端 spawn MCP
+> 用的是 launchd/login PATH，老 node 可能排在新 node 前面遮挡它（实测 `/usr/local/bin/node`
+> 是 v13，压过 Volta 的 24）。`launch.sh` 不依赖 PATH 顺序，按已知位置（PATH → Volta image
+> 真身 → Volta shim → nvm → Homebrew → /usr/local）探测一个 ≥18 的 node 再 `exec` bundle，
+> 全没有才打印「建议 Node 24」人话报错。install.sh 一定会用 Volta 装好 Node 24，故 `$HOME/.volta`
+> 这条几乎必中，用户装完即用。
+>
+> `launch.sh` 最终跑的是 esbuild 打出的自包含 bundle `dist/minus-platform.cjs`（依赖已内联），
 > 而非源码 `index.js`。源码改动后需 `npm run build` 重新生成 bundle 并一起提交。
-> bundle 带 ES5 版本自检 banner：node 主版本 < 18 时打印「建议 Node 24」人话报错而非崩溃。
+> bundle 另带 ES5 版本自检 banner（双保险）：万一被老 node 直接拉起，主版本 < 18 时打印
+> 「建议 Node 24」人话报错而非崩溃。
+>
+> 彻底解决「无 node / launchd PATH」需 SEA 自包含二进制（不再依赖用户的 node），属下一阶段。
 
 ```json
 {
   "minus-platform": {
-    "command": "node",
-    "args": ["./mcp-servers/minus-platform/dist/minus-platform.cjs"],
+    "command": "/bin/sh",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/minus-platform/launch.sh"],
     "env": {
       "MINUS_API_BASE": "https://api.minusai.com/v1"
     }

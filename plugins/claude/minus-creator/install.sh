@@ -5,7 +5,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MARKETPLACE_DIR="$SCRIPT_DIR/plugins/claude"
+# marketplace 根目录是 minus-creator 的父级 claude/（.claude-plugin/marketplace.json 所在处）
+MARKETPLACE_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_NAME="minus-creator"
 MARKETPLACE_NAME="minus-plugin"
 
@@ -119,6 +120,13 @@ if [ -z "$INSTALL_PATH" ] || [ ! -f "$MCP_DIR/dist/minus-platform.cjs" ]; then
   echo "❌ 未找到 MCP Server 产物 dist/minus-platform.cjs（installPath=[$INSTALL_PATH]）。MCP 是必需项，安装中止。"
   exit 1
 fi
+# launcher：.mcp.json 的 command 实际跑它（按已知位置探测 >=18 node 再跑 bundle，
+# 绕开「客户端 spawn 的 node 被老 node 遮挡」问题）。缺它 MCP 起不来。
+if [ ! -f "$MCP_DIR/launch.sh" ]; then
+  echo "❌ 未找到 MCP launcher（$MCP_DIR/launch.sh）。MCP 是必需项，安装中止。"
+  exit 1
+fi
+chmod +x "$MCP_DIR/launch.sh" 2>/dev/null || true
 echo -e "${GREEN}✓${NC} MCP Server 产物就绪"
 
 # 5. 校验：插件是否真的被启用（凭实际状态判定，不凭"没报错"）

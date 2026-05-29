@@ -38,10 +38,15 @@ find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -
   if [ -f "$MCP_SRC/pnpm-lock.yaml" ]; then
     cp "$MCP_SRC/pnpm-lock.yaml" "$CACHE_DIR/pnpm-lock.yaml"
   fi
-  # 自包含 bundle —— .mcp.json 实际指向它，必须一起同步
+  # 自包含 bundle —— .mcp.json 经 launch.sh 指向它，必须一起同步
   if [ -f "$MCP_SRC/dist/minus-platform.cjs" ]; then
     mkdir -p "$CACHE_DIR/dist"
     cp "$MCP_SRC/dist/minus-platform.cjs" "$CACHE_DIR/dist/minus-platform.cjs"
+  fi
+  # launcher —— .mcp.json 的 command 实际跑的是它（探测 >=18 node 再跑 bundle）
+  if [ -f "$MCP_SRC/launch.sh" ]; then
+    cp "$MCP_SRC/launch.sh" "$CACHE_DIR/launch.sh"
+    chmod +x "$CACHE_DIR/launch.sh"
   fi
   echo "  ✓ mcp-server: $CACHE_DIR"
 done

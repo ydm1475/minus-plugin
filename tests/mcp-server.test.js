@@ -17,6 +17,13 @@ const MCP_BUNDLE = path.resolve(
   "../plugins/claude/minus-creator/mcp-servers/minus-platform/dist/minus-platform.cjs"
 );
 
+// launcher —— .mcp.json 的 command 实际跑它（/bin/sh launch.sh），它探测 >=18 node
+// 再 exec bundle。冒烟测试保证整条「客户端入口」链路能起、能列工具。
+const MCP_LAUNCHER = path.resolve(
+  import.meta.dirname,
+  "../plugins/claude/minus-creator/mcp-servers/minus-platform/launch.sh"
+);
+
 // JSON-RPC helper to talk to MCP server via stdio
 class McpClient {
   constructor() {
@@ -25,8 +32,8 @@ class McpClient {
     this._buffer = "";
   }
 
-  async start(env = {}, serverPath = MCP_SERVER) {
-    this.proc = spawn("node", [serverPath], {
+  async start(env = {}, serverPath = MCP_SERVER, command = "node") {
+    this.proc = spawn(command, [serverPath], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });
@@ -413,6 +420,49 @@ describe("MCP Server - bundle (dist/minus-platform.cjs)", () => {
   });
 
   it("bundle should initialize and expose the same tool set as source", async () => {
+    const result = await client.listTools();
+    const names = result.tools.map((t) => t.name).sort();
+    assert.deepEqual(names, [
+      "auth_dev_session",
+      "auth_login",
+      "auth_logout",
+      "auth_register",
+      "auth_status",
+      "auth_vcode",
+      "file_upload",
+      "session_create",
+      "session_list",
+      "skill_list",
+      "skill_tag_list",
+      "skill_update",
+      "skill_version_create",
+      "skill_version_get",
+      "skill_version_submit",
+    ]);
+  });
+});
+
+// launcher 冒烟测试：跑 .mcp.json 真正的入口（/bin/sh launch.sh），确认它能挑到
+// 当前 node（测试环境本身 >=18）并把 bundle 起起来。覆盖「客户端 command 链路」。
+describe("MCP Server - launcher (launch.sh → bundle)", () => {
+  let client;
+
+  before(async () => {
+    await fs.access(MCP_LAUNCHER);
+    await fs.access(MCP_BUNDLE); // launcher 会跑它，需先 npm run build
+    client = new McpClient();
+    await client.start(
+      { MINUS_API_BASE: "http://127.0.0.1:19999" },
+      MCP_LAUNCHER,
+      "/bin/sh"
+    );
+  });
+
+  after(async () => {
+    if (client) await client.stop();
+  });
+
+  it("launcher should boot the bundle and expose the full tool set", async () => {
     const result = await client.listTools();
     const names = result.tools.map((t) => t.name).sort();
     assert.deepEqual(names, [

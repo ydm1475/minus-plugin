@@ -1358,6 +1358,73 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
   fi
 )
 
+# Test: install.sh 校验 launcher 存在（.mcp.json command 实际跑它）
+(
+  if grep -q 'launch.sh' "$INSTALL_SH"; then
+    pass "install.sh: 校验 MCP launcher (launch.sh) 存在"
+  else
+    fail "install.sh: 校验 launch.sh" "missing launch.sh validation"
+  fi
+)
+
+echo "═══ MCP launcher (launch.sh) ═══"
+
+MCP_DIR="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform"
+LAUNCH_SH="$MCP_DIR/launch.sh"
+MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
+
+# Test: launch.sh 存在且可执行
+(
+  if [ -f "$LAUNCH_SH" ] && [ -x "$LAUNCH_SH" ]; then
+    pass "launch.sh: 存在且可执行"
+  else
+    fail "launch.sh: 存在且可执行" "missing or not +x"
+  fi
+)
+
+# Test: launch.sh 探测 >=18 的 node（含 Volta image 真身），再 exec bundle
+(
+  if grep -q 'MIN_MAJOR=18' "$LAUNCH_SH" \
+     && grep -q '.volta/tools/image/node' "$LAUNCH_SH" \
+     && grep -q 'exec .*dist/minus-platform.cjs\|exec "\$PICKED" "\$BUNDLE"' "$LAUNCH_SH"; then
+    pass "launch.sh: 探测 >=18 node（含 Volta image）后 exec bundle"
+  else
+    fail "launch.sh: node 探测/exec" "missing MIN_MAJOR/volta image candidate/exec bundle"
+  fi
+)
+
+# Test: .mcp.json 的 minus-platform 经 launch.sh 启动，而非裸 node
+(
+  if grep -q 'launch.sh' "$MCP_JSON" && ! grep -q '"command": "node"' "$MCP_JSON"; then
+    pass ".mcp.json: minus-platform 经 launch.sh 启动（不再裸 node）"
+  else
+    fail ".mcp.json: 经 launch.sh 启动" "still bare node command or missing launch.sh"
+  fi
+)
+
+# Test: 没有任何 >=18 node 时，launch.sh 给人话报错（口径：建议 Node 24），而非神秘失败
+(
+  OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-$$ /bin/sh "$LAUNCH_SH" </dev/null 2>&1 || true)
+  if echo "$OUT" | grep -q '建议使用 Node 24'; then
+    pass "launch.sh: 无可用 node 时给「建议 Node 24」人话报错"
+  else
+    fail "launch.sh: 无 node 报错" "out: $OUT"
+  fi
+)
+
+# Test: MARKETPLACE_DIR 解析到含 marketplace.json 的目录（install.sh 在 minus-creator/ 内，
+# marketplace 根是其父级 claude/；旧 bug 拼成 $SCRIPT_DIR/plugins/claude 指向不存在的目录）
+(
+  SCRIPT_DIR="$(cd "$(dirname "$INSTALL_SH")" && pwd)"
+  MARKETPLACE_DIR="$(dirname "$SCRIPT_DIR")"
+  if [ -f "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" ] \
+     && ! grep -q 'MARKETPLACE_DIR="\$SCRIPT_DIR/plugins/claude"' "$INSTALL_SH"; then
+    pass "install.sh: MARKETPLACE_DIR 指向含 marketplace.json 的目录"
+  else
+    fail "install.sh: MARKETPLACE_DIR 路径" "未解析到含 marketplace.json 的目录，或仍用 \$SCRIPT_DIR/plugins/claude"
+  fi
+)
+
 # Test: bootstrap-env.sh 主流程被 BASH_SOURCE 守卫包住（可被 install.sh 安全 source）
 (
   if grep -q 'BASH_SOURCE\[0\].*=.*"\$0"' "$BS"; then
