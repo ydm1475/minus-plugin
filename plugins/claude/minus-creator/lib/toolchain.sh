@@ -23,6 +23,13 @@
 NODE_TARGET=24
 NODE_FLOOR=24
 
+# NODE_RUNTIME_FLOOR：跑「已打包好的 MCP bundle」所需的最低 node 主版本。
+# 这是和上面两个不同的概念——NODE_FLOOR 管「开发/bootstrap 时容忍复用的下限」，
+# 而这里管「launch.sh / resolve-node.sh 在客户端 spawn 时，挑一个够新的 node 来跑
+# dist/*.cjs」的下限。bundle 用到全局 fetch（Node 18 才有），故硬下限是 18；它是
+# 稳定技术常量，不随 NODE_TARGET 升级而动。文案仍以 NODE_TARGET（24）为推荐口径。
+NODE_RUNTIME_FLOOR=18
+
 # ── pnpm ───────────────────────────────────────────────
 # pin 死版本，不用 @latest：pnpm 次版本有破坏性策略变更（如 onlyBuiltDependencies
 # → allowBuilds、忽略构建脚本时硬报错 ERR_PNPM_IGNORED_BUILDS）。只在验证过后才 bump。

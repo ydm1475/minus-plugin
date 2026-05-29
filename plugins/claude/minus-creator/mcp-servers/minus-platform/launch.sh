@@ -13,7 +13,13 @@
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 BUNDLE="$DIR/dist/minus-platform.cjs"
-MIN_MAJOR=18
+
+# 版本下限/推荐口径单源于 lib/toolchain.sh（相对本脚本固定为 ../../lib，源码与缓存
+# 布局一致）。找不到则兜底——本脚本在客户端 spawn 时跑、环境未知，兜底保证不致崩。
+TOOLCHAIN="$DIR/../../lib/toolchain.sh"
+[ -f "$TOOLCHAIN" ] && . "$TOOLCHAIN"
+MIN_MAJOR="${NODE_RUNTIME_FLOOR:-18}"
+NODE_RECO="${NODE_TARGET:-24}"
 
 # 取某个 node 可执行文件的主版本号（取不到则空）
 node_major() {
@@ -47,7 +53,7 @@ for c in $CANDIDATES; do
 done
 
 if [ -z "$PICKED" ]; then
-  echo "[minus-platform] 建议使用 Node 24（最低 $MIN_MAJOR）。未在常见位置找到符合要求的 node，请安装 Node 24（推荐 https://volta.sh）后重启 Claude Code。" >&2
+  echo "[minus-platform] 建议使用 Node ${NODE_RECO}（最低 $MIN_MAJOR）。未在常见位置找到符合要求的 node，请安装 Node ${NODE_RECO}（推荐 https://volta.sh）后重启 Claude Code。" >&2
   exit 1
 fi
 

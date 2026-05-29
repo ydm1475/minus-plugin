@@ -1089,10 +1089,25 @@ write_stub() {
 (
   TC="$(dirname "$BS")/toolchain.sh"
   if [ -f "$TC" ] && grep -q 'NODE_TARGET=' "$TC" && grep -q 'NODE_FLOOR=' "$TC" \
+     && grep -q 'NODE_RUNTIME_FLOOR=' "$TC" \
      && grep -q 'toolchain.sh' "$BS" && grep -qE '\.[[:space:]]+"\$TOOLCHAIN_SH"' "$BS"; then
     pass "bootstrap-env: 版本单源于 toolchain.sh 并被 source"
   else
     fail "bootstrap-env: 版本单源 toolchain.sh" "toolchain.sh 缺失/缺字段 或 bootstrap 未 source"
+  fi
+)
+
+# Test: build.mjs 的 banner 版本号也单源 toolchain.sh（读 NODE_RUNTIME_FLOOR / NODE_TARGET）
+(
+  BUILD_MJS="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/build.mjs"
+  if [ -f "$BUILD_MJS" ] \
+     && grep -q 'toolchain.sh' "$BUILD_MJS" \
+     && grep -q 'NODE_RUNTIME_FLOOR' "$BUILD_MJS" \
+     && grep -q 'NODE_TARGET' "$BUILD_MJS" \
+     && ! grep -qE 'MIN_MAJOR = 1[0-9];' "$BUILD_MJS"; then
+    pass "build.mjs: banner 版本单源 toolchain.sh，无内联字面量"
+  else
+    fail "build.mjs: banner 单源" "未读 toolchain.sh 或仍内联 MIN_MAJOR 字面量"
   fi
 )
 
@@ -1518,14 +1533,15 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
   fi
 )
 
-# Test: launch.sh 探测 >=18 的 node（含 Volta image 真身），再 exec bundle
+# Test: launch.sh 探测 node（下限单源 toolchain.sh，含 Volta image 真身），再 exec bundle
 (
-  if grep -q 'MIN_MAJOR=18' "$LAUNCH_SH" \
+  if grep -q 'NODE_RUNTIME_FLOOR' "$LAUNCH_SH" \
+     && grep -q 'toolchain.sh' "$LAUNCH_SH" \
      && grep -q '.volta/tools/image/node' "$LAUNCH_SH" \
      && grep -q 'exec .*dist/minus-platform.cjs\|exec "\$PICKED" "\$BUNDLE"' "$LAUNCH_SH"; then
-    pass "launch.sh: 探测 >=18 node（含 Volta image）后 exec bundle"
+    pass "launch.sh: 下限单源 toolchain.sh + 探测 Volta image 后 exec bundle"
   else
-    fail "launch.sh: node 探测/exec" "missing MIN_MAJOR/volta image candidate/exec bundle"
+    fail "launch.sh: node 探测/exec" "missing NODE_RUNTIME_FLOOR/toolchain source/volta image/exec bundle"
   fi
 )
 
@@ -1556,14 +1572,15 @@ echo "═══ resolve-node.sh ═══"
 
 RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
 
-# Test: resolve-node.sh 存在且与 launch.sh 同序探测（>=18，含 Volta image）
+# Test: resolve-node.sh 存在、下限单源 toolchain.sh、与 launch.sh 同序探测（含 Volta image）
 (
   if [ -f "$RESOLVE_NODE" ] \
-     && grep -q 'MIN_MAJOR=18' "$RESOLVE_NODE" \
+     && grep -q 'NODE_RUNTIME_FLOOR' "$RESOLVE_NODE" \
+     && grep -q 'toolchain.sh' "$RESOLVE_NODE" \
      && grep -q '.volta/tools/image/node' "$RESOLVE_NODE"; then
-    pass "resolve-node.sh: 存在且探测 >=18 node（含 Volta image）"
+    pass "resolve-node.sh: 下限单源 toolchain.sh + 探测 Volta image"
   else
-    fail "resolve-node.sh: 探测逻辑" "missing file/MIN_MAJOR/volta image candidate"
+    fail "resolve-node.sh: 探测逻辑" "missing file/NODE_RUNTIME_FLOOR/toolchain source/volta image"
   fi
 )
 

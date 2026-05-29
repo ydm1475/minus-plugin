@@ -9,8 +9,17 @@
 // 18 只是兜底，不强调（与平台 NODE_FLOOR=24 一致）。
 
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
-const MIN_MAJOR = 18; // 技术硬下限：global fetch 需要 Node 18
+// 版本号单源于 lib/toolchain.sh：构建时用一行正则读出，烘进 banner，不再内联字面量。
+// NODE_RUNTIME_FLOOR=跑 bundle 的硬下限（global fetch 需 18）；NODE_TARGET=推荐口径。
+const here = dirname(fileURLToPath(import.meta.url));
+const toolchain = readFileSync(join(here, "..", "..", "lib", "toolchain.sh"), "utf8");
+const readVar = (k, fb) => (toolchain.match(new RegExp(`^${k}=(\\d+)`, "m"))?.[1] ?? fb);
+const MIN_MAJOR = readVar("NODE_RUNTIME_FLOOR", "18");
+const NODE_RECO = readVar("NODE_TARGET", "24");
 
 // ES5 写法（不能用 ?./??/模板串里的可选链），保证在任何老 node 上都能执行到。
 const banner = `(function () {
@@ -18,11 +27,11 @@ const banner = `(function () {
   var major = parseInt(String(v).split(".")[0], 10) || 0;
   if (major < ${MIN_MAJOR}) {
     console.error(
-      "[minus-platform] 建议使用 Node 24，当前 v" +
+      "[minus-platform] 建议使用 Node ${NODE_RECO}，当前 v" +
         v +
         "（" +
         process.execPath +
-        "）过旧。请升级到 Node 24（最低 " +
+        "）过旧。请升级到 Node ${NODE_RECO}（最低 " +
         ${MIN_MAJOR} +
         "）后重试。"
     );

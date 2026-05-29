@@ -13,7 +13,11 @@
 #   PATH → Volta image 真身 → Volta shim → nvm 最新 → Homebrew → /usr/local
 # install.sh 一定会用 Volta 装好 Node 24，故 $HOME/.volta 这条几乎必中。
 
-MIN_MAJOR=18
+# 运行时下限单源于 toolchain.sh（同目录）。找不到则兜底 18（与清单一致的安全值）；
+# 兜底是为这个「客户端 spawn 时跑、环境未知」的脚本兜底，不靠它常态生效。
+RN_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+[ -f "$RN_DIR/toolchain.sh" ] && . "$RN_DIR/toolchain.sh"
+MIN_MAJOR="${NODE_RUNTIME_FLOOR:-18}"
 
 node_major() {
   "$1" -p "process.versions.node.split('.')[0]" 2>/dev/null
