@@ -124,11 +124,15 @@ minus-creator-plugin/
 
 ### 2.2 .mcp.json
 
+> 注意：`args` 指向 esbuild 打出的自包含 bundle `dist/minus-platform.cjs`（依赖已内联），
+> 而非源码 `index.js`。源码改动后需 `npm run build` 重新生成 bundle 并一起提交。
+> bundle 带 ES5 版本自检 banner：node 主版本 < 18 时打印「建议 Node 24」人话报错而非崩溃。
+
 ```json
 {
   "minus-platform": {
     "command": "node",
-    "args": ["./mcp-servers/minus-platform/index.js"],
+    "args": ["./mcp-servers/minus-platform/dist/minus-platform.cjs"],
     "env": {
       "MINUS_API_BASE": "https://api.minusai.com/v1"
     }

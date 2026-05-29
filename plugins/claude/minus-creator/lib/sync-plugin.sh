@@ -38,6 +38,11 @@ find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -
   if [ -f "$MCP_SRC/pnpm-lock.yaml" ]; then
     cp "$MCP_SRC/pnpm-lock.yaml" "$CACHE_DIR/pnpm-lock.yaml"
   fi
+  # 自包含 bundle —— .mcp.json 实际指向它，必须一起同步
+  if [ -f "$MCP_SRC/dist/minus-platform.cjs" ]; then
+    mkdir -p "$CACHE_DIR/dist"
+    cp "$MCP_SRC/dist/minus-platform.cjs" "$CACHE_DIR/dist/minus-platform.cjs"
+  fi
   echo "  ✓ mcp-server: $CACHE_DIR"
 done
 if ! find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -not -path "*/node_modules/*" 2>/dev/null | grep -q .; then

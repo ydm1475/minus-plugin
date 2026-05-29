@@ -268,10 +268,14 @@ ensure_venv() {
 # ════════════════════════════════════════════
 # 主流程
 # ════════════════════════════════════════════
-say "检测开发环境（OS=${OS}）……"
-ensure_node
-ensure_pnpm
-ensure_uv
-ensure_node_modules
-ensure_venv
-finish_ok
+# 仅在「直接执行」时跑主流程并 finish_ok(exit)；被 source 时只暴露函数
+# （install.sh 复用 node_major_ok/provision_node_via_volta，不能触发副作用与退出）。
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  say "检测开发环境（OS=${OS}）……"
+  ensure_node
+  ensure_pnpm
+  ensure_uv
+  ensure_node_modules
+  ensure_venv
+  finish_ok
+fi

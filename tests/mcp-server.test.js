@@ -10,6 +10,13 @@ const MCP_SERVER = path.resolve(
   "../plugins/claude/minus-creator/mcp-servers/minus-platform/index.js"
 );
 
+// 出厂产物（esbuild 自包含 bundle）—— .mcp.json 实际指向它，必须单独冒烟测试，
+// 才能抓住打包回归（如顶层 await 没去干净、依赖没内联）。
+const MCP_BUNDLE = path.resolve(
+  import.meta.dirname,
+  "../plugins/claude/minus-creator/mcp-servers/minus-platform/dist/minus-platform.cjs"
+);
+
 // JSON-RPC helper to talk to MCP server via stdio
 class McpClient {
   constructor() {
@@ -18,8 +25,8 @@ class McpClient {
     this._buffer = "";
   }
 
-  async start(env = {}) {
-    this.proc = spawn("node", [MCP_SERVER], {
+  async start(env = {}, serverPath = MCP_SERVER) {
+    this.proc = spawn("node", [serverPath], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });
@@ -387,5 +394,43 @@ describe("MCP Server - Vcode & Register (network errors handled)", () => {
       text.includes("不是 Minus Skill 项目"),
       `Expected project validation error in: ${text}`
     );
+  });
+});
+
+// 出厂产物冒烟测试：直接跑 .mcp.json 指向的 bundle，确认它能起、能列工具。
+// 覆盖源码测试照不到的打包环节（TLA、依赖内联）。run-all.sh 会先 npm run build。
+describe("MCP Server - bundle (dist/minus-platform.cjs)", () => {
+  let client;
+
+  before(async () => {
+    await fs.access(MCP_BUNDLE); // 不存在直接抛错，提示需先 npm run build
+    client = new McpClient();
+    await client.start({ MINUS_API_BASE: "http://127.0.0.1:19999" }, MCP_BUNDLE);
+  });
+
+  after(async () => {
+    if (client) await client.stop();
+  });
+
+  it("bundle should initialize and expose the same tool set as source", async () => {
+    const result = await client.listTools();
+    const names = result.tools.map((t) => t.name).sort();
+    assert.deepEqual(names, [
+      "auth_dev_session",
+      "auth_login",
+      "auth_logout",
+      "auth_register",
+      "auth_status",
+      "auth_vcode",
+      "file_upload",
+      "session_create",
+      "session_list",
+      "skill_list",
+      "skill_tag_list",
+      "skill_update",
+      "skill_version_create",
+      "skill_version_get",
+      "skill_version_submit",
+    ]);
   });
 });

@@ -1328,6 +1328,55 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
   fi
 )
 
+# Test: install.sh source 了 bootstrap-env.sh 并做 node 版本 gate（复用 Volta 装 24）
+(
+  if grep -q 'source .*lib/bootstrap-env.sh' "$INSTALL_SH" \
+     && grep -q 'provision_node_via_volta' "$INSTALL_SH" \
+     && grep -q 'NODE_MIN=' "$INSTALL_SH"; then
+    pass "install.sh: source bootstrap-env.sh + node 版本 gate（复用 Volta 装 24）"
+  else
+    fail "install.sh: node 版本 gate" "missing source / provision_node_via_volta / NODE_MIN"
+  fi
+)
+
+# Test: install.sh 文案以"建议 Node 24"为主，不把 18 放主位
+(
+  if grep -q '建议.*Node 24\|建议安装 Node 24\|建议升级到 Node 24' "$INSTALL_SH"; then
+    pass "install.sh: node 文案以建议 24 为主"
+  else
+    fail "install.sh: node 文案建议 24" "missing '建议 Node 24' 主表述"
+  fi
+)
+
+# Test: install.sh 校验自包含 bundle，不再跑 npm install --omit=dev
+(
+  if grep -q 'dist/minus-platform.cjs' "$INSTALL_SH" \
+     && ! grep -q 'npm install --omit=dev' "$INSTALL_SH"; then
+    pass "install.sh: 校验 dist bundle，无 npm install --omit=dev"
+  else
+    fail "install.sh: 校验 dist bundle" "still uses npm install --omit=dev or missing dist check"
+  fi
+)
+
+# Test: bootstrap-env.sh 主流程被 BASH_SOURCE 守卫包住（可被 install.sh 安全 source）
+(
+  if grep -q 'BASH_SOURCE\[0\].*=.*"\$0"' "$BS"; then
+    pass "bootstrap-env: 主流程有 BASH_SOURCE 守卫，可被 source 而不触发副作用"
+  else
+    fail "bootstrap-env: BASH_SOURCE 守卫" "main flow not guarded, sourcing will exit"
+  fi
+)
+
+# Test: source bootstrap-env.sh 不触发主流程（不输出"检测开发环境"、不 exit）
+(
+  OUTPUT=$( source "$BS" 2>&1; echo "SOURCED_OK" )
+  if assert_contains "$OUTPUT" "SOURCED_OK" && ! assert_contains "$OUTPUT" "检测开发环境" >/dev/null 2>&1; then
+    pass "bootstrap-env: 被 source 时静默（不跑主流程、不退出）"
+  else
+    fail "bootstrap-env: source 静默" "out: $OUTPUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════

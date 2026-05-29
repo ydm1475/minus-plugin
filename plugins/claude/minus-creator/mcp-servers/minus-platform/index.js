@@ -890,4 +890,7 @@ server.tool(
 // ─── Start Server ───
 
 const transport = new StdioServerTransport();
-await server.connect(transport);
+server.connect(transport).catch((err) => {
+  console.error("[minus-platform] failed to start:", err);
+  process.exit(1);
+});
