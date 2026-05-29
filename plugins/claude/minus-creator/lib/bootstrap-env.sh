@@ -89,15 +89,27 @@ node_major_ok() {
   [ -n "$major" ] && [ "$major" -ge "$NODE_FLOOR" ] 2>/dev/null
 }
 
-# 把 ~/.volta/bin prepend 进 PATH 并刷新命令缓存（幂等，无网络）。
-# 专治「Volta 已装但不在当前 PATH」——非交互 spawn / 系统 Node 达标分支下，
-# 之前没人 export 过这段 PATH，已装的 Volta shim 就检测不到。返回 volta 是否可用。
+# 把 ~/.volta/bin 强制提到 PATH 最前并刷新命令缓存（幂等，无网络）。
+# 专治两类问题：
+#   1.「Volta 已装但不在当前 PATH」——非交互 spawn / 系统 Node 达标分支下没人 export 过。
+#   2.「Volta 在 PATH 但排在 /usr/local/bin 之后」——只判断"是否在 PATH 里"不够：
+#      2025 年遗留的 /usr/local/bin/{pnpm,node} root 软链会 shadow 掉 Volta pin 版本
+#      （实测 /usr/local/bin/pnpm@10.6.5 盖过 volta@11.4.0），导致版本检测永远不等于 pin
+#      → 假性 PNPM_INSTALL_FAILED。故必须把 ~/.volta/bin 提到最前，而非"已存在就跳过"。
+# 实现：先剔除 PATH 里所有已存在的 ~/.volta/bin，再 prepend，保证幂等且必在最前。
 volta_on_path() {
   export VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
-  case ":$PATH:" in
-    *":$VOLTA_HOME/bin:"*) ;;
-    *) export PATH="$VOLTA_HOME/bin:$PATH" ;;
-  esac
+  local cleaned="" entry oldifs="$IFS" glob_off=1
+  case $- in *f*) ;; *) glob_off=0; set -f ;; esac   # 暂关 glob，避免 PATH 含 * 被展开
+  IFS=':'
+  for entry in $PATH; do
+    [ -z "$entry" ] && continue
+    [ "$entry" = "$VOLTA_HOME/bin" ] && continue
+    cleaned="${cleaned:+$cleaned:}$entry"
+  done
+  IFS="$oldifs"
+  [ "$glob_off" -eq 0 ] && set +f
+  export PATH="$VOLTA_HOME/bin:$cleaned"
   hash -r 2>/dev/null || true
   have volta
 }

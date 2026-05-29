@@ -1248,6 +1248,32 @@ write_stub() {
   fi
 )
 
+# Test: Volta 在 PATH 但排在陈旧 /usr/local/bin 之后 → 强制提前，不被旧 pnpm shadow
+# 复现本机场景：~/.volta/bin/pnpm 是 pin 版本，但 PATH 里 /usr/local/bin 在它之前，
+# 且 /usr/local/bin/pnpm 是 2025 年遗留的旧版（10.6.5）。旧逻辑"已在 PATH 就跳过"会
+# 让裸 pnpm 解析到旧版 → 版本检测永远不等于 pin → 假性 PNPM_INSTALL_FAILED。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; USRLOCAL="$TMP/usrlocal"
+  mkdir -p "$SB" "$USRLOCAL" "$TMP/.volta/bin" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 1"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # 陈旧 pnpm（恒返回旧版）放在 /usr/local/bin；volta 管理的 pnpm（pin 版本）放在 ~/.volta/bin
+  write_stub "$USRLOCAL" pnpm 'case "$1" in --version|-v) echo 10.6.5;; *) echo ok;; esac'
+  write_stub "$TMP/.volta/bin" pnpm 'case "$1" in --version|-v) echo 11.4.0;; *) echo ok;; esac'
+  write_stub "$TMP/.volta/bin" volta "echo \"volta \$*\" >> $TMP/volta.log"
+  : > "$TMP/npm.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  # 关键：~/.volta/bin 已在 PATH 中，但排在 $USRLOCAL 之后
+  OUTPUT=$(HOME="$TMP" PATH="$USRLOCAL:$SB:/usr/bin:/bin:$TMP/.volta/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && assert_contains "$OUTPUT" "pnpm 已就绪（11.4.0" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: Volta 排在陈旧 /usr/local/bin 之后 → 强制提前，旧 pnpm 不再 shadow"
+  else
+    fail "bootstrap-env: 强制 Volta 提前避免被旧 pnpm shadow" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
 # Test: 已装 Volta 时优先用 Volta，不退回 npm
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
@@ -1458,10 +1484,21 @@ echo "═══ auth fallback prohibition ═══"
 # Test: create-skill 经 resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
 (
   if grep -q 'resolve-node.sh' "$SKILL_MD" \
-     && grep -q 'PATH="$(dirname "$NODE_BIN"):$PATH" create-skill' "$SKILL_MD"; then
+     && grep -q 'export PATH="$(dirname "$NODE_BIN")' "$SKILL_MD"; then
     pass "SKILL.md: create-skill 经 resolve-node.sh 解析 node 后调用"
   else
     fail "SKILL.md: create-skill 解析 node" "still bare create-skill or missing resolve-node.sh"
+  fi
+)
+
+# Test: create-skill 缺失时自动静默安装（Volta 优先 / 不碰 /usr/local），失败才提示手动
+(
+  if grep -q 'command -v create-skill' "$SKILL_MD" \
+     && grep -q 'install @minus-ai/create-skill@beta' "$SKILL_MD" \
+     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$SKILL_MD"; then
+    pass "SKILL.md: create-skill 缺失时自动静默安装（Volta 优先）"
+  else
+    fail "SKILL.md: create-skill 自动安装" "missing auto-install block (command -v / volta install / CREATE_SKILL_INSTALL_FAILED)"
   fi
 )
 

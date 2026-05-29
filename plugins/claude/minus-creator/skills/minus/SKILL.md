@@ -100,17 +100,34 @@ Plugin: 你有这些本地项目：
 （实测有 v12/v13），崩在 `??` 语法。必须先用 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
 把它的目录前置到 PATH 再调用——这样 create-skill 的 shebang 就会拿到够新的 node。
 
+**create-skill 不存在时自动静默安装**（不要再让 Creator 手动装）：优先 Volta（写入
+`~/.volta`，无需 sudo），回退到解析出的 node 旁边的 npm。一律 **不碰 `/usr/local`**，避免
+撞 root 权限和老 node。
+
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/resolve-node.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
 NODE_BIN=$(sh "$PLUGIN_ROOT/lib/resolve-node.sh")
 if [ -z "$NODE_BIN" ]; then
   echo "NO_GOOD_NODE"
 else
-  cd ~/minus && PATH="$(dirname "$NODE_BIN"):$PATH" create-skill "项目名称" --non-interactive
+  export PATH="$(dirname "$NODE_BIN"):$HOME/.volta/bin:$PATH"
+  if ! command -v create-skill >/dev/null 2>&1; then
+    echo "create-skill 未安装，正在自动安装 @minus-ai/create-skill@beta……"
+    if [ -x "$HOME/.volta/bin/volta" ]; then
+      "$HOME/.volta/bin/volta" install @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+    fi
+    command -v create-skill >/dev/null 2>&1 || "$(dirname "$NODE_BIN")/npm" install -g @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+  fi
+  if command -v create-skill >/dev/null 2>&1; then
+    cd ~/minus && create-skill "项目名称" --non-interactive
+  else
+    echo "CREATE_SKILL_INSTALL_FAILED"
+  fi
 fi
 ```
 
 - 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥18，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
+- 输出 `CREATE_SKILL_INSTALL_FAILED` → 自动安装失败（通常是网络或全局目录权限），提示 Creator 手动安装 `@minus-ai/create-skill@beta`（见下方命令）后重跑 `/minus`，并终止。
 - ⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
 - ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
 - ✅ 必须：通过 Bash tool 执行上面这段（经 resolve-node.sh 解析 node）
@@ -132,7 +149,8 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 原样输出："项目创建成功！现在自动生成描述和适用场景。"
 然后根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
-如果 `create-skill` 命令不可用，提示 Creator 先安装：
+create-skill 不存在时上面的执行块会自动静默安装，无需让 Creator 手动装。仅当输出
+`CREATE_SKILL_INSTALL_FAILED`（自动安装失败）时，才提示 Creator 手动安装后重跑 `/minus`：
 
 ```bash
 npm install -g @minus-ai/create-skill@beta
