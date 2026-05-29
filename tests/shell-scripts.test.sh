@@ -1097,6 +1097,25 @@ write_stub() {
   fi
 )
 
+# Test: 跨仓 major 一致——create-skill（minus-platform 独立包）的 NODE_MAJOR_FLOOR
+# 必须等于 toolchain.sh 的 NODE_TARGET。两仓各自写死同一 24，无运行时耦合，靠此测试守住。
+# create-skill 是独立 npm 包，CI 单仓时通常不在场 → skip（不 fail）。
+(
+  TC="$LIB_DIR/toolchain.sh"
+  CS="$REPO_DIR/../minus-platform/packages/create-skill/index.mjs"
+  if [ ! -f "$CS" ]; then
+    skip "create-skill major 与 toolchain.sh NODE_TARGET 一致" "未找到并列的 minus-platform/create-skill"
+  else
+    TGT=$(grep -E '^NODE_TARGET=[0-9]+' "$TC" | head -1 | sed 's/[^0-9]//g')
+    FLOOR=$(grep -oE 'NODE_MAJOR_FLOOR[[:space:]]*=[[:space:]]*[0-9]+' "$CS" | head -1 | sed 's/[^0-9]//g')
+    if [ -n "$TGT" ] && [ "$TGT" = "$FLOOR" ]; then
+      pass "create-skill NODE_MAJOR_FLOOR ($FLOOR) == toolchain.sh NODE_TARGET ($TGT)"
+    else
+      fail "create-skill major 与 toolchain.sh NODE_TARGET 一致" "NODE_TARGET=$TGT 但 create-skill NODE_MAJOR_FLOOR=$FLOOR"
+    fi
+  fi
+)
+
 # Test: build.mjs 的 banner 版本号也单源 toolchain.sh（读 NODE_RUNTIME_FLOOR / NODE_TARGET）
 (
   BUILD_MJS="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/build.mjs"

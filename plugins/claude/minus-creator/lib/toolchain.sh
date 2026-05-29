@@ -20,6 +20,9 @@
 #   localhost 先解析 IPv6 ::1、而本地后端只绑 IPv4 → dev 代理连 ::1 秒回 504。
 #   故当前 floor 与 target 同为 24。将来 target 升到 25 时，floor 可滞后到 24
 #   以平滑灰度，但永远 >=20。
+# 注：minus-platform 的 create-skill（独立 npm 包）也持有同一 major（其 index.mjs 的
+# NODE_MAJOR_FLOOR）。两仓各自写死同一 24——create-skill 发布时读不到本文件，故不做运行时
+# 跨仓耦合；一致性由 tests/shell-scripts.test.sh 的 agreement 测试（双仓并列时）守住。
 NODE_TARGET=24
 NODE_FLOOR=24
 
