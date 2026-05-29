@@ -8,7 +8,7 @@
 #
 # 职责（缺什么补什么，已就绪则跳过）：
 #   1. 保障 Node>=24 运行时：缺失或版本过旧都通过 Volta 安装/选中 node@24（硬下限）
-#   2. pnpm —— 不走 corepack，装 pnpm@latest（Node>=24 已无旧版本兼容问题）
+#   2. pnpm —— 不走 corepack，pin 死版本（优先 Volta，否则 npm 全局装指定版本）
 #   3. uv —— Unix 用官方 curl，Windows 用 PowerShell installer
 #   4. 安装项目依赖（pnpm install / uv venv + uv pip install -e .）
 #
@@ -143,25 +143,49 @@ ensure_node() {
 }
 
 # ════════════════════════════════════════════
-# pnpm（不走 corepack）
+# pnpm（不走 corepack，pin 死版本）
 # ════════════════════════════════════════════
-# Node>=24 已由 ensure_node 保证，无需再按主版本挑 pnpm 版本，统一 latest。
+# 不用 @latest：pnpm 的次版本会引入破坏性策略变更（如 onlyBuiltDependencies 从
+# package.json 迁到 pnpm-workspace.yaml、忽略构建脚本时硬报错 ERR_PNPM_IGNORED_BUILDS），
+# 浮动版本会让客户机器随时间漂移到未验证的 pnpm 上踩雷。统一 pin 到验证过的版本。
+# 优先用 Volta 装（与 Node 同源管理，shim 在 PATH 上、非交互 spawn 也能接管）；
+# 无 Volta 才退回 npm 全局装指定版本。
+PNPM_PIN=11.4.0
+
 ensure_pnpm() {
-  # pnpm 存在且能跑 → 就绪（pnpm 跑不起来时 --version 失败，落到重装）
+  # pnpm 存在、能跑、且就是 pin 的版本 → 就绪
   if have pnpm && pnpm --version >/dev/null 2>&1; then
-    say "pnpm 已就绪（$(pnpm --version 2>/dev/null)）。"
-    return 0
+    local cur
+    cur=$(pnpm --version 2>/dev/null)
+    if [ "$cur" = "$PNPM_PIN" ]; then
+      say "pnpm 已就绪（${cur}）。"
+      return 0
+    fi
+    say "检测到 pnpm ${cur}，切换到 pin 版本 ${PNPM_PIN}……"
+  else
+    say "安装 pnpm@${PNPM_PIN}（不走 corepack）……"
   fi
 
-  say "安装 pnpm@latest（经 npm，不走 corepack）……"
-  if npm i -g pnpm@latest >/dev/null 2>&1; then
+  # 优先 Volta（已由 ensure_node 装好/选好 Node 时通常已就绪）
+  if have volta; then
+    if volta install "pnpm@${PNPM_PIN}" >/dev/null 2>&1; then
+      hash -r 2>/dev/null || true
+      if have pnpm && [ "$(pnpm --version 2>/dev/null)" = "$PNPM_PIN" ]; then
+        say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，Volta 管理）。"
+        return 0
+      fi
+    fi
+  fi
+
+  # 退回 npm 全局装指定版本
+  if npm i -g "pnpm@${PNPM_PIN}" >/dev/null 2>&1; then
     hash -r 2>/dev/null || true
     if have pnpm; then
       say "pnpm 安装完成（$(pnpm --version 2>/dev/null)）。"
       return 0
     fi
   fi
-  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。请手动运行：npm i -g pnpm@latest"
+  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。请手动运行：npm i -g pnpm@${PNPM_PIN}"
 }
 
 # ════════════════════════════════════════════
@@ -244,7 +268,7 @@ ensure_venv() {
 # ════════════════════════════════════════════
 # 主流程
 # ════════════════════════════════════════════
-say "检测开发环境（OS=$OS）……"
+say "检测开发环境（OS=${OS}）……"
 ensure_node
 ensure_pnpm
 ensure_uv

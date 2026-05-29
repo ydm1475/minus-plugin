@@ -125,25 +125,29 @@ npm install -g @minus-ai/create-skill@beta
 ```
 Plugin: 请按以下步骤打开项目：
   1. 新开一个对话
-  2. 选择对应项目的文件夹作为工作目录（如 ~/minus/关键词调研/）
-  3. 输入 /minus 进入开发
+  2. 选择对应项目的文件夹作为工作目录（如 `~/minus/关键词调研/`）
+  3. 输入 `/minus` 进入开发
 ```
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
 
-**scaffold 完成后原样输出以下内容（不要改写、不要加额外说明）：**
+**scaffold 完成后原样输出以下内容（不要改写、不要加额外说明）。格式要求：路径和 `/minus` 用单反引号包成行内代码（与正文区分），命令行用三反引号包成代码块（带一键复制按钮）：**
 
-```
+````
 项目已创建！接下来请：
 
 1. 新开一个对话
-2. 选择 ~/minus/{项目名称}/ 文件夹作为工作目录
-3. 输入 /minus 进入开发
+2. 选择 `~/minus/{项目名称}/` 文件夹作为工作目录
+3. 输入 `/minus` 进入开发
 
 用命令行的话直接运行：
+
+```bash
 cd ~/minus/{项目名称} && claude
-然后输入 /minus
 ```
+
+然后输入 `/minus`
+````
 
 注意：不要在当前 session 中进入结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
 
@@ -182,20 +186,38 @@ cd ~/minus/{项目名称} && claude
       fi
       ```
    2. 后端未运行 → `Bash(pnpm dev:backend)` 后台启动（只启动后端）。如果项目没有 `dev:backend` 脚本，则用 `Bash(pnpm dev)` 启动全部，然后 kill 前端 vite 进程让出端口。
-   3. 创建 `.claude/launch.json`（幂等，已存在则跳过）：
-      ```json
+   3. 创建 `.claude/launch.json`（幂等，已存在则跳过）。
+
+      ⚠️ **`runtimeExecutable` 必须写 pnpm 的绝对路径，不能写裸 `"pnpm"`。** Claude_Preview 是被客户端 spawn 的非交互进程，拿到的是 launchd PATH（GUI 启动不含 `~/.volta/bin`），裸 `"pnpm"` 会落到系统老 Node 上导致 Preview 崩。优先用 Volta 管理的 pnpm shim 绝对路径。
+
+      用下面这段生成（已存在则跳过）：
+      ```bash
+      mkdir -p .claude
+      if [ ! -f .claude/launch.json ]; then
+        # 解析 pnpm 绝对路径：优先 Volta shim，其次 PATH 上的 pnpm，最后兜底裸 pnpm
+        PNPM_BIN=""
+        if [ -x "${VOLTA_HOME:-$HOME/.volta}/bin/pnpm" ]; then
+          PNPM_BIN="${VOLTA_HOME:-$HOME/.volta}/bin/pnpm"
+        elif command -v pnpm >/dev/null 2>&1; then
+          PNPM_BIN="$(command -v pnpm)"
+        else
+          PNPM_BIN="pnpm"
+        fi
+        cat > .claude/launch.json <<EOF
       {
         "version": "0.0.1",
         "configurations": [
           {
             "name": "frontend",
-            "runtimeExecutable": "pnpm",
+            "runtimeExecutable": "${PNPM_BIN}",
             "runtimeArgs": ["--filter", "./frontend", "exec", "vite"],
             "port": 5173,
             "autoPort": true
           }
         ]
       }
+      EOF
+      fi
       ```
    4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
    5. 告诉 Creator 预览地址
@@ -279,7 +301,7 @@ cd ~/minus/{项目名称} && claude
 ```
 当前目录已经是「{当前项目名}」的项目了。要创建新 Skill 请：
 1. 新开一个对话
-2. 选择 ~/minus/ 文件夹作为工作目录
+2. 选择 `~/minus/` 文件夹作为工作目录
 3. 在新对话里告诉我你要创建的项目名
 ```
 

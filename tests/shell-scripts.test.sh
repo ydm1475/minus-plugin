@@ -1084,7 +1084,7 @@ write_stub() {
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
   write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
   write_stub "$SB" npm 'exit 0'
-  write_stub "$SB" pnpm 'echo 9.1.0'
+  write_stub "$SB" pnpm 'echo 11.4.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   cd "$TMP/proj"
   OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
@@ -1100,7 +1100,7 @@ write_stub() {
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
   write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
   write_stub "$SB" npm "echo called >> $TMP/npm.log"
-  write_stub "$SB" pnpm 'echo 9.1.0'
+  write_stub "$SB" pnpm 'echo 11.4.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   : > "$TMP/npm.log"
   cd "$TMP/proj"
@@ -1128,6 +1128,33 @@ write_stub() {
     pass "bootstrap-env: Node18 升级失败即停，绝不碰 pnpm / corepack"
   else
     fail "bootstrap-env: Node18 升级失败即停" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log"); corepack.log: $(cat "$TMP/corepack.log")"
+  fi
+)
+
+# Test: pnpm 被 pin 死版本，绝不用 @latest（浮动版本会随时间漂到未验证 pnpm 上踩雷）
+(
+  if grep -qE 'PNPM_PIN=[0-9]' "$BS" && ! grep -q 'pnpm@latest' "$BS"; then
+    pass "bootstrap-env: pnpm pin 死版本，无 pnpm@latest"
+  else
+    fail "bootstrap-env: pnpm pin 死版本" "still uses pnpm@latest or missing PNPM_PIN"
+  fi
+)
+
+# Test: 已装 pnpm 但版本 != pin → 切到 pin 版本（优先 Volta）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" pnpm 'echo 9.1.0'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
+  : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "切换到 pin 版本" && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0"; then
+    pass "bootstrap-env: pnpm 版本不符 → 经 Volta 切到 pin 版本"
+  else
+    fail "bootstrap-env: pnpm 切到 pin 版本" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log")"
   fi
 )
 
@@ -1218,6 +1245,17 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
     pass "SKILL.md: branch A creates .claude/launch.json"
   else
     fail "SKILL.md: branch A creates .claude/launch.json" "not found"
+  fi
+)
+
+# Test: launch.json 用 pnpm 绝对路径（Volta shim 优先），不写裸 "pnpm"
+# 客户端 spawn Preview 拿 launchd PATH（不含 ~/.volta/bin），裸 pnpm 会落到系统老 Node 崩
+(
+  if grep -q '/bin/pnpm' "$SKILL_MD" && grep -q 'PNPM_BIN' "$SKILL_MD" \
+     && ! grep -qE '"runtimeExecutable": *"pnpm"' "$SKILL_MD"; then
+    pass "SKILL.md: launch.json runtimeExecutable 用绝对路径（Volta 优先），无裸 pnpm"
+  else
+    fail "SKILL.md: launch.json runtimeExecutable 绝对路径" "still bare pnpm or missing volta path resolution"
   fi
 )
 
