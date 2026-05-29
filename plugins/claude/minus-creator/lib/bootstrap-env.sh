@@ -3,11 +3,12 @@
 # 确定性、幂等、跨平台的开发环境初始化。
 #
 # 把原来散在 SKILL.md 里的「不说话不询问」内联安装命令收敛到这里，
-# 解决：无进度反馈、假设 pnpm/uv 已存在、Node 旧版本 corepack 拉 pnpm@latest 崩溃。
+# 解决：无进度反馈、假设 pnpm/uv 已存在、本地 Node 版本过旧导致的各种诡异 bug
+# （如 macOS 上 localhost IPv6 解析 + Node18 autoSelectFamily=false 引发的代理 504）。
 #
 # 职责（缺什么补什么，已就绪则跳过）：
-#   1. 保障 node/npm 运行时（完全缺失才自动装，不动既有旧版本）
-#   2. pnpm —— 不走 corepack，按 Node 主版本选版本（<20→8，否则 latest）
+#   1. 保障 Node>=24 运行时：缺失或版本过旧都通过 Volta 安装/选中 node@24（硬下限）
+#   2. pnpm —— 不走 corepack，装 pnpm@latest（Node>=24 已无旧版本兼容问题）
 #   3. uv —— Unix 用官方 curl，Windows 用 PowerShell installer
 #   4. 安装项目依赖（pnpm install / uv venv + uv pip install -e .）
 #
@@ -58,102 +59,109 @@ win_local_bin() {
 }
 
 # ════════════════════════════════════════════
-# Step 0 — Node / npm 运行时保障
+# Step 0 — Node 运行时保障（硬下限 >= NODE_FLOOR）
 # ════════════════════════════════════════════
+# 为什么硬卡版本：Node<20 的 autoSelectFamily 默认 false，macOS 上 localhost 先解析
+# IPv6 ::1，而本地后端只绑 IPv4 → dev 代理连 ::1 失败秒回 504。只放行 24+ 从根上避开
+# 这类与 Node 版本耦合的诡异 bug。用 Volta 而非 fnm：Volta 的 shim 是 PATH 上的真二进制，
+# 非交互式 spawn（含 GUI 客户端起 dev）也能被接管，不像 fnm 依赖 shell hook。
+NODE_FLOOR=24
+
+# 当前 node/npm 是否就绪且主版本 >= NODE_FLOOR
+node_major_ok() {
+  have node && have npm || return 1
+  local major
+  major=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo "")
+  [ -n "$major" ] && [ "$major" -ge "$NODE_FLOOR" ] 2>/dev/null
+}
+
+# 通过 Volta 安装并选中 node@NODE_FLOOR（mac/linux）。成功 0 / 失败 1。
+provision_node_via_volta() {
+  if ! have volta; then
+    have curl || return 1
+    say "安装 Volta（Node 版本管理器，单次安装全局共享）……"
+    curl -fsSL https://get.volta.sh | bash -s -- --skip-setup >/dev/null 2>&1 || true
+  fi
+  export VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+  export PATH="$VOLTA_HOME/bin:$PATH"
+  hash -r 2>/dev/null || true
+  have volta || return 1
+  say "通过 Volta 安装并选中 Node ${NODE_FLOOR}（可能需要几分钟）……"
+  volta install "node@${NODE_FLOOR}" >/dev/null 2>&1 || true
+  hash -r 2>/dev/null || true
+  node_major_ok
+}
+
 ensure_node() {
-  if have node && have npm; then
+  # 已就绪且版本达标 → 直接放行
+  if node_major_ok; then
     say "Node/npm 已就绪（$(node -v 2>/dev/null)）。"
     return 0
   fi
 
   # node 在但 npm 不在：残缺安装，不强行修
   if have node && ! have npm; then
-    finish_fail NO_NPM "检测到 node 但缺少 npm（Node 安装不完整）。请重装 Node.js（建议 LTS）后重跑 /minus。"
+    finish_fail NO_NPM "检测到 node 但缺少 npm（Node 安装不完整）。请重装 Node.js（>= v${NODE_FLOOR}）后重跑 /minus。"
   fi
 
-  say "未检测到 Node.js，开始自动安装……"
+  # 到这里：要么完全没有 node，要么 node 版本 < NODE_FLOOR —— 都用 Volta 配给
+  if have node; then
+    say "检测到 Node $(node -v 2>/dev/null)，低于要求的 v${NODE_FLOOR}，开始通过 Volta 升级……"
+  else
+    say "未检测到 Node.js，开始通过 Volta 安装 v${NODE_FLOOR}……"
+  fi
+
   if [ "$OS" = "windows" ]; then
     if have winget || have powershell.exe; then
-      say "通过 winget 安装 Node.js LTS（可能需要几分钟）……"
+      say "通过 winget 安装 Volta（可能需要几分钟）……"
       powershell.exe -NoProfile -Command \
-        "winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
+        "winget install -e --id Volta.Volta --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
       hash -r 2>/dev/null || true
-      if have node && have npm; then
-        say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
-        return 0
+      if have volta; then
+        volta install "node@${NODE_FLOOR}" >/dev/null 2>&1 || true
+        hash -r 2>/dev/null || true
+        if node_major_ok; then
+          say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
+          return 0
+        fi
       fi
-      finish_fail RESTART_NEEDED "Node.js 已安装，但当前终端 PATH 未刷新。请重启 Claude Code / 终端后重跑 /minus。"
+      finish_fail RESTART_NEEDED "Volta 已安装，但当前终端 PATH 未刷新。请重启 Claude Code / 终端后重跑 /minus。"
     fi
-    finish_fail NO_NODE "未找到 winget，无法自动安装 Node.js。请到 https://nodejs.org 下载 LTS 安装后重跑 /minus。"
+    finish_fail NO_NODE "未找到 winget，无法自动安装。请安装 Node.js v${NODE_FLOOR}+（https://volta.sh 或 https://nodejs.org）后重跑 /minus。"
   fi
 
-  # mac / linux：用 self-contained 的 fnm（curl 单文件安装器）
-  if have curl; then
-    say "通过 fnm 安装 Node.js LTS（可能需要几分钟）……"
-    curl -fsSL https://fnm.vercel.app/install | bash >/dev/null 2>&1 || true
-    export PATH="$HOME/.local/share/fnm:$HOME/.fnm:$PATH"
-    hash -r 2>/dev/null || true
-    if have fnm; then
-      eval "$(fnm env 2>/dev/null)" 2>/dev/null || true
-      fnm install --lts >/dev/null 2>&1 || true
-      fnm use lts-latest >/dev/null 2>&1 || true
-      eval "$(fnm env 2>/dev/null)" 2>/dev/null || true
-      hash -r 2>/dev/null || true
-    fi
-    if have node && have npm; then
-      say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
-      return 0
-    fi
+  # mac / linux
+  if provision_node_via_volta; then
+    say "Node.js 就绪（$(node -v 2>/dev/null)）。"
+    return 0
   fi
-  finish_fail NO_NODE "Node.js 自动安装失败。请手动安装 Node.js LTS（如 'brew install node' 或 https://nodejs.org），然后重跑 /minus。"
+
+  if have node; then
+    finish_fail NODE_TOO_OLD "当前 Node 低于 v${NODE_FLOOR} 且自动升级失败。请安装 Node v${NODE_FLOOR}+（推荐 'curl https://get.volta.sh | bash' 后 'volta install node@${NODE_FLOOR}'）后重跑 /minus。"
+  fi
+  finish_fail NO_NODE "Node.js 自动安装失败。请手动安装 Node v${NODE_FLOOR}+（推荐 https://volta.sh）后重跑 /minus。"
 }
 
 # ════════════════════════════════════════════
 # pnpm（不走 corepack）
 # ════════════════════════════════════════════
-NODE_MAJOR=""
-PNPM_TARGET=""
-
-compute_pnpm_target() {
-  NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo "")
-  if [ -n "$NODE_MAJOR" ] && [ "$NODE_MAJOR" -lt 20 ] 2>/dev/null; then
-    PNPM_TARGET="8"
-  else
-    PNPM_TARGET="latest"
-  fi
-  say "Node 主版本: ${NODE_MAJOR:-未知} → pnpm 目标版本: $PNPM_TARGET"
-}
-
+# Node>=24 已由 ensure_node 保证，无需再按主版本挑 pnpm 版本，统一 latest。
 ensure_pnpm() {
-  local need_install="no"
-  if ! have pnpm; then
-    need_install="yes"
-  else
-    local cur_major
-    cur_major=$(pnpm --version 2>/dev/null | cut -d. -f1)
-    if [ -z "$cur_major" ]; then
-      # pnpm 存在但跑不起来（如 corepack 在旧 Node 上崩溃）→ 重装
-      need_install="yes"
-    elif [ "$PNPM_TARGET" = "8" ] && [ "$cur_major" -gt 8 ] 2>/dev/null; then
-      # Node<20 但现有 pnpm 太新（会触发 Node18 的 dynamic import bug）→ 降级
-      need_install="yes"
-    fi
-  fi
-
-  if [ "$need_install" = "no" ]; then
+  # pnpm 存在且能跑 → 就绪（pnpm 跑不起来时 --version 失败，落到重装）
+  if have pnpm && pnpm --version >/dev/null 2>&1; then
     say "pnpm 已就绪（$(pnpm --version 2>/dev/null)）。"
     return 0
   fi
 
-  say "安装 pnpm@$PNPM_TARGET（经 npm，不走 corepack）……"
-  if npm i -g "pnpm@$PNPM_TARGET" >/dev/null 2>&1; then
+  say "安装 pnpm@latest（经 npm，不走 corepack）……"
+  if npm i -g pnpm@latest >/dev/null 2>&1; then
     hash -r 2>/dev/null || true
     if have pnpm; then
       say "pnpm 安装完成（$(pnpm --version 2>/dev/null)）。"
       return 0
     fi
   fi
-  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。请手动运行：npm i -g pnpm@$PNPM_TARGET"
+  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。请手动运行：npm i -g pnpm@latest"
 }
 
 # ════════════════════════════════════════════
@@ -238,7 +246,6 @@ ensure_venv() {
 # ════════════════════════════════════════════
 say "检测开发环境（OS=$OS）……"
 ensure_node
-compute_pnpm_target
 ensure_pnpm
 ensure_uv
 ensure_node_modules

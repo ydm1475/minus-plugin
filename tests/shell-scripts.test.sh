@@ -1063,42 +1063,42 @@ write_stub() {
   fi
 )
 
-# Test: Node major < 20 selects pnpm@8
+# Test: Node < 24 且无法装 Volta（curl 失败）→ 升级失败 NODE_TOO_OLD，绝不放行旧 Node
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
   write_stub "$SB" node 'case "$1" in -v) echo v18.16.0;; -p) echo 18;; *) echo 18;; esac'
-  write_stub "$SB" npm 'exit 0'
-  write_stub "$SB" pnpm 'echo 8.15.9'
-  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" npm "echo called >> $TMP/npm.log"
+  write_stub "$SB" curl 'exit 1'
+  : > "$TMP/npm.log"
   cd "$TMP/proj"
   OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
-  if assert_contains "$OUTPUT" "pnpm 目标版本: 8"; then
-    pass "bootstrap-env: Node<20 selects pnpm@8"
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=failed reason=NODE_TOO_OLD" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: Node<24 + Volta 装不上 → NODE_TOO_OLD，不放行旧 Node、不碰 pnpm"
   else
-    fail "bootstrap-env: Node<20 selects pnpm@8" "got: $OUTPUT"
+    fail "bootstrap-env: Node<24 → NODE_TOO_OLD" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log")"
   fi
 )
 
-# Test: Node major >= 20 selects pnpm@latest
+# Test: 现有 Node >= 24 → 直接放行，不触发 Volta 安装
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
-  write_stub "$SB" node 'case "$1" in -v) echo v20.11.0;; -p) echo 20;; *) echo 20;; esac'
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
   write_stub "$SB" npm 'exit 0'
   write_stub "$SB" pnpm 'echo 9.1.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   cd "$TMP/proj"
   OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
-  if assert_contains "$OUTPUT" "pnpm 目标版本: latest"; then
-    pass "bootstrap-env: Node>=20 selects pnpm@latest"
+  if assert_contains "$OUTPUT" "Node/npm 已就绪" && ! assert_contains "$OUTPUT" "通过 Volta"; then
+    pass "bootstrap-env: 现有 Node>=24 直接放行，不装 Volta"
   else
-    fail "bootstrap-env: Node>=20 selects pnpm@latest" "got: $OUTPUT"
+    fail "bootstrap-env: Node>=24 放行" "got: $OUTPUT"
   fi
 )
 
 # Test: all tools + deps present → BOOTSTRAP_RESULT=ok, no install attempted
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
-  write_stub "$SB" node 'case "$1" in -v) echo v20.11.0;; -p) echo 20;; *) echo 20;; esac'
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
   write_stub "$SB" npm "echo called >> $TMP/npm.log"
   write_stub "$SB" pnpm 'echo 9.1.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
@@ -1112,21 +1112,22 @@ write_stub() {
   fi
 )
 
-# Test: Node18 + pnpm too new → reinstall pnpm@8 via npm (not corepack)
+# Test: Node18 在升级失败时早早 finish_fail，绝不退回去碰 pnpm / corepack
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
   write_stub "$SB" node 'case "$1" in -v) echo v18.16.0;; -p) echo 18;; *) echo 18;; esac'
   write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 0"
   write_stub "$SB" pnpm 'echo 11.4.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" curl 'exit 1'
   write_stub "$SB" corepack "echo corepack >> $TMP/corepack.log"
   : > "$TMP/npm.log"; : > "$TMP/corepack.log"
   cd "$TMP/proj"
-  HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" >/dev/null 2>&1
-  if assert_contains "$(cat "$TMP/npm.log")" "i -g pnpm@8" && [ ! -s "$TMP/corepack.log" ]; then
-    pass "bootstrap-env: Node18 downgrades pnpm via 'npm i -g pnpm@8', never corepack"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "reason=NODE_TOO_OLD" && [ ! -s "$TMP/npm.log" ] && [ ! -s "$TMP/corepack.log" ]; then
+    pass "bootstrap-env: Node18 升级失败即停，绝不碰 pnpm / corepack"
   else
-    fail "bootstrap-env: Node18 downgrades pnpm via npm, never corepack" "npm.log: $(cat "$TMP/npm.log"); corepack.log: $(cat "$TMP/corepack.log")"
+    fail "bootstrap-env: Node18 升级失败即停" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log"); corepack.log: $(cat "$TMP/corepack.log")"
   fi
 )
 
