@@ -27,14 +27,13 @@ case "$OS_TYPE" in
 esac
 MINUS_JSON=".minus/skill.json"
 
-# ── 前置检查：Node.js 是否可用 ──
-if ! command -v node >/dev/null 2>&1; then
-  echo "<context>"
-  echo "Minus Creator Plugin 已加载，但需要 Node.js 才能正常工作。"
-  echo "当前平台：$PLATFORM"
-  echo "当 Creator 输入 /minus 时，引导安装 Node.js。"
-  echo "</context>"
-  exit 0
+# ── Node.js 探测（不拦截流程）──
+# 无 node 不再提前 exit：/minus 进入开发环境时 bootstrap-env.sh 会自动安装。
+# 提前退出会让用户根本走不到自动安装那一步。这里只记录状态供 context 提示。
+if command -v node >/dev/null 2>&1; then
+  NODE_INFO="Node.js：$(node -v 2>/dev/null)"
+else
+  NODE_INFO="Node.js：未检测到（/minus 进入开发环境时会自动安装，无需手动处理）"
 fi
 
 # ── 静默初始化：确保全局目录和 Workspace 存在 ──
@@ -70,6 +69,8 @@ if [ -f "$PROJECTS_JSON" ]; then
     }catch{console.log(0)}
   " 2>/dev/null)
 fi
+# node 缺失时上面会返回空，兜底为 0
+[ -z "$PROJECT_COUNT" ] && PROJECT_COUNT=0
 
 # ── projects.json 管理脚本路径 ──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -91,6 +92,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "Minus Creator Plugin 已加载。"
   echo "当前目录是 Minus Skill 项目：$PROJ_DISPLAY_NAME"
   echo "登录状态：$LOGGED_IN"
+  echo "$NODE_INFO"
   echo "[自动触发] 检测到 Skill 项目，必须立即调用 Skill 工具执行 minus-creator:minus，不要等用户输入。"
   echo "</context>"
 

@@ -151,13 +151,23 @@ cd ~/minus/{项目名称} && claude
 
 **环境初始化（每次进入都执行）：**
 
-1. 如果无 node_modules，第一个动作执行 `Bash(pnpm install)`，不说话不询问
-2. 如果无 .venv，执行 `Bash(uv venv -p 3.12 && uv pip install -e .)`，不说话不询问
-3. **探测预览能力**（在启动 dev server 之前）：
+1. **准备开发环境（依赖工具 + 项目依赖）**：
+   - 若 `node_modules` 或 `.venv` 任一缺失（需要安装）：**先原样告诉 Creator**「正在准备开发环境，首次安装依赖可能需要几分钟，请稍候」，**再**执行 bootstrap 脚本（前台、单条命令、给足超时）：
+     ```bash
+     PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/bootstrap-env.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+     bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
+     ```
+     调用时给 `Bash` 传 `timeout: 600000`。
+   - 读取脚本最后一行 `BOOTSTRAP_RESULT`：
+     - `ok` → 继续后续步骤。
+     - `failed reason=NO_NODE` / `reason=NO_NPM` / `reason=RESTART_NEEDED` → 把脚本输出里那条说明（含手动命令/重启提示）原样转达给 Creator，**停在这里等用户处理后重跑 /minus**，不要自己试错装环境。
+     - 其他 `failed reason=...` → 同样把脚本给的手动命令原样转达，停下。
+   - ⛔ 环境安装的所有逻辑以 `bootstrap-env.sh` 为准。**不要**在这里内联 `pnpm install` / `uv venv` / `corepack` / `npm i -g pnpm` 等命令——脚本已处理工具探测、Node 版本适配（不走 corepack）和跨平台安装。
+2. **探测预览能力**（在启动 dev server 之前）：
    判断客户端类型（`CLAUDE_CODE_ENTRYPOINT` 环境变量：claude-desktop/vscode/jetbrains 为 Desktop，其余为 CLI）。
    如果是 Desktop，调用 `ToolSearch("preview")` 搜索 `mcp__Claude_Preview__preview_start`。
    记住探测结果，后续步骤根据结果分支。
-4. **启动 dev server + 打开预览**（根据步骤 3 的探测结果分支）：
+3. **启动 dev server + 打开预览**（根据步骤 2 的探测结果分支）：
 
    **分支 A：Desktop + Claude_Preview 可用**
 
@@ -212,7 +222,7 @@ cd ~/minus/{项目名称} && claude
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 6. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重启前后端 dev server
-   - 重新检测预览端口（步骤 4 分支 B）
+   - 重新检测预览端口（步骤 3 分支 B）
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
 **首次进入（.minus/initialized 不存在）：**

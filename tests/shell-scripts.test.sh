@@ -1032,6 +1032,147 @@ DPP="$LIB_DIR/detect-preview-port.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ bootstrap-env.sh ═══"
+# ══════════════════════════════════════════════════════
+
+BS="$LIB_DIR/bootstrap-env.sh"
+SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
+
+# Helper: write an executable stub into a dir
+write_stub() {
+  # $1=dir $2=name $3=body
+  printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"
+  chmod +x "$1/$2"
+}
+
+# Test: exists and executable
+(
+  if [ -f "$BS" ] && [ -x "$BS" ]; then
+    pass "bootstrap-env: exists and is executable"
+  else
+    fail "bootstrap-env: exists and is executable" "missing or not executable"
+  fi
+)
+
+# Test: passes bash syntax check
+(
+  if bash -n "$BS" 2>/dev/null; then
+    pass "bootstrap-env: passes bash -n syntax check"
+  else
+    fail "bootstrap-env: passes bash -n syntax check" "syntax error"
+  fi
+)
+
+# Test: Node major < 20 selects pnpm@8
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v18.16.0;; -p) echo 18;; *) echo 18;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" pnpm 'echo 8.15.9'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "pnpm 目标版本: 8"; then
+    pass "bootstrap-env: Node<20 selects pnpm@8"
+  else
+    fail "bootstrap-env: Node<20 selects pnpm@8" "got: $OUTPUT"
+  fi
+)
+
+# Test: Node major >= 20 selects pnpm@latest
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v20.11.0;; -p) echo 20;; *) echo 20;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" pnpm 'echo 9.1.0'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "pnpm 目标版本: latest"; then
+    pass "bootstrap-env: Node>=20 selects pnpm@latest"
+  else
+    fail "bootstrap-env: Node>=20 selects pnpm@latest" "got: $OUTPUT"
+  fi
+)
+
+# Test: all tools + deps present → BOOTSTRAP_RESULT=ok, no install attempted
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v20.11.0;; -p) echo 20;; *) echo 20;; esac'
+  write_stub "$SB" npm "echo called >> $TMP/npm.log"
+  write_stub "$SB" pnpm 'echo 9.1.0'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  : > "$TMP/npm.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: all present → ok, skips install (npm not called)"
+  else
+    fail "bootstrap-env: all present → ok, skips install" "result/npm.log mismatch; out: $OUTPUT; npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
+# Test: Node18 + pnpm too new → reinstall pnpm@8 via npm (not corepack)
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v18.16.0;; -p) echo 18;; *) echo 18;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 0"
+  write_stub "$SB" pnpm 'echo 11.4.0'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" corepack "echo corepack >> $TMP/corepack.log"
+  : > "$TMP/npm.log"; : > "$TMP/corepack.log"
+  cd "$TMP/proj"
+  HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" >/dev/null 2>&1
+  if assert_contains "$(cat "$TMP/npm.log")" "i -g pnpm@8" && [ ! -s "$TMP/corepack.log" ]; then
+    pass "bootstrap-env: Node18 downgrades pnpm via 'npm i -g pnpm@8', never corepack"
+  else
+    fail "bootstrap-env: Node18 downgrades pnpm via npm, never corepack" "npm.log: $(cat "$TMP/npm.log"); corepack.log: $(cat "$TMP/corepack.log")"
+  fi
+)
+
+# Test: no node + curl fails (mac/linux) → reason=NO_NODE, never tries pnpm
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj"
+  write_stub "$SB" curl 'exit 1'
+  write_stub "$SB" npm "echo called >> $TMP/npm.log"
+  : > "$TMP/npm.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=failed reason=NO_NODE" && [ ! -s "$TMP/npm.log" ]; then
+    pass "bootstrap-env: no node → NO_NODE, stops before pnpm"
+  else
+    fail "bootstrap-env: no node → NO_NODE" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
+# Test: Windows branch uses winget/powershell (not curl); PATH not refreshed → RESTART_NEEDED
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj"
+  write_stub "$SB" powershell.exe "echo \"ps \$*\" >> $TMP/ps.log; exit 0"
+  write_stub "$SB" curl "echo curl >> $TMP/curl.log"
+  : > "$TMP/ps.log"; : > "$TMP/curl.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" USERPROFILE="$TMP" BOOTSTRAP_OS=windows PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=failed reason=RESTART_NEEDED" \
+     && assert_contains "$(cat "$TMP/ps.log")" "winget install" && [ ! -s "$TMP/curl.log" ]; then
+    pass "bootstrap-env: Windows uses winget/powershell (not curl), RESTART_NEEDED when PATH stale"
+  else
+    fail "bootstrap-env: Windows uses winget/powershell" "out: $OUTPUT; ps.log: $(cat "$TMP/ps.log"); curl.log: $(cat "$TMP/curl.log")"
+  fi
+)
+
+# Test: SKILL.md drives bootstrap via the script, not inline install commands
+(
+  if grep -q "bootstrap-env.sh" "$SKILL_MD" 2>/dev/null \
+     && ! grep -qE '`Bash\(pnpm install\)`' "$SKILL_MD" 2>/dev/null; then
+    pass "SKILL.md: env init calls bootstrap-env.sh, no inline 'Bash(pnpm install)'"
+  else
+    fail "SKILL.md: env init calls bootstrap-env.sh, no inline pnpm install" "still inlines install or missing bootstrap call"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ preview flow (vite template + SKILL.md) ═══"
 # ══════════════════════════════════════════════════════
 
