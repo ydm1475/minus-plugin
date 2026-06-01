@@ -143,11 +143,13 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 脚手架会自动完成：
 
 - 向平台注册 Skill（获得 skillId 和 apiKey）
-- 在 ~/minus/{项目名称}/ 下生成完整项目结构（前后端代码、配置文件、.minus/skill.json）
+- 在 ~/minus/{folder}/ 下生成完整项目结构（前后端代码、配置文件、.minus/skill.json）；`folder` 见下方 `__CREATE_RESULT__`
 - 创建 Python 虚拟环境并安装后端依赖
 - 安装前端依赖
 
 脚手架输出末尾有 `__CREATE_RESULT__` JSON，Plugin 应解析获取 folder、skillId、apiKey 等信息。
+
+⚠️ `folder` 是项目真实落地的文件夹名，create-skill 可能对 Creator 输入做过清洗（如空格转 `-`），**与 Creator 输入的名字未必一致**。后续所有需要项目文件夹名/路径的地方（引导文案、`cd` 路径等），一律使用 `__CREATE_RESULT__.folder`，禁止用 Creator 输入的原始名字。
 
 **scaffold 成功后：**
 原样输出："项目创建成功！现在自动生成描述和适用场景。"
@@ -175,7 +177,7 @@ Plugin: 请按以下步骤打开项目：
 
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{项目名称}"
+bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
 ```
 
 把脚本输出原样转达给 Creator（已是排好版的 markdown：路径和 `/minus` 为行内代码、命令为代码块、desktop 含操作图）。
