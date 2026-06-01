@@ -1958,6 +1958,15 @@ UNINSTALL_SH="$LIB_DIR/uninstall.sh"
   fi
 )
 
+# Test: 清理 ~/.claude/plugins/claude 残留解压目录（注册表不引用但物理残留的真实落点）
+(
+  if grep -q '.claude/plugins/claude/minus-creator' "$UNINSTALL_SH"; then
+    pass "uninstall.sh: 清理 ~/.claude/plugins/claude 残留"
+  else
+    fail "uninstall.sh: ~/.claude/plugins/claude 残留" "missing .claude/plugins/claude/minus-creator"
+  fi
+)
+
 # Test: 不碰对话历史和登录凭证（projects/ 与 ~/.minus 不在删除范围）
 # 只看行首的实际 rm 命令，排除末尾 echo 帮助文字里的 "rm -rf ~/.minus" 示例。
 # 注意 .minus-creator-plugin 是合法清理项，故 .minus 后必须紧跟 " / 或行尾才算误删凭证。

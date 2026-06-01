@@ -57,6 +57,14 @@ if [ -f "$MP_JSON" ] && grep -q '"minus-plugin"' "$MP_JSON"; then
   rm -rf "$HOME/.claude-plugins/claude/.claude-plugin" 2>/dev/null
 fi
 rmdir "$HOME/.claude-plugins/claude" "$HOME/.claude-plugins" 2>/dev/null || true   # 仅当空时删空壳
+# 同样的 marketplace 源也可能落在 ~/.claude/plugins/claude/（注册表不引用也会物理残留）。
+# 同策略：只删确属 minus 的 minus-creator/ 与 name=minus-plugin 的清单，空了才删空壳。
+rm -rf "$HOME/.claude/plugins/claude/minus-creator" 2>/dev/null
+MP_JSON2="$HOME/.claude/plugins/claude/.claude-plugin/marketplace.json"
+if [ -f "$MP_JSON2" ] && grep -q '"minus-plugin"' "$MP_JSON2"; then
+  rm -rf "$HOME/.claude/plugins/claude/.claude-plugin" 2>/dev/null
+fi
+rmdir "$HOME/.claude/plugins/claude" 2>/dev/null || true   # 仅当空时删空壳
 echo "✓ 散落副本/解压目录已清理"
 
 echo ""
