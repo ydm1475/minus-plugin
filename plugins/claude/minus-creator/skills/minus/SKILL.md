@@ -260,7 +260,15 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
       ```
 
    4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
-   5. 原样告诉 Creator（不改写）：「预览已在右侧面板打开。」
+   5. 检测预览端口（预览已由 `preview_start` 打开，这里只取端口，用 `AUTO_OPEN=0` 禁止重复打开）：
+      ```bash
+      PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+      PREVIEW_PORT=$(AUTO_OPEN=0 bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null | head -1)
+      echo "PREVIEW_PORT=${PREVIEW_PORT}"
+      ```
+   6. 按检测结果原样输出（不改写）：
+      - 检测到端口（非 `DETECT_FAILED`）→「预览已在右侧面板打开（http://localhost:{port}）。」
+      - 检测失败 →「预览已在右侧面板打开。」
 
    **分支 B：CLI 或 Claude_Preview 不可用**
 
