@@ -102,9 +102,11 @@ Plugin: 你有这些本地项目：
 （实测有 v12/v13），崩在 `??` 语法。必须先用 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
 把它的目录前置到 PATH 再调用——这样 create-skill 的 shebang 就会拿到够新的 node。
 
-**create-skill 不存在时自动静默安装**（不要再让 Creator 手动装）：优先 Volta（写入
-`~/.volta`，无需 sudo），回退到解析出的 node 旁边的 npm。一律 **不碰 `/usr/local`**，避免
-撞 root 权限和老 node。
+**每次都把 create-skill 对齐到 `@beta` 当前版本**（无条件安装/升级，不再是"缺了才装"——
+否则装过一次就永远停在旧版，拿不到 Platform 的修复）：优先 Volta（写入 `~/.volta`，无需
+sudo），无 Volta 时回退到解析出的 node 旁边的 npm。一律 **不碰 `/usr/local`**，避免撞 root
+权限和老 node。`@beta` 是浮动 tag，版本没变时 Volta 命中缓存不重复下载，只多一次轻量的
+registry 解析。
 
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/resolve-node.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
@@ -115,12 +117,12 @@ else
   export PATH="$(dirname "$NODE_BIN"):$HOME/.volta/bin:$PATH"
   # 国内镜像源（与 bootstrap 同源，MINUS_MIRROR=off 可关）：让下面 volta/npm 装包走国内源
   [ -f "$PLUGIN_ROOT/lib/bootstrap-env.sh" ] && . "$PLUGIN_ROOT/lib/bootstrap-env.sh" && setup_cn_mirror >/dev/null 2>&1
-  if ! command -v create-skill >/dev/null 2>&1; then
-    echo "create-skill 未安装，正在自动安装 @minus-ai/create-skill@beta……"
-    if [ -x "$HOME/.volta/bin/volta" ]; then
-      "$HOME/.volta/bin/volta" install @minus-ai/create-skill@beta >/dev/null 2>&1 || true
-    fi
-    command -v create-skill >/dev/null 2>&1 || "$(dirname "$NODE_BIN")/npm" install -g @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+  # 无条件对齐到 @beta（已是最新则命中缓存，秒过）：优先 Volta，无 Volta 回退 npm。
+  echo "正在安装/更新 @minus-ai/create-skill@beta……"
+  if [ -x "$HOME/.volta/bin/volta" ]; then
+    "$HOME/.volta/bin/volta" install @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+  else
+    "$(dirname "$NODE_BIN")/npm" install -g @minus-ai/create-skill@beta >/dev/null 2>&1 || true
   fi
   if command -v create-skill >/dev/null 2>&1; then
     cd ~/minus && create-skill "项目名称" --non-interactive
@@ -155,8 +157,9 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 原样输出："项目创建成功！现在自动生成描述和适用场景。"
 然后根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
-create-skill 不存在时上面的执行块会自动静默安装，无需让 Creator 手动装。仅当输出
-`CREATE_SKILL_INSTALL_FAILED`（自动安装失败）时，才提示 Creator 手动安装后重跑 `/minus`：
+上面的执行块每次都会自动把 create-skill 对齐到 `@beta`（含首次安装和后续升级），无需让
+Creator 手动装。仅当输出 `CREATE_SKILL_INSTALL_FAILED`（安装失败）时，才提示 Creator 手动
+安装后重跑 `/minus`：
 
 ```bash
 npm install -g @minus-ai/create-skill@beta
@@ -173,23 +176,16 @@ Plugin: 请按以下步骤打开项目：
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
 
-**`skill_update` 写入后，按客户端类型输出"接下来请"引导，desktop / cli 二选一，每条分支只做一次动作（不要两条都做）：**
+**`skill_update` 写入后，运行 `generate-next-steps.sh` 输出"接下来请"引导，把输出原样转达：**
 
 ⛔ 禁止：在引导前后输出任何过渡/旁白文字（如"现在生成接下来的引导""下面是后续步骤"之类）。引导内容已自带开头语"项目已创建！接下来请："，直接原样转达，不加任何前言后语。
 
-先判定客户端（输出 `desktop` 或 `cli`）：
-
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-client.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/detect-client.sh"
-```
-
-- **desktop**：调用 MCP 工具 `show_onboarding_images`，参数 `folder` 传 `{__CREATE_RESULT__.folder}`。它会**一次性**返回引导文案 + 两张操作截图，全部内联转达给 Creator。**desktop 下只做这一次调用，不要再跑 `generate-next-steps.sh`。**
-- **cli**：运行下面脚本，把输出原样转达（终端无法渲染图片，纯文案即可）：
-
-```bash
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
 bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
 ```
+
+脚本内部按客户端类型分支：desktop 输出引导文案 + 两张操作截图外链（markdown 图片），cli 输出 `cd` 启动命令。Agent 不需要自己判定客户端，直接转达脚本输出即可。
 
 注意：不要在当前 session 中进入结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
 

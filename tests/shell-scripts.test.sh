@@ -964,28 +964,30 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: 脚本现为 cli-only —— 任何客户端下都只输出 cd 启动命令，不含选文件夹/图片。
-# desktop 引导（含截图）已移到 MCP 工具 show_onboarding_images，由 mcp-server.test.js 覆盖。
+# Test: cli 入口 → 只输出 cd 启动命令，不含图片/选文件夹文案。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
   if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
-     && ! echo "$OUTPUT" | grep -q "guide.png" \
      && ! echo "$OUTPUT" | grep -q '!\[' \
-     && ! echo "$OUTPUT" | grep -q "选择.*文件夹作为工作目录"; then
+     && ! echo "$OUTPUT" | grep -q "选择 .*文件夹作为工作目录"; then
     pass "generate-next-steps: cli → cd 命令，无图无选文件夹"
   else
     fail "generate-next-steps: cli 文案" "got: $OUTPUT"
   fi
 )
 
-# Test: 即便误在 desktop 入口调用，脚本也只产 cli 文案（不再做客户端分支）
+# Test: desktop 入口 → 引导文案 + 两张操作截图外链（markdown 图片），无 cd 命令。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
-     && ! echo "$OUTPUT" | grep -q "操作见下方截图"; then
-    pass "generate-next-steps: desktop 入口也只产 cli 文案（分支已移交 SKILL.md + MCP 工具）"
+  if echo "$OUTPUT" | grep -q "项目已创建" \
+     && echo "$OUTPUT" | grep -q "https://i.postimg.cc/vBBxtGWW/start.png" \
+     && echo "$OUTPUT" | grep -q "https://i.postimg.cc/sxrZtqqq/guide.png" \
+     && echo "$OUTPUT" | grep -q "~/minus/竞品分析_SKILL" \
+     && [ "$(echo "$OUTPUT" | grep -c "点击下图可查看操作示意")" -eq 2 ] \
+     && ! echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude"; then
+    pass "generate-next-steps: desktop → 文案 + 两张截图外链 + 两处备注，无 cd 命令"
   else
-    fail "generate-next-steps: desktop 入口应产 cli 文案" "got: $OUTPUT"
+    fail "generate-next-steps: desktop 文案" "got: $OUTPUT"
   fi
 )
 
@@ -1726,14 +1728,15 @@ echo "═══ auth fallback prohibition ═══"
   fi
 )
 
-# Test: create-skill 缺失时自动静默安装（Volta 优先 / 不碰 /usr/local），失败才提示手动
+# Test: create-skill 每次无条件对齐 @beta（Volta 优先 / 不碰 /usr/local），失败才提示手动。
+# 不能再有 `if ! command -v create-skill` 的"缺了才装"门禁，否则装过一次就永远停在旧版。
 (
-  if grep -q 'command -v create-skill' "$SKILL_MD" \
-     && grep -q 'install @minus-ai/create-skill@beta' "$SKILL_MD" \
-     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$SKILL_MD"; then
-    pass "SKILL.md: create-skill 缺失时自动静默安装（Volta 优先）"
+  if grep -q 'volta/bin/volta" install @minus-ai/create-skill@beta' "$SKILL_MD" \
+     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$SKILL_MD" \
+     && ! grep -q 'if ! command -v create-skill' "$SKILL_MD"; then
+    pass "SKILL.md: create-skill 每次无条件对齐 @beta（无缺失门禁）"
   else
-    fail "SKILL.md: create-skill 自动安装" "missing auto-install block (command -v / volta install / CREATE_SKILL_INSTALL_FAILED)"
+    fail "SKILL.md: create-skill 自动对齐 @beta" "expected unconditional volta install + no 'if ! command -v create-skill' gate"
   fi
 )
 

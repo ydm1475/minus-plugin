@@ -887,59 +887,6 @@ server.tool(
   }
 );
 
-// ── Onboarding Images ──
-// 远程 URL 图片在桌面端会被 "Show Image" 占位 + OSS 强制下载，体验差。
-// MCP tool 返回内嵌 base64 image content 是唯一能在桌面端直接渲染的受支持方式。
-// 资源相对本模块定位（new URL + import.meta.url），源码与打包(dist)两种运行方式
-// 都解析到同级 ./assets/——build.mjs 会把 assets/ 拷进 dist/。
-
-const ONBOARDING_IMAGES = [
-  { file: "start.png", caption: "① 新开一个对话：" },
-  { file: "guide.png", caption: "② 选择工作目录：" },
-];
-
-// desktop 引导文案单源在此（cli 文案另在 generate-next-steps.sh）。两套互斥、不重复。
-function onboardingSteps(folder) {
-  return [
-    "项目已创建！接下来请：",
-    "",
-    "1. 新开一个对话（操作见下方截图 ①）",
-    "",
-    `2. 选择 \`~/minus/${folder}\` 文件夹作为工作目录（操作见下方截图 ②）`,
-    "",
-    "3. 打开后说一句 **「开始」**（或输入 `/minus`）即可进入开发",
-  ].join("\n");
-}
-
-async function readImageContent(file) {
-  // 源码以 ESM 跑（import.meta.url 有效）；打包成 CJS 后 import.meta 为空，
-  // 改用 esbuild 提供的 __dirname。两种方式都指向同级 ./assets/。
-  const target = import.meta.url
-    ? new URL(`./assets/${file}`, import.meta.url)
-    : path.join(__dirname, "assets", file);
-  const buf = await fs.readFile(target);
-  return { type: "image", data: buf.toString("base64"), mimeType: "image/png" };
-}
-
-server.tool(
-  "show_onboarding_images",
-  "桌面端新建项目后调用：一次性返回「接下来请…」引导文案 + 两张操作截图（新开对话、选择工作目录），内联展示给 Creator。需传入项目真实文件夹名 folder。命令行（cli）客户端不要调用此工具——终端无法内联渲染图片，cli 改用 generate-next-steps.sh。",
-  { folder: z.string().describe("项目真实落地的文件夹名（create-skill 返回的 folder 字段，非 Creator 原始输入）") },
-  async ({ folder }) => {
-    const content = [{ type: "text", text: onboardingSteps(folder) }];
-    for (const { file, caption } of ONBOARDING_IMAGES) {
-      try {
-        content.push({ type: "text", text: caption });
-        content.push(await readImageContent(file));
-      } catch {
-        // 资源缺失不应让流程失败：退化为纯文字说明，文案已自包含完整步骤。
-        content.push({ type: "text", text: `（截图 ${file} 暂不可用，可按上面文字步骤操作）` });
-      }
-    }
-    return { content };
-  }
-);
-
 // ─── Start Server ───
 
 const transport = new StdioServerTransport();

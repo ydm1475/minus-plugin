@@ -9,7 +9,7 @@
 // 18 只是兜底，不强调（与平台 NODE_FLOOR=24 一致）。
 
 import { build } from "esbuild";
-import { readFileSync, cpSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -47,15 +47,6 @@ await build({
   target: "node12",
   outfile: "dist/minus-platform.cjs",
   banner: { js: banner },
-  // CJS 产物里 import.meta 必为空，readImageContent 已用 __dirname 兜底，警告无意义。
-  logOverride: { "empty-import-meta": "silent" },
 });
-
-// 把引导图资源拷进 dist/，让打包后的 bundle 通过 ./assets/ 也能读到
-// （show_onboarding_images tool 用 new URL('./assets/x.png', import.meta.url) 定位）。
-if (existsSync(join(here, "assets"))) {
-  cpSync(join(here, "assets"), join(here, "dist", "assets"), { recursive: true });
-  console.error("[build] assets/ 已拷入 dist/assets");
-}
 
 console.error("[build] dist/minus-platform.cjs 生成完成");
