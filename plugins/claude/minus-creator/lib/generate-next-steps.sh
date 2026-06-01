@@ -18,22 +18,15 @@ if [ -z "$PROJECT_NAME" ]; then
   exit 1
 fi
 
-START_IMG="https://minus-ai-dev.oss-cn-shenzhen.aliyuncs.com/statics/imgs/start.png"
-GUIDE_IMG="https://minus-ai-dev.oss-cn-shenzhen.aliyuncs.com/statics/imgs/guide.png"
-
 CLIENT=$(bash "$SCRIPT_DIR/detect-client.sh")
 
 if [ "$CLIENT" = "desktop" ]; then
   cat << EOF
 项目已创建！接下来请：
 
-1. 新开一个对话
+1. 新开一个对话（操作见下方截图）
 
-![如何新开对话](${START_IMG})
-
-2. 选择 **\`~/minus/${PROJECT_NAME}\`** 文件夹作为工作目录
-
-![如何选择工作目录](${GUIDE_IMG})
+2. 选择 **\`~/minus/${PROJECT_NAME}\`** 文件夹作为工作目录（操作见下方截图）
 
 3. 打开后说一句 **「开始」**（或输入 **\`/minus\`**）即可进入开发
 EOF

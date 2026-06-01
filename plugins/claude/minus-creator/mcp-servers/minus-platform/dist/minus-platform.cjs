@@ -38481,6 +38481,7 @@ var ZipArchive = class extends Archiver {
 };
 
 // index.js
+var import_meta = {};
 var API_BASE = process.env.MINUS_API_BASE || "http://47.107.144.22:18990";
 var CREDENTIALS_PATH = import_path3.default.join(import_os.default.homedir(), ".minus", "credentials.json");
 async function loadCredentials() {
@@ -39249,6 +39250,32 @@ server.tool(
         }
       ]
     };
+  }
+);
+var ONBOARDING_IMAGES = [
+  { file: "start.png", caption: "1. \u65B0\u5F00\u4E00\u4E2A\u5BF9\u8BDD\uFF08\u5982\u4E0B\u56FE\uFF09" },
+  { file: "guide.png", caption: "2. \u9009\u62E9\u9879\u76EE\u6587\u4EF6\u5939\u4F5C\u4E3A\u5DE5\u4F5C\u76EE\u5F55\uFF08\u5982\u4E0B\u56FE\uFF09" }
+];
+async function readImageContent(file) {
+  const target = import_meta.url ? new URL(`./assets/${file}`, import_meta.url) : import_path3.default.join(__dirname, "assets", file);
+  const buf = await import_promises.default.readFile(target);
+  return { type: "image", data: buf.toString("base64"), mimeType: "image/png" };
+}
+server.tool(
+  "show_onboarding_images",
+  "\u5728\u684C\u9762\u7AEF\u5BF9\u8BDD\u4E2D\u5185\u8054\u5C55\u793A\u65B0\u5EFA\u9879\u76EE\u540E\u7684\u64CD\u4F5C\u5F15\u5BFC\u622A\u56FE\uFF08\u65B0\u5F00\u5BF9\u8BDD\u3001\u9009\u62E9\u5DE5\u4F5C\u76EE\u5F55\uFF09\u3002\u4EC5\u684C\u9762\u7AEF\u8C03\u7528\uFF1B\u547D\u4EE4\u884C\u65E0\u9700\u8C03\u7528\u3002",
+  {},
+  async () => {
+    const content = [];
+    for (const { file, caption } of ONBOARDING_IMAGES) {
+      try {
+        content.push({ type: "text", text: caption });
+        content.push(await readImageContent(file));
+      } catch {
+        content.push({ type: "text", text: `\uFF08\u56FE\u7247 ${file} \u6682\u4E0D\u53EF\u7528\uFF09` });
+      }
+    }
+    return { content };
   }
 );
 var transport = new StdioServerTransport();

@@ -887,6 +887,46 @@ server.tool(
   }
 );
 
+// ── Onboarding Images ──
+// 远程 URL 图片在桌面端会被 "Show Image" 占位 + OSS 强制下载，体验差。
+// MCP tool 返回内嵌 base64 image content 是唯一能在桌面端直接渲染的受支持方式。
+// 资源相对本模块定位（new URL + import.meta.url），源码与打包(dist)两种运行方式
+// 都解析到同级 ./assets/——build.mjs 会把 assets/ 拷进 dist/。
+
+const ONBOARDING_IMAGES = [
+  { file: "start.png", caption: "1. 新开一个对话（如下图）" },
+  { file: "guide.png", caption: "2. 选择项目文件夹作为工作目录（如下图）" },
+];
+
+async function readImageContent(file) {
+  // 源码以 ESM 跑（import.meta.url 有效）；打包成 CJS 后 import.meta 为空，
+  // 改用 esbuild 提供的 __dirname。两种方式都指向同级 ./assets/。
+  const target = import.meta.url
+    ? new URL(`./assets/${file}`, import.meta.url)
+    : path.join(__dirname, "assets", file);
+  const buf = await fs.readFile(target);
+  return { type: "image", data: buf.toString("base64"), mimeType: "image/png" };
+}
+
+server.tool(
+  "show_onboarding_images",
+  "在桌面端对话中内联展示新建项目后的操作引导截图（新开对话、选择工作目录）。仅桌面端调用；命令行无需调用。",
+  {},
+  async () => {
+    const content = [];
+    for (const { file, caption } of ONBOARDING_IMAGES) {
+      try {
+        content.push({ type: "text", text: caption });
+        content.push(await readImageContent(file));
+      } catch {
+        // 资源缺失不应让流程失败：退化为纯文字说明，由后续文案兜底。
+        content.push({ type: "text", text: `（图片 ${file} 暂不可用）` });
+      }
+    }
+    return { content };
+  }
+);
+
 // ─── Start Server ───
 
 const transport = new StdioServerTransport();

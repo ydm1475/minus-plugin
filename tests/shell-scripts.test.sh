@@ -964,13 +964,16 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: desktop → 选择文件夹 + 操作图，且不含 cd 命令
+# Test: desktop → 选择文件夹 + 截图提示，且不含 cd 命令、不再内联 ![]() 图片 markdown
+# （引导截图改由 MCP 工具 show_onboarding_images 内联返回，脚本不再输出图片链接）
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
   if echo "$OUTPUT" | grep -q "选择 \*\*\`~/minus/竞品分析_SKILL\`\*\* 文件夹作为工作目录" \
-     && echo "$OUTPUT" | grep -q "guide.png" \
+     && echo "$OUTPUT" | grep -q "操作见下方截图" \
+     && ! echo "$OUTPUT" | grep -q "guide.png" \
+     && ! echo "$OUTPUT" | grep -q '!\[' \
      && ! echo "$OUTPUT" | grep -q "cd ~/minus"; then
-    pass "generate-next-steps: desktop → 选文件夹 + 图，无 cd"
+    pass "generate-next-steps: desktop → 选文件夹 + 截图提示，无图片链接，无 cd"
   else
     fail "generate-next-steps: desktop 文案" "got: $OUTPUT"
   fi
