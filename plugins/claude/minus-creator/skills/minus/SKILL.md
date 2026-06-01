@@ -260,7 +260,7 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
       ```
 
    4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
-   5. 告诉 Creator 预览地址
+   5. 原样告诉 Creator（不改写）：「预览已在右侧面板打开。」
 
    **分支 B：CLI 或 Claude_Preview 不可用**
 
@@ -269,15 +269,22 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
    3. 检测前端预览端口：
       ```bash
       PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-      PREVIEW_PORT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
+      DETECT_OUT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
+      PREVIEW_PORT=$(printf '%s\n' "$DETECT_OUT" | head -1)
+      CLIENT=$(printf '%s\n' "$DETECT_OUT" | grep '^CLIENT=' | head -1 | cut -d= -f2)
       if [ -n "$PREVIEW_PORT" ] && [ "$PREVIEW_PORT" != "DETECT_FAILED" ]; then
         echo "PREVIEW_URL=http://localhost:${PREVIEW_PORT}"
+        echo "CLIENT=${CLIENT:-cli}"
       else
         echo "PREVIEW_DETECT_FAILED"
       fi
       ```
       `detect-preview-port.sh` 会自动等待端口就绪（最多 15s）。**检测成功后脚本会自动打开预览**（CLI 打开浏览器，Desktop 只输出 URL），无需额外调用。
-   4. 告诉 Creator 预览地址（如「预览地址：http://localhost:5173」）。端口检测失败时让 Creator 自己从终端日志里找 vite 输出的地址。
+   4. 按上面输出的 `CLIENT` 选对应文案**原样输出**（不改写、不合并两版、不要自己描述预览在哪）：
+      - `CLIENT=cli` →「预览地址：http://localhost:{port} —— 已自动在浏览器打开。」
+      - `CLIENT=desktop` →「预览已在右侧面板打开（http://localhost:{port}）。」
+
+      端口检测失败（`PREVIEW_DETECT_FAILED`）时，让 Creator 自己从终端日志里找 vite 输出的地址。
 
 4. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
    - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
