@@ -39253,9 +39253,20 @@ server.tool(
   }
 );
 var ONBOARDING_IMAGES = [
-  { file: "start.png", caption: "1. \u65B0\u5F00\u4E00\u4E2A\u5BF9\u8BDD\uFF08\u5982\u4E0B\u56FE\uFF09" },
-  { file: "guide.png", caption: "2. \u9009\u62E9\u9879\u76EE\u6587\u4EF6\u5939\u4F5C\u4E3A\u5DE5\u4F5C\u76EE\u5F55\uFF08\u5982\u4E0B\u56FE\uFF09" }
+  { file: "start.png", caption: "\u2460 \u65B0\u5F00\u4E00\u4E2A\u5BF9\u8BDD\uFF1A" },
+  { file: "guide.png", caption: "\u2461 \u9009\u62E9\u5DE5\u4F5C\u76EE\u5F55\uFF1A" }
 ];
+function onboardingSteps(folder) {
+  return [
+    "\u9879\u76EE\u5DF2\u521B\u5EFA\uFF01\u63A5\u4E0B\u6765\u8BF7\uFF1A",
+    "",
+    "1. \u65B0\u5F00\u4E00\u4E2A\u5BF9\u8BDD\uFF08\u64CD\u4F5C\u89C1\u4E0B\u65B9\u622A\u56FE \u2460\uFF09",
+    "",
+    `2. \u9009\u62E9 \`~/minus/${folder}\` \u6587\u4EF6\u5939\u4F5C\u4E3A\u5DE5\u4F5C\u76EE\u5F55\uFF08\u64CD\u4F5C\u89C1\u4E0B\u65B9\u622A\u56FE \u2461\uFF09`,
+    "",
+    "3. \u6253\u5F00\u540E\u8BF4\u4E00\u53E5 **\u300C\u5F00\u59CB\u300D**\uFF08\u6216\u8F93\u5165 `/minus`\uFF09\u5373\u53EF\u8FDB\u5165\u5F00\u53D1"
+  ].join("\n");
+}
 async function readImageContent(file) {
   const target = import_meta.url ? new URL(`./assets/${file}`, import_meta.url) : import_path3.default.join(__dirname, "assets", file);
   const buf = await import_promises.default.readFile(target);
@@ -39263,16 +39274,16 @@ async function readImageContent(file) {
 }
 server.tool(
   "show_onboarding_images",
-  "\u5728\u684C\u9762\u7AEF\u5BF9\u8BDD\u4E2D\u5185\u8054\u5C55\u793A\u65B0\u5EFA\u9879\u76EE\u540E\u7684\u64CD\u4F5C\u5F15\u5BFC\u622A\u56FE\uFF08\u65B0\u5F00\u5BF9\u8BDD\u3001\u9009\u62E9\u5DE5\u4F5C\u76EE\u5F55\uFF09\u3002\u4EC5\u684C\u9762\u7AEF\u8C03\u7528\uFF1B\u547D\u4EE4\u884C\u65E0\u9700\u8C03\u7528\u3002",
-  {},
-  async () => {
-    const content = [];
+  "\u684C\u9762\u7AEF\u65B0\u5EFA\u9879\u76EE\u540E\u8C03\u7528\uFF1A\u4E00\u6B21\u6027\u8FD4\u56DE\u300C\u63A5\u4E0B\u6765\u8BF7\u2026\u300D\u5F15\u5BFC\u6587\u6848 + \u4E24\u5F20\u64CD\u4F5C\u622A\u56FE\uFF08\u65B0\u5F00\u5BF9\u8BDD\u3001\u9009\u62E9\u5DE5\u4F5C\u76EE\u5F55\uFF09\uFF0C\u5185\u8054\u5C55\u793A\u7ED9 Creator\u3002\u9700\u4F20\u5165\u9879\u76EE\u771F\u5B9E\u6587\u4EF6\u5939\u540D folder\u3002\u547D\u4EE4\u884C\uFF08cli\uFF09\u5BA2\u6237\u7AEF\u4E0D\u8981\u8C03\u7528\u6B64\u5DE5\u5177\u2014\u2014\u7EC8\u7AEF\u65E0\u6CD5\u5185\u8054\u6E32\u67D3\u56FE\u7247\uFF0Ccli \u6539\u7528 generate-next-steps.sh\u3002",
+  { folder: external_exports.string().describe("\u9879\u76EE\u771F\u5B9E\u843D\u5730\u7684\u6587\u4EF6\u5939\u540D\uFF08create-skill \u8FD4\u56DE\u7684 folder \u5B57\u6BB5\uFF0C\u975E Creator \u539F\u59CB\u8F93\u5165\uFF09") },
+  async ({ folder }) => {
+    const content = [{ type: "text", text: onboardingSteps(folder) }];
     for (const { file, caption } of ONBOARDING_IMAGES) {
       try {
         content.push({ type: "text", text: caption });
         content.push(await readImageContent(file));
       } catch {
-        content.push({ type: "text", text: `\uFF08\u56FE\u7247 ${file} \u6682\u4E0D\u53EF\u7528\uFF09` });
+        content.push({ type: "text", text: `\uFF08\u622A\u56FE ${file} \u6682\u4E0D\u53EF\u7528\uFF0C\u53EF\u6309\u4E0A\u9762\u6587\u5B57\u6B65\u9AA4\u64CD\u4F5C\uFF09` });
       }
     }
     return { content };

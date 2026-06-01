@@ -964,30 +964,28 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: desktop → 选择文件夹 + 截图提示，且不含 cd 命令、不再内联 ![]() 图片 markdown
-# （引导截图改由 MCP 工具 show_onboarding_images 内联返回，脚本不再输出图片链接）
-(
-  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "选择 \*\*\`~/minus/竞品分析_SKILL\`\*\* 文件夹作为工作目录" \
-     && echo "$OUTPUT" | grep -q "操作见下方截图" \
-     && ! echo "$OUTPUT" | grep -q "guide.png" \
-     && ! echo "$OUTPUT" | grep -q '!\[' \
-     && ! echo "$OUTPUT" | grep -q "cd ~/minus"; then
-    pass "generate-next-steps: desktop → 选文件夹 + 截图提示，无图片链接，无 cd"
-  else
-    fail "generate-next-steps: desktop 文案" "got: $OUTPUT"
-  fi
-)
-
-# Test: cli → cd 启动命令，且不含操作图
+# Test: 脚本现为 cli-only —— 任何客户端下都只输出 cd 启动命令，不含选文件夹/图片。
+# desktop 引导（含截图）已移到 MCP 工具 show_onboarding_images，由 mcp-server.test.js 覆盖。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
   if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
      && ! echo "$OUTPUT" | grep -q "guide.png" \
+     && ! echo "$OUTPUT" | grep -q '!\[' \
      && ! echo "$OUTPUT" | grep -q "选择.*文件夹作为工作目录"; then
     pass "generate-next-steps: cli → cd 命令，无图无选文件夹"
   else
     fail "generate-next-steps: cli 文案" "got: $OUTPUT"
+  fi
+)
+
+# Test: 即便误在 desktop 入口调用，脚本也只产 cli 文案（不再做客户端分支）
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
+     && ! echo "$OUTPUT" | grep -q "操作见下方截图"; then
+    pass "generate-next-steps: desktop 入口也只产 cli 文案（分支已移交 SKILL.md + MCP 工具）"
+  else
+    fail "generate-next-steps: desktop 入口应产 cli 文案" "got: $OUTPUT"
   fi
 )
 

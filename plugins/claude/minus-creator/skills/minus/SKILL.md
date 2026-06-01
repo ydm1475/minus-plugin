@@ -173,18 +173,23 @@ Plugin: 请按以下步骤打开项目：
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
 
-**`skill_update` 写入后，直接调用 `generate-next-steps.sh` 并把脚本输出原样转达给 Creator。脚本内部按客户端类型（desktop / cli）只生成对应那一套文案，不要两套都输出，也不要自己拼文案或改写：**
+**`skill_update` 写入后，按客户端类型输出"接下来请"引导，desktop / cli 二选一，每条分支只做一次动作（不要两条都做）：**
 
-⛔ 禁止：在调用脚本前后输出任何过渡/旁白文字（如"现在生成接下来的引导""下面是后续步骤"之类）。脚本输出已自带开头语"项目已创建！接下来请："，Agent 只调用脚本、把输出原样转达，不加任何前言后语。
+⛔ 禁止：在引导前后输出任何过渡/旁白文字（如"现在生成接下来的引导""下面是后续步骤"之类）。引导内容已自带开头语"项目已创建！接下来请："，直接原样转达，不加任何前言后语。
+
+先判定客户端（输出 `desktop` 或 `cli`）：
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-client.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+bash "$PLUGIN_ROOT/lib/detect-client.sh"
 ```
 
-脚本输出已是排好版的 markdown（路径和 `/minus` 为行内代码、命令为代码块），原样转达即可。
+- **desktop**：调用 MCP 工具 `show_onboarding_images`，参数 `folder` 传 `{__CREATE_RESULT__.folder}`。它会**一次性**返回引导文案 + 两张操作截图，全部内联转达给 Creator。**desktop 下只做这一次调用，不要再跑 `generate-next-steps.sh`。**
+- **cli**：运行下面脚本，把输出原样转达（终端无法渲染图片，纯文案即可）：
 
-**仅当客户端为 desktop 时**：脚本输出转达后，紧接着调用 MCP 工具 `show_onboarding_images`（无参数），把返回的图片内联展示给 Creator——这两张截图对应文案里的「新开对话」「选择工作目录」两步。cli 客户端无需调用此工具（命令行无法内联渲染图片）。判断客户端是否为 desktop，复用 `detect-client.sh` 的结果即可。
+```bash
+bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
+```
 
 注意：不要在当前 session 中进入结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
 

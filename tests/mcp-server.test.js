@@ -211,14 +211,18 @@ describe("MCP Server - Tool Registration", () => {
     }
   });
 
-  it("show_onboarding_images should return inline PNG image blocks", async () => {
-    const result = await client.callTool("show_onboarding_images", {});
+  it("show_onboarding_images should return onboarding text + inline PNG images in one call", async () => {
+    const result = await client.callTool("show_onboarding_images", { folder: "竞品分析-2" });
     const images = result.content.filter((c) => c.type === "image");
     assert.equal(images.length, 2, "应返回两张引导截图");
     for (const img of images) {
       assert.equal(img.mimeType, "image/png");
       assert.ok(img.data && img.data.length > 1000, "图片 base64 数据应非空");
     }
+    // 文案与图片同在一次调用返回里（消除"调脚本/调图片"两步拆分）
+    const texts = result.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    assert.match(texts, /项目已创建/, "应包含引导文案开头语");
+    assert.match(texts, /~\/minus\/竞品分析-2/, "文案路径应使用传入的 folder（保留连字符，不归一化）");
   });
 });
 

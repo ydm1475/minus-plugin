@@ -894,9 +894,22 @@ server.tool(
 // 都解析到同级 ./assets/——build.mjs 会把 assets/ 拷进 dist/。
 
 const ONBOARDING_IMAGES = [
-  { file: "start.png", caption: "1. 新开一个对话（如下图）" },
-  { file: "guide.png", caption: "2. 选择项目文件夹作为工作目录（如下图）" },
+  { file: "start.png", caption: "① 新开一个对话：" },
+  { file: "guide.png", caption: "② 选择工作目录：" },
 ];
+
+// desktop 引导文案单源在此（cli 文案另在 generate-next-steps.sh）。两套互斥、不重复。
+function onboardingSteps(folder) {
+  return [
+    "项目已创建！接下来请：",
+    "",
+    "1. 新开一个对话（操作见下方截图 ①）",
+    "",
+    `2. 选择 \`~/minus/${folder}\` 文件夹作为工作目录（操作见下方截图 ②）`,
+    "",
+    "3. 打开后说一句 **「开始」**（或输入 `/minus`）即可进入开发",
+  ].join("\n");
+}
 
 async function readImageContent(file) {
   // 源码以 ESM 跑（import.meta.url 有效）；打包成 CJS 后 import.meta 为空，
@@ -910,17 +923,17 @@ async function readImageContent(file) {
 
 server.tool(
   "show_onboarding_images",
-  "在桌面端对话中内联展示新建项目后的操作引导截图（新开对话、选择工作目录）。仅桌面端调用；命令行无需调用。",
-  {},
-  async () => {
-    const content = [];
+  "桌面端新建项目后调用：一次性返回「接下来请…」引导文案 + 两张操作截图（新开对话、选择工作目录），内联展示给 Creator。需传入项目真实文件夹名 folder。命令行（cli）客户端不要调用此工具——终端无法内联渲染图片，cli 改用 generate-next-steps.sh。",
+  { folder: z.string().describe("项目真实落地的文件夹名（create-skill 返回的 folder 字段，非 Creator 原始输入）") },
+  async ({ folder }) => {
+    const content = [{ type: "text", text: onboardingSteps(folder) }];
     for (const { file, caption } of ONBOARDING_IMAGES) {
       try {
         content.push({ type: "text", text: caption });
         content.push(await readImageContent(file));
       } catch {
-        // 资源缺失不应让流程失败：退化为纯文字说明，由后续文案兜底。
-        content.push({ type: "text", text: `（图片 ${file} 暂不可用）` });
+        // 资源缺失不应让流程失败：退化为纯文字说明，文案已自包含完整步骤。
+        content.push({ type: "text", text: `（截图 ${file} 暂不可用，可按上面文字步骤操作）` });
       }
     }
     return { content };
