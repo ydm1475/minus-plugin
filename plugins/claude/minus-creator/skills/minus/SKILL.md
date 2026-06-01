@@ -3,9 +3,11 @@ name: minus
 description: >
   Minus Skill 开发环境入口。当用户说"打开 Minus"、"进入开发"、
   "继续开发 Skill"、"我要开发"、"minus"等意图时自动触发。
-  当检测到当前目录包含 .minus/skill.json 时也建议触发。
+  当检测到当前目录包含 .minus/skill.json（即处于 Minus Skill 项目目录）时，
+  用户说"开始"、"继续"、"接着做"等表示开工的意图也应触发。
 when_to_use: >
-  用户提到 Minus、Skill 开发、或当前目录是 Minus Skill 项目时
+  用户提到 Minus、Skill 开发；或当前目录是 Minus Skill 项目
+  且用户表达"开始/继续"开发的意图时
 allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
@@ -111,6 +113,8 @@ if [ -z "$NODE_BIN" ]; then
   echo "NO_GOOD_NODE"
 else
   export PATH="$(dirname "$NODE_BIN"):$HOME/.volta/bin:$PATH"
+  # 国内镜像源（与 bootstrap 同源，MINUS_MIRROR=off 可关）：让下面 volta/npm 装包走国内源
+  [ -f "$PLUGIN_ROOT/lib/bootstrap-env.sh" ] && . "$PLUGIN_ROOT/lib/bootstrap-env.sh" && setup_cn_mirror >/dev/null 2>&1
   if ! command -v create-skill >/dev/null 2>&1; then
     echo "create-skill 未安装，正在自动安装 @minus-ai/create-skill@beta……"
     if [ -x "$HOME/.volta/bin/volta" ]; then
@@ -167,23 +171,14 @@ Plugin: 请按以下步骤打开项目：
 
 **如果没有本地项目（projects.json 为空或不存在）：跳过选择，直接进入命名**
 
-**scaffold 完成后原样输出以下内容（不要改写、不要加额外说明）。格式要求：路径和 `/minus` 用单反引号包成行内代码（与正文区分），命令行用三反引号包成代码块（带一键复制按钮）：**
-
-````
-项目已创建！接下来请：
-
-1. 新开一个对话
-2. 选择 **`~/minus/{项目名称}`** 文件夹作为工作目录
-3. 输入 **`/minus`** 进入开发
-
-用命令行的话直接运行：
+**scaffold 完成后，调用 `generate-next-steps.sh` 输出"接下来请"引导。脚本内部按客户端类型（desktop / cli）只生成对应那一套文案，不要两套都输出，也不要自己拼文案或改写：**
 
 ```bash
-cd ~/minus/{项目名称} && claude
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{项目名称}"
 ```
 
-然后输入 `/minus`
-````
+把脚本输出原样转达给 Creator（已是排好版的 markdown：路径和 `/minus` 为行内代码、命令为代码块、desktop 含操作图）。
 
 注意：不要在当前 session 中进入结构设计。Creator 必须先打开项目文件夹、新开 session，CLAUDE.md 和 Memory 才能正常工作。结构设计在新 session 的 Phase 4/5 中进行。
 

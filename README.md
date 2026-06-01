@@ -99,3 +99,30 @@ bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/lib/pack
 
 产物 `minus-creator-v{版本}.zip` 含 marketplace 根目录（`.claude-plugin/marketplace.json` + `minus-creator/`），
 已内联 MCP 依赖、排除 `node_modules`。接收方解压后：`claude plugin marketplace add ./claude && claude plugin install minus-creator@minus-plugin`。
+
+## 镜像源（国内加速）
+
+环境初始化（`lib/bootstrap-env.sh`）**默认走国内镜像源**，避免国内开发者拉包慢到超时：
+
+- npm（`pnpm install`、`create-skill` 自身的全局安装）→ `https://registry.npmmirror.com`（阿里）
+- PyPI（`uv pip install`）→ `https://pypi.tuna.tsinghua.edu.cn/simple`（清华）
+
+首次安装通过 `export` 环境变量生效（不写工具全局配置）；镜像源偶发滞后（个别新包未同步）时，会自动回退官方源重试一次。
+
+**后续升级依赖也走国内源**：bootstrap 还会在项目里落盘两个**带 minus 标记、已 gitignore**（不入库、不污染发布产物）的配置文件，这样之后手动 `pnpm add` / `pnpm update` / `uv pip install -U` / `uv add` 同样走镜像：
+
+- `.npmrc` → `registry=<npm 源>`
+- `uv.toml` → `[[index]]`（同时覆盖 `uv pip` 与 `uv add/sync`）
+
+`MINUS_MIRROR=off` 时这两个托管文件会被自动移除；用户**自己写的** `.npmrc` / `uv.toml`（无 minus 标记）一律不动。
+
+通过环境变量调整（均可选）：
+
+```bash
+MINUS_MIRROR=off                                  # 关闭镜像，全部走官方源（海外开发者）
+MINUS_NPM_REGISTRY=https://your.registry          # 自定义 npm registry（覆盖默认 npmmirror）
+MINUS_PYPI_INDEX=https://your/simple              # 自定义 PyPI index（覆盖默认清华）
+```
+
+> 已显式设置 `npm_config_registry` / `UV_DEFAULT_INDEX` 的用户一律被尊重，不会被覆盖。
+> 注：Volta 的 Node 二进制（nodejs.org）与 uv 的 Python 解释器下载暂无干净的镜像 env，仍走官方源——这两处是已知剩余慢点。

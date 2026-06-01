@@ -47,6 +47,16 @@ rm -rf "$HOME/.claude/claude/minus-creator" 2>/dev/null
 rmdir "$HOME/.claude/claude" 2>/dev/null || true   # 仅当空时删掉空壳父目录
 rm -rf "$HOME/.claude/minus-installer" 2>/dev/null
 rm -rf "$HOME/.minus-creator-plugin" 2>/dev/null
+# install.sh 把 zip 解压到 ~/.claude-plugins/claude/ 当 marketplace 源（含 minus-creator/
+# 与 .claude-plugin/marketplace.json）。子目录名是通用的 "claude"，理论上可能和别处手动
+# 解压的内容同居一处，故只删确属 minus 的部分：minus-creator/ 子目录，以及确认 name 为
+# minus-plugin 的 marketplace 清单；其余一概不碰，空了才 rmdir。
+rm -rf "$HOME/.claude-plugins/claude/minus-creator" 2>/dev/null
+MP_JSON="$HOME/.claude-plugins/claude/.claude-plugin/marketplace.json"
+if [ -f "$MP_JSON" ] && grep -q '"minus-plugin"' "$MP_JSON"; then
+  rm -rf "$HOME/.claude-plugins/claude/.claude-plugin" 2>/dev/null
+fi
+rmdir "$HOME/.claude-plugins/claude" "$HOME/.claude-plugins" 2>/dev/null || true   # 仅当空时删空壳
 echo "✓ 散落副本/解压目录已清理"
 
 echo ""

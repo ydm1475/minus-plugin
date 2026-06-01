@@ -949,6 +949,46 @@ DC="$LIB_DIR/detect-client.sh"
 )
 
 # ══════════════════════════════════════════════════════
+echo "═══ generate-next-steps.sh ═══"
+# ══════════════════════════════════════════════════════
+
+GNS="$LIB_DIR/generate-next-steps.sh"
+
+# Test: fails without project name argument
+(
+  OUTPUT=$(bash "$GNS" 2>&1) && RC=0 || RC=$?
+  if [ "$RC" -ne 0 ] && echo "$OUTPUT" | grep -q "缺少项目名称"; then
+    pass "generate-next-steps: fails without project name"
+  else
+    fail "generate-next-steps: fails without project name" "rc=$RC got: $OUTPUT"
+  fi
+)
+
+# Test: desktop → 选择文件夹 + 操作图，且不含 cd 命令
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q "选择 \*\*\`~/minus/竞品分析_SKILL\`\*\* 文件夹作为工作目录" \
+     && echo "$OUTPUT" | grep -q "guide.png" \
+     && ! echo "$OUTPUT" | grep -q "cd ~/minus"; then
+    pass "generate-next-steps: desktop → 选文件夹 + 图，无 cd"
+  else
+    fail "generate-next-steps: desktop 文案" "got: $OUTPUT"
+  fi
+)
+
+# Test: cli → cd 启动命令，且不含操作图
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
+     && ! echo "$OUTPUT" | grep -q "guide.png" \
+     && ! echo "$OUTPUT" | grep -q "选择.*文件夹作为工作目录"; then
+    pass "generate-next-steps: cli → cd 命令，无图无选文件夹"
+  else
+    fail "generate-next-steps: cli 文案" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
 echo ""
 echo "═══ open-preview.sh ═══"
 # ══════════════════════════════════════════════════════
@@ -1374,6 +1414,200 @@ write_stub() {
   fi
 )
 
+# Test: SKILL.md 的 create-skill 自动安装块复用镜像源（setup_cn_mirror），不另起炉灶
+# create-skill 包自身的 volta/npm 全局安装在 bootstrap 之前跑，必须自己接上同一套镜像逻辑。
+(
+  if grep -q "@minus-ai/create-skill" "$SKILL_MD" 2>/dev/null \
+     && grep -q "setup_cn_mirror" "$SKILL_MD" 2>/dev/null; then
+    pass "SKILL.md: create-skill 自动安装复用 setup_cn_mirror 镜像源"
+  else
+    fail "SKILL.md: create-skill 安装走镜像源" "未在 SKILL.md 找到 setup_cn_mirror 调用"
+  fi
+)
+
+# Test: 默认启用国内镜像源（npmmirror + 清华），source 后调 setup_cn_mirror
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    unset npm_config_registry UV_DEFAULT_INDEX UV_INDEX_URL MINUS_MIRROR
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror
+    echo "R=${npm_config_registry:-unset} I=${UV_DEFAULT_INDEX:-unset}"
+  )
+  if assert_contains "$OUTPUT" "R=https://registry.npmmirror.com" \
+     && assert_contains "$OUTPUT" "I=https://pypi.tuna.tsinghua.edu.cn/simple"; then
+    pass "bootstrap-env: 默认启用国内镜像（npmmirror + 清华）"
+  else
+    fail "bootstrap-env: 默认启用国内镜像" "out: $OUTPUT"
+  fi
+)
+
+# Test: MINUS_MIRROR=off → 禁用镜像，不设 registry，走官方源
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    unset npm_config_registry UV_DEFAULT_INDEX UV_INDEX_URL
+    export MINUS_MIRROR=off
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror
+    echo "R=${npm_config_registry:-unset}"
+  )
+  if assert_contains "$OUTPUT" "已禁用" && assert_contains "$OUTPUT" "R=unset"; then
+    pass "bootstrap-env: MINUS_MIRROR=off → 禁用镜像，走官方源"
+  else
+    fail "bootstrap-env: MINUS_MIRROR=off 禁用镜像" "out: $OUTPUT"
+  fi
+)
+
+# Test: 用户已显式设 npm_config_registry → 尊重不覆盖
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    unset UV_DEFAULT_INDEX UV_INDEX_URL MINUS_MIRROR
+    export npm_config_registry="https://my.private/registry"
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror
+    echo "R=${npm_config_registry:-unset}"
+  )
+  if assert_contains "$OUTPUT" "R=https://my.private/registry"; then
+    pass "bootstrap-env: 尊重用户已设 npm_config_registry，不覆盖"
+  else
+    fail "bootstrap-env: 尊重用户已设 registry" "out: $OUTPUT"
+  fi
+)
+
+# Test: 默认落盘托管 .npmrc + uv.toml（带 minus 标记），让后续升级依赖也走国内源
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    unset npm_config_registry UV_DEFAULT_INDEX UV_INDEX_URL MINUS_MIRROR
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror >/dev/null; write_project_mirror_config >/dev/null
+    cat .npmrc 2>/dev/null; cat uv.toml 2>/dev/null
+    echo "--GI--"; cat .gitignore 2>/dev/null
+  )
+  # 落盘内容 + bootstrap 自己把两文件加进 .gitignore（不再依赖 create-skill 模板/发包）
+  if assert_contains "$OUTPUT" "registry=https://registry.npmmirror.com" \
+     && assert_contains "$OUTPUT" "managed-by: minus" \
+     && assert_contains "$OUTPUT" "pypi.tuna.tsinghua.edu.cn" \
+     && assert_contains "$OUTPUT" "国内镜像源配置" ; then
+    # 精确断言 .gitignore 含 .npmrc 与 uv.toml 两行
+    GI_LINES=$(printf '%s\n' "$OUTPUT" | sed -n '/--GI--/,$p')
+    if printf '%s\n' "$GI_LINES" | grep -qxF ".npmrc" && printf '%s\n' "$GI_LINES" | grep -qxF "uv.toml"; then
+      pass "bootstrap-env: 默认落盘托管 .npmrc + uv.toml 并自动加入 .gitignore"
+    else
+      fail "bootstrap-env: 落盘后未正确写入 .gitignore" "out: $OUTPUT"
+    fi
+  else
+    fail "bootstrap-env: 落盘托管镜像配置" "out: $OUTPUT"
+  fi
+)
+
+# Test: MINUS_MIRROR=off → 清掉之前生成的托管 .npmrc / uv.toml
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    printf '# managed-by: minus\nregistry=x\n' > .npmrc
+    printf '# managed-by: minus\n' > uv.toml
+    # 预置一个含「用户自有行 + 我们托管块」的 .gitignore，验证 off 只删我们的行
+    printf 'node_modules/\n# minus 自动生成的国内镜像源配置（本地生效，不入库）\n.npmrc\nuv.toml\n' > .gitignore
+    unset npm_config_registry UV_DEFAULT_INDEX UV_INDEX_URL
+    export MINUS_MIRROR=off
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror >/dev/null; write_project_mirror_config >/dev/null
+    if [ ! -e .npmrc ] && [ ! -e uv.toml ]; then echo "BOTH_GONE"; else echo "STILL:$(ls -A)"; fi
+    echo "--GI--"; cat .gitignore
+  )
+  # 文件被删 + .gitignore 里我们的三行（注释+两文件）被回删，但用户的 node_modules/ 保留
+  GI_OFF=$(printf '%s\n' "$OUTPUT" | sed -n '/--GI--/,$p')
+  if assert_contains "$OUTPUT" "BOTH_GONE" \
+     && printf '%s\n' "$GI_OFF" | grep -qxF "node_modules/" \
+     && ! printf '%s\n' "$GI_OFF" | grep -qxF ".npmrc" \
+     && ! printf '%s\n' "$GI_OFF" | grep -qxF "uv.toml" \
+     && ! printf '%s\n' "$GI_OFF" | grep -qF "国内镜像源配置"; then
+    pass "bootstrap-env: MINUS_MIRROR=off → 移除托管文件 + 回删 .gitignore 我们的行（保留用户行）"
+  else
+    fail "bootstrap-env: off 移除托管文件/gitignore" "out: $OUTPUT"
+  fi
+)
+
+# Test: 用户自有 .npmrc（无 minus 标记）→ 绝不覆盖
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(
+    cd "$TMP"
+    printf 'registry=https://my.own/reg\n' > .npmrc
+    unset npm_config_registry UV_DEFAULT_INDEX UV_INDEX_URL MINUS_MIRROR
+    # shellcheck source=/dev/null
+    . "$BS"; setup_cn_mirror >/dev/null; write_project_mirror_config >/dev/null
+    cat .npmrc
+  )
+  if assert_contains "$OUTPUT" "registry=https://my.own/reg" \
+     && ! assert_contains "$OUTPUT" "npmmirror"; then
+    pass "bootstrap-env: 用户自有 .npmrc 不被覆盖"
+  else
+    fail "bootstrap-env: 尊重用户自有 .npmrc" "out: $OUTPUT"
+  fi
+)
+
+# Test: 前端依赖在镜像源失败时回退官方 npm 源重试
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/.venv"  # 故意不建 node_modules → 触发 pnpm install
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm 'exit 0'
+  # pnpm install：模拟 pnpm 真实优先级——只认 CLI --registry，忽略 npm_config_registry env
+  # （因为落盘的 .npmrc 优先级高于 env）。只有显式 --registry=官方 才成功。
+  # 这样旧的「设 env 回退」写法（无 --registry）会失败 → 测试能抓住该 bug。
+  write_stub "$SB" pnpm 'case "$1" in
+    --version|-v) echo 11.4.0;;
+    install)
+      reg=""; for a in "$@"; do case "$a" in --registry=*) reg="${a#--registry=}";; esac; done
+      [ "$reg" = "https://registry.npmjs.org" ] && exit 0 || exit 1;;
+    *) echo ok;; esac'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  cd "$TMP/proj"
+  OUTPUT=$(env -u npm_config_registry -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u MINUS_MIRROR \
+    HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "回退官方 npm 源重试" \
+     && assert_contains "$OUTPUT" "前端依赖安装完成（官方源）" \
+     && assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok"; then
+    pass "bootstrap-env: 前端依赖镜像失败 → 回退官方 npm 源成功"
+  else
+    fail "bootstrap-env: 前端依赖回退官方源" "out: $OUTPUT"
+  fi
+)
+
+# Test: 后端依赖在镜像源失败时回退官方 PyPI 重试
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules"  # 故意不建 .venv → 触发 uv venv+pip
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" pnpm 'echo 11.4.0'
+  # uv：venv 总成功并建出 .venv；pip 只在「显式指向官方 PyPI」时成功，镜像源失败。
+  # 这样能区分真修复（显式 UV_DEFAULT_INDEX=官方）与旧 bug（env -u 卸载后被 uv.toml 反噬回镜像）：
+  # 旧写法卸掉 env → UV_DEFAULT_INDEX 为空 → 不匹配 pypi.org → 仍失败。
+  write_stub "$SB" uv 'case "$1" in
+    --version) echo "uv 0.5.0";;
+    venv) mkdir -p .venv; exit 0;;
+    pip) case "${UV_DEFAULT_INDEX:-}" in *pypi.org*) exit 0;; *) exit 1;; esac;;
+    *) echo ok;; esac'
+  cd "$TMP/proj"
+  OUTPUT=$(env -u npm_config_registry -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u MINUS_MIRROR \
+    HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "回退官方 PyPI 重试" \
+     && assert_contains "$OUTPUT" "后端依赖安装完成（官方源）" \
+     && assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok"; then
+    pass "bootstrap-env: 后端依赖镜像失败 → 回退官方 PyPI 成功"
+  else
+    fail "bootstrap-env: 后端依赖回退官方源" "out: $OUTPUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ preview flow (vite template + SKILL.md) ═══"
@@ -1716,10 +1950,11 @@ UNINSTALL_SH="$LIB_DIR/uninstall.sh"
 (
   if grep -q '.claude/claude/minus-creator' "$UNINSTALL_SH" \
      && grep -q '.claude/minus-installer' "$UNINSTALL_SH" \
-     && grep -q '.minus-creator-plugin' "$UNINSTALL_SH"; then
+     && grep -q '.minus-creator-plugin' "$UNINSTALL_SH" \
+     && grep -q '.claude-plugins/claude' "$UNINSTALL_SH"; then
     pass "uninstall.sh: 清理散落副本/解压目录"
   else
-    fail "uninstall.sh: 散落副本清理" "missing claude/minus-creator / minus-installer / .minus-creator-plugin"
+    fail "uninstall.sh: 散落副本清理" "missing claude/minus-creator / minus-installer / .minus-creator-plugin / .claude-plugins"
   fi
 )
 

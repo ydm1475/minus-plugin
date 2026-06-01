@@ -52,6 +52,115 @@ PYTHON_TARGET="${PYTHON_TARGET:-3.12}"
 # 最近一次安装尝试的真实错误（供 finish_fail 透出，不再用 || true 吞掉）。
 LAST_ERR=""
 
+# ── 国内镜像源（默认开启）──────────────────────────────────
+# 大多数 Minus 第三方开发者在国内，默认走国内源避免 npm/PyPI 拉包慢到超时。
+# 只 export 环境变量、不写任何工具的全局配置文件 —— 海外开发者 MINUS_MIRROR=off
+# 一关即零残留。已显式设置同名变量的用户（自带 .npmrc/索引）一律尊重，不覆盖。
+#   npm  → registry.npmmirror.com（阿里），覆盖 pnpm install / volta install pnpm
+#   PyPI → 清华 tuna，覆盖 uv pip install
+# 注：Volta 的 node 二进制（nodejs.org）与 uv 的 Python 解释器下载无干净镜像 env，
+#     仍走官方源；这两处是已知剩余慢点。
+MIRROR_NPM_DEFAULT="https://registry.npmmirror.com"
+MIRROR_PYPI_DEFAULT="https://pypi.tuna.tsinghua.edu.cn/simple"
+MIRROR_NPM_OFFICIAL="https://registry.npmjs.org"
+MIRROR_PYPI_OFFICIAL="https://pypi.org/simple"
+
+# 设环境变量层的镜像源。同时记三个标志供 write_project_mirror_config 用：
+#   MINUS_MIRROR_ENABLED  镜像是否开启（off → 0）
+#   MIRROR_NPM_OURS       npm 源是「我们设的默认值」还是「用户已自带」（自带则不落盘）
+#   MIRROR_PYPI_OURS      PyPI 源同上
+# 注：本函数不写任何项目文件——它也被 SKILL.md 的 create-skill 安装块复用（cwd 不定），
+#     落盘逻辑单独放在 write_project_mirror_config，仅在项目目录内的主流程调用。
+setup_cn_mirror() {
+  MINUS_MIRROR_ENABLED=0; MIRROR_NPM_OURS=0; MIRROR_PYPI_OURS=0
+  case "${MINUS_MIRROR:-on}" in
+    off|0|false|none|no)
+      say "镜像源：已禁用（MINUS_MIRROR=${MINUS_MIRROR:-}），走官方源。"
+      return ;;
+  esac
+  MINUS_MIRROR_ENABLED=1
+  if [ -z "${npm_config_registry:-}" ]; then
+    export npm_config_registry="${MINUS_NPM_REGISTRY:-$MIRROR_NPM_DEFAULT}"
+    MIRROR_NPM_OURS=1
+  fi
+  if [ -z "${UV_DEFAULT_INDEX:-}" ] && [ -z "${UV_INDEX_URL:-}" ]; then
+    export UV_DEFAULT_INDEX="${MINUS_PYPI_INDEX:-$MIRROR_PYPI_DEFAULT}"
+    MIRROR_PYPI_OURS=1
+  fi
+  say "镜像源：npm→${npm_config_registry} ，PyPI→${UV_DEFAULT_INDEX:-${UV_INDEX_URL:-（用户已配置）}}（关闭：MINUS_MIRROR=off）。"
+}
+
+# 把镜像源落盘成项目级 .npmrc / uv.toml，让「后续手动升级依赖」（pnpm add/update、
+# uv pip install -U、uv add）也走国内源——env 变量只活在 bootstrap 子进程里，盖不到。
+# 这两个文件已加进 create-skill 的 .gitignore：本地生效、不入库、不污染发布产物。
+# 安全：带 minus 标记头，只动「我们生成的」文件，绝不覆盖用户自有的 .npmrc / uv.toml。
+MIRROR_MARK="# managed-by: minus (MINUS_MIRROR) — 自动生成，勿手改；设 MINUS_MIRROR=off 后重跑 /minus 可移除"
+
+# 文件首行是否带 minus 托管标记（纯 shell，零外部命令）
+is_minus_managed() {
+  [ -e "$1" ] || return 1
+  local first; IFS= read -r first < "$1" 2>/dev/null || return 1
+  case "$first" in "# managed-by: minus"*) return 0 ;; *) return 1 ;; esac
+}
+
+# 谁创建文件谁负责忽略：bootstrap 落盘 .npmrc/uv.toml，就由 bootstrap 保证它们进
+# .gitignore——而不是寄希望于 create-skill 模板（那样得发包才生效、且会无条件吞掉
+# 用户自有 .npmrc）。下面两个助手都幂等、精确匹配整行、绝不动用户已有的行。
+GITIGNORE_MARK="# minus 自动生成的国内镜像源配置（本地生效，不入库）"
+
+gitignore_add() {  # $@=要忽略的文件名；缺啥补啥，已存在则跳过
+  local entry need=0
+  for entry in "$@"; do
+    { [ -e .gitignore ] && grep -qxF "$entry" .gitignore 2>/dev/null; } || need=1
+  done
+  [ "$need" = 0 ] && return 0
+  # 追加前确保末尾有换行，避免和最后一行粘连
+  if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore 2>/dev/null)" ]; then printf '\n' >> .gitignore; fi
+  grep -qxF "$GITIGNORE_MARK" .gitignore 2>/dev/null || printf '%s\n' "$GITIGNORE_MARK" >> .gitignore
+  for entry in "$@"; do
+    grep -qxF "$entry" .gitignore 2>/dev/null || printf '%s\n' "$entry" >> .gitignore
+  done
+}
+
+gitignore_del() {  # 仅当我们的注释头在场才回删我们加的忽略行（off 时零残留）
+  [ -e .gitignore ] || return 0
+  grep -qxF "$GITIGNORE_MARK" .gitignore 2>/dev/null || return 0
+  local tmp; tmp="$(mktemp 2>/dev/null)" || return 0
+  grep -vxF "$GITIGNORE_MARK" .gitignore | grep -vxF '.npmrc' | grep -vxF 'uv.toml' > "$tmp"
+  mv "$tmp" .gitignore
+}
+
+write_project_mirror_config() {
+  # 镜像关闭：清掉我们以前生成的托管文件 + .gitignore 里我们加的忽略行（用户自有的一律不碰）
+  if [ "${MINUS_MIRROR_ENABLED:-0}" != "1" ]; then
+    is_minus_managed .npmrc && { rm -f .npmrc; say "已移除托管 .npmrc（镜像已关闭）。"; }
+    is_minus_managed uv.toml && { rm -f uv.toml; say "已移除托管 uv.toml（镜像已关闭）。"; }
+    gitignore_del
+    return 0
+  fi
+  local wrote=0 gi=()
+  # npm：仅当源由我们决定，且不存在用户自有 .npmrc 时落盘
+  if [ "${MIRROR_NPM_OURS:-0}" = "1" ]; then
+    if [ ! -e .npmrc ] || is_minus_managed .npmrc; then
+      printf '%s\nregistry=%s\n' "$MIRROR_MARK" "$npm_config_registry" > .npmrc && { wrote=1; gi+=(".npmrc"); }
+    else
+      say "检测到用户自有 .npmrc，保留不动。"
+    fi
+  fi
+  # PyPI：[[index]] default 一份同时覆盖 uv pip 与 uv add/sync
+  if [ "${MIRROR_PYPI_OURS:-0}" = "1" ]; then
+    if [ ! -e uv.toml ] || is_minus_managed uv.toml; then
+      printf '%s\n[[index]]\nurl = "%s"\ndefault = true\n' "$MIRROR_MARK" "$UV_DEFAULT_INDEX" > uv.toml && { wrote=1; gi+=("uv.toml"); }
+    else
+      say "检测到用户自有 uv.toml，保留不动。"
+    fi
+  fi
+  # 谁落盘谁负责忽略：把刚写的镜像配置加进 .gitignore（幂等），不入库、不污染发布产物
+  [ ${#gi[@]} -gt 0 ] && gitignore_add "${gi[@]}"
+  [ "$wrote" = "1" ] && say "已写项目镜像配置（.npmrc / uv.toml，已加入 .gitignore），后续升级依赖也走国内源。"
+  return 0
+}
+
 # ── OS 探测（复用 project-detector.sh 的判断口径，可被 BOOTSTRAP_OS 覆盖）──
 detect_os() {
   if [ -n "${BOOTSTRAP_OS:-}" ]; then
@@ -289,6 +398,18 @@ ensure_node_modules() {
     say "前端依赖安装完成。"
     return 0
   fi
+  # 镜像源可能滞后/抽风（个别新包未同步）：回退官方 npm 源重试一次。
+  # 注意：必须用 CLI 的 --registry 而非 npm_config_registry 环境变量 —— pnpm 里
+  # 项目 .npmrc 的优先级高于该 env（实测：带 env 官方源，pnpm config 仍读 .npmrc 的镜像），
+  # 而我们已把镜像源落盘进 .npmrc，只设 env 会被 .npmrc 反噬、又撞回镜像；CLI flag 优先级
+  # 最高，才能真正盖过落盘的 .npmrc。（uv 那边相反：env 高于 uv.toml，故用 env 显式赋值。）
+  if [ -n "${npm_config_registry:-}" ] && [ "$npm_config_registry" != "$MIRROR_NPM_OFFICIAL" ]; then
+    say "镜像源安装失败，回退官方 npm 源重试……"
+    if pnpm install --registry="$MIRROR_NPM_OFFICIAL" >/dev/null 2>&1; then
+      say "前端依赖安装完成（官方源）。"
+      return 0
+    fi
+  fi
   finish_fail PNPM_INSTALL_FAILED "前端依赖安装失败。请手动运行：pnpm install"
 }
 
@@ -298,11 +419,23 @@ ensure_venv() {
     return 0
   fi
   say "创建后端虚拟环境并安装依赖（uv venv + uv pip install -e .，首次可能需要几分钟）……"
-  if uv venv -p 3.12 >/dev/null 2>&1 && uv pip install -e . >/dev/null 2>&1; then
+  if uv venv -p "$PYTHON_TARGET" >/dev/null 2>&1 && uv pip install -e . >/dev/null 2>&1; then
     say "后端依赖安装完成。"
     return 0
   fi
-  finish_fail UV_INSTALL_FAILED "后端依赖安装失败。请手动运行：uv venv -p 3.12 && uv pip install -e ."
+  # venv 多半已建好（uv venv 不走 PyPI 索引），失败常出在 pip 装包阶段：
+  # 镜像源滞后/抽风时回退官方 PyPI 重试一次（仅重试装包，复用已建的 .venv）。
+  # 注意：必须「显式设官方 index」而非 `env -u UV_DEFAULT_INDEX` —— 我们已把
+  # uv.toml（[[index]] default=true 指向镜像）落盘，仅卸 env 会被 uv.toml 反噬、
+  # 又指回镜像（实测）；env 显式赋值能盖过 uv.toml，才是真回退。
+  if [ -n "${UV_DEFAULT_INDEX:-}" ] && [ -d .venv ]; then
+    say "镜像源安装失败，回退官方 PyPI 重试……"
+    if UV_DEFAULT_INDEX="$MIRROR_PYPI_OFFICIAL" uv pip install -e . >/dev/null 2>&1; then
+      say "后端依赖安装完成（官方源）。"
+      return 0
+    fi
+  fi
+  finish_fail UV_INSTALL_FAILED "后端依赖安装失败。请手动运行：uv venv -p $PYTHON_TARGET && uv pip install -e ."
 }
 
 # ════════════════════════════════════════════
@@ -312,6 +445,8 @@ ensure_venv() {
 # （install.sh 复用 node_major_ok/provision_node_via_volta，不能触发副作用与退出）。
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   say "检测开发环境（OS=${OS}）……"
+  setup_cn_mirror
+  write_project_mirror_config
   ensure_node
   ensure_pnpm
   ensure_uv
