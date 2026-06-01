@@ -38,15 +38,26 @@ VER="$("$NODE_BIN" -e "console.log(require('$PLUGIN_DIR/.claude-plugin/plugin.js
 OUT="$OUT_DIR/minus-creator-v${VER}.zip"
 
 # 3. 打包 marketplace 根目录（排除 node_modules / .DS_Store / .git）
+# 也排除源 assets/：运行时只读打包产物 dist/assets/，源图在分发包里是冗余
+# （build.mjs 已把 assets/ 拷进 dist/assets/，install 不重建、直接用预打包产物）。
 echo "→ 打包 $OUT ..."
 rm -f "$OUT"
 ( cd "$(dirname "$MARKETPLACE_DIR")" \
   && zip -rq "$OUT" "$(basename "$MARKETPLACE_DIR")" \
-       -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" )
+       -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" \
+       -x "*/mcp-servers/minus-platform/assets/*" )
 
-# 4. 校验：bundle 进包了、node_modules 没进包
+# 4. 校验：bundle 与引导图（dist/assets）进包了、源 assets/ 和 node_modules 没进包
 if ! unzip -l "$OUT" | grep -q "dist/minus-platform.cjs"; then
   echo "❌ 打包失败：zip 内缺 dist/minus-platform.cjs"
+  exit 1
+fi
+if ! unzip -l "$OUT" | grep -q "dist/assets/start.png"; then
+  echo "❌ 打包失败：zip 内缺 dist/assets/（引导图）"
+  exit 1
+fi
+if unzip -l "$OUT" | grep -qE "minus-platform/assets/"; then
+  echo "❌ 打包失败：源 assets/ 不应进包（应只保留 dist/assets/）"
   exit 1
 fi
 if [ "$(unzip -l "$OUT" | grep -c node_modules)" -ne 0 ]; then
