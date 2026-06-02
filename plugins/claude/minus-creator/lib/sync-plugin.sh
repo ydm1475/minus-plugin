@@ -59,10 +59,23 @@ if ! find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.
   echo "  ⚠ mcp-server 缓存目录未找到，跳过"
 fi
 
-# Lib scripts — 同步到所有缓存目录
+# Plugin source files — 同步到所有缓存目录
 find "$CLAUDE_DIR/plugins/cache" -path "*/minus-creator/*/lib" -type d -not -path "*/node_modules/*" 2>/dev/null | while read -r LIB_CACHE; do
+  PLUGIN_CACHE="$(dirname "$LIB_CACHE")"
+
+  if [ -d "$PLUGIN_SRC/agents" ]; then
+    mkdir -p "$PLUGIN_CACHE/agents"
+    cp "$PLUGIN_SRC"/agents/*.md "$PLUGIN_CACHE/agents/"
+  fi
+
+  for skill_dir in "$PLUGIN_SRC"/skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    mkdir -p "$PLUGIN_CACHE/skills/$skill_name"
+    cp "$skill_dir"SKILL.md "$PLUGIN_CACHE/skills/$skill_name/SKILL.md"
+  done
+
   cp "$PLUGIN_SRC"/lib/*.sh "$LIB_CACHE/"
-  echo "  ✓ lib scripts: $LIB_CACHE"
+  echo "  ✓ plugin cache: $PLUGIN_CACHE"
 done
 
 echo ""
