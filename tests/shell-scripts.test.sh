@@ -573,6 +573,66 @@ ST="$LIB_DIR/step-tracker.sh"
   fi
 )
 
+# Test: logic mode defaults to deterministic for backward compatibility
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic >/dev/null 2>&1
+  MODE=$(cat .minus/dev-progress/step_1_logic_mode)
+  if [ "$MODE" = "deterministic" ]; then
+    pass "step-tracker: logic defaults to deterministic for old calls"
+  else
+    fail "step-tracker: default logic mode" "expected deterministic, got: $MODE"
+  fi
+)
+
+# Test: explicit llm mode persists and status displays it
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic llm >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" status 1 2>&1)
+  if [ "$(cat .minus/dev-progress/step_1_logic_mode)" = "llm" ] \
+     && assert_contains "$OUTPUT" "模式: llm"; then
+    pass "step-tracker: explicit llm mode persists and appears in status"
+  else
+    fail "step-tracker: llm mode persistence" "got: $OUTPUT"
+  fi
+)
+
+# Test: invalid logic mode is rejected
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" complete 1 logic auto 2>&1 || true)
+  if assert_contains "$OUTPUT" "logic 模式必须是 deterministic 或 llm"; then
+    pass "step-tracker: rejects invalid logic mode"
+  else
+    fail "step-tracker: invalid logic mode should fail" "got: $OUTPUT"
+  fi
+)
+
+# Test: reset clears the persisted logic mode
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic llm >/dev/null 2>&1
+  bash "$ST" reset 1 >/dev/null 2>&1
+  if [ ! -f .minus/dev-progress/step_1_logic_mode ]; then
+    pass "step-tracker: reset clears logic mode"
+  else
+    fail "step-tracker: reset should clear logic mode" "logic mode file still exists"
+  fi
+)
+
 # Test: list shows progress
 (
   TMP=$(make_tmp)
@@ -588,6 +648,46 @@ ST="$LIB_DIR/step-tracker.sh"
     pass "step-tracker: list shows mixed progress"
   else
     fail "step-tracker: list shows mixed progress" "got: $OUTPUT"
+  fi
+)
+
+# Test: generate-node-code exposes llm mode to the code-generation stage
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 1 > .minus/total-steps
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic llm >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
+  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
+     && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
+     && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
+    pass "generate-node-code: llm mode emits LLM_REQUIRED guidance"
+  else
+    fail "generate-node-code: llm mode guidance" "got: $OUTPUT"
+  fi
+)
+
+# Test: interactive code generation explains persisted hidden finalize summaries
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 2 > .minus/total-steps
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
+  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  if assert_contains "$OUTPUT" "frontend-guide.md" \
+     && assert_contains "$OUTPUT" "隐藏 finalize 摘要" \
+     && assert_contains "$OUTPUT" "不在这里重复定义 UI 契约"; then
+    pass "generate-node-code: interactive template points summary finalize to platform docs"
+  else
+    fail "generate-node-code: summary finalize docs pointer" "got: $OUTPUT"
   fi
 )
 
@@ -842,6 +942,19 @@ GRD="$LIB_DIR/generate-result-design.sh"
     pass "generate-result-design: outputs two-dimension guidance"
   else
     fail "generate-result-design: should output both dimensions" "got: $OUTPUT"
+  fi
+  if echo "$OUTPUT" | grep -q "Skill 运行结束后，结果页底部会有一段摘要来总结分析结论。" \
+     && echo "$OUTPUT" | grep -q "这段摘要由大模型在运行时基于实际数据自动生成，还是你来定义模板？"; then
+    pass "generate-result-design: asks whether bottom summary uses runtime LLM or creator template"
+  else
+    fail "generate-result-design: should ask runtime LLM vs creator template" "got: $OUTPUT"
+  fi
+  if echo "$OUTPUT" | grep -q "动态生成需要确认的问题" \
+     && echo "$OUTPUT" | grep -q "禁止照搬固定问题清单" \
+     && echo "$OUTPUT" | grep -q "只有 Creator 明确确认后，才能继续进入下载内容"; then
+    pass "generate-result-design: runtime LLM summary requires dynamic creator confirmation"
+  else
+    fail "generate-result-design: runtime LLM summary should require dynamic confirmation" "got: $OUTPUT"
   fi
 )
 

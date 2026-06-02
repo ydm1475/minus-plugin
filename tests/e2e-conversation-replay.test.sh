@@ -286,10 +286,12 @@ bash "$LIB_DIR/step-tracker.sh" complete 1 logic > /dev/null 2>&1
 bash "$LIB_DIR/step-tracker.sh" complete 1 output > /dev/null 2>&1
 bash "$LIB_DIR/step-tracker.sh" complete 1 confirm interactive > /dev/null 2>&1
 GATE_RESULT2=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
-if echo "$GATE_RESULT2" | grep -q "GATE_PASSED" && echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
-  pass "硬编码门禁：全部完成 → GATE_PASSED + CONFIRM_MODE=interactive"
+if echo "$GATE_RESULT2" | grep -q "GATE_PASSED" \
+   && echo "$GATE_RESULT2" | grep -q "LOGIC_MODE=deterministic" \
+   && echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
+  pass "硬编码门禁：全部完成 → GATE_PASSED + LOGIC_MODE=deterministic + CONFIRM_MODE=interactive"
 else
-  fail "硬编码门禁：全部完成应输出 GATE_PASSED" "GATE_PASSED + interactive" "$GATE_RESULT2"
+  fail "硬编码门禁：全部完成应输出 GATE_PASSED" "GATE_PASSED + deterministic + interactive" "$GATE_RESULT2"
 fi
 
 # TC-R20: generate-node-code.sh 输出的 interactive 模板引导查 SDK 文档
@@ -297,6 +299,25 @@ if echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
   pass "硬编码模板：interactive 模式正确标记 CONFIRM_MODE"
 else
   fail "硬编码模板：应输出 CONFIRM_MODE=interactive" "包含 CONFIRM_MODE" "未找到"
+fi
+
+# TC-R21: Creator 明确要求大模型自动生成结论 → 节点状态和门禁保留 LLM 意图
+bash "$LIB_DIR/step-tracker.sh" reset 2 > /dev/null 2>&1
+bash "$LIB_DIR/step-tracker.sh" complete 2 data > /dev/null 2>&1
+bash "$LIB_DIR/step-tracker.sh" complete 2 logic llm > /dev/null 2>&1
+bash "$LIB_DIR/step-tracker.sh" complete 2 output > /dev/null 2>&1
+bash "$LIB_DIR/step-tracker.sh" complete 2 confirm auto > /dev/null 2>&1
+GATE_RESULT3=$(bash "$LIB_DIR/generate-node-code.sh" 2 2>&1)
+if echo "$GATE_RESULT3" | grep -q "LOGIC_MODE=llm" && echo "$GATE_RESULT3" | grep -q "LLM_REQUIRED=YES"; then
+  pass "LLM 意图持久化：大模型自动生成结论 → LOGIC_MODE=llm + LLM_REQUIRED=YES"
+else
+  fail "LLM 意图应传递到代码生成门禁" "LOGIC_MODE=llm + LLM_REQUIRED=YES" "$GATE_RESULT3"
+fi
+
+if grep -q "complete {step_number} logic llm" "$NODE_DEV"; then
+  pass "node-dev.md：明确的大模型生成意图会记录 logic llm"
+else
+  fail "node-dev.md 应记录 logic llm" "包含 complete {step_number} logic llm" "未找到"
 fi
 
 # TC-R16: 验证整个流程的 step-tracker 状态正确

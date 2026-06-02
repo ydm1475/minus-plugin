@@ -4,9 +4,9 @@
 # 用法: generate-node-code.sh <step_number>
 #
 # 前置条件：step-tracker.sh check <step_number> 必须返回 COMPLETE
-# 生成内容：根据 confirm_mode 决定前端交互方式
+# 生成内容：根据 logic_mode 决定处理方式，根据 confirm_mode 决定前端交互方式
 #
-# 此脚本只做「门禁检查 + 读取 confirm_mode」，
+# 此脚本只做「门禁检查 + 读取 logic_mode / confirm_mode」，
 # 实际代码由 Agent 在门禁通过后编写（脚本输出指导信息）
 
 set -euo pipefail
@@ -25,7 +25,15 @@ if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
   exit 1
 fi
 
-# ── 读取 confirm_mode ──
+# ── 读取 logic_mode / confirm_mode ──
+
+LOGIC_MODE_FILE="$TRACKER_DIR/step_${STEP}_logic_mode"
+if [ -f "$LOGIC_MODE_FILE" ]; then
+  LOGIC_MODE=$(cat "$LOGIC_MODE_FILE")
+else
+  # 兼容旧项目：历史节点只有 step_N_logic 完成标记，没有细分模式。
+  LOGIC_MODE="deterministic"
+fi
 
 MODE_FILE="$TRACKER_DIR/step_${STEP}_confirm_mode"
 if [ -f "$MODE_FILE" ]; then
@@ -43,8 +51,21 @@ set +e
 
 echo "GATE_PASSED"
 echo "STEP_NUMBER=$STEP"
+echo "LOGIC_MODE=$LOGIC_MODE"
 echo "CONFIRM_MODE=$CONFIRM_MODE"
 echo "IS_LAST=$IS_LAST"
+
+# ── LLM 处理约束 ──
+
+if [ "$LOGIC_MODE" = "llm" ]; then
+  cat << 'LLM_GUIDANCE'
+LLM_REQUIRED=YES
+必须读取项目后端 SDK 开发手册，使用 SDK 内置 LLM 能力。
+禁止自行拼接第三方模型调用，禁止猜测 SDK 方法名。
+LLM_GUIDANCE
+else
+  echo "LLM_REQUIRED=NO"
+fi
 
 # ── 输出前端代码模板 ──
 
@@ -64,6 +85,10 @@ FRONTEND_TEMPLATE=interactive
 # }),
 #
 # 后端必须使用 StepOutcome.input_required(payload={...})
+#
+# 如果本步骤摘要依赖用户最终确认的数据，查前端 SDK 开发手册（frontend-guide.md）
+# 使用“确认后隐藏 finalize 摘要”这条平台能力。Plugin 只负责触发条件，不在这里重复定义 UI 契约。
+# 禁止在确认前提前生成摘要，禁止只在前端临时拼接摘要，禁止修改 Python SDK。
 TEMPLATE
 elif [ "$CONFIRM_MODE" = "auto" ]; then
   cat << 'TEMPLATE'

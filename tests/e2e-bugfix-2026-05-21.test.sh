@@ -255,6 +255,34 @@ else
   fail "维度②应识别用户明确的大模型生成意图" "检查处理逻辑章节"
 fi
 
+if assert_file_contains "$NODE_DEV" "直接透传原始数据？做聚合/排序？用大模型做分析总结？"; then
+  pass "维度②提问展示完整处理方式选项"
+else
+  fail "维度②提问应包含大模型分析总结选项" "检查维度②提问模板"
+fi
+
+if assert_file_contains "$NODE_DEV" "动态生成需要确认的问题" \
+   && assert_file_contains "$NODE_DEV" "禁止照搬固定问题清单" \
+   && assert_file_contains "$NODE_DEV" "只有 Creator 明确确认后，才能记录"; then
+  pass "维度②使用 LLM 前要求动态生成确认内容并获得明确确认"
+else
+  fail "维度②使用 LLM 前应动态确认" "检查处理逻辑章节"
+fi
+
+# ── TC-10: 用户确认后的摘要使用隐藏 finalize 持久化 ──
+
+echo ""
+echo "TC-10: 用户确认后的摘要使用隐藏 finalize 持久化"
+
+if assert_file_contains "$NODE_DEV" "追加一个隐藏 finalize 步骤" \
+   && assert_file_contains "$NODE_DEV" "frontend-guide.md" \
+   && assert_file_contains "$NODE_DEV" "供选择 n 个关键词" \
+   && assert_file_contains "$NODE_DEV" "禁止修改 Python SDK"; then
+  pass "node-dev.md 覆盖模板摘要和 LLM 摘要的隐藏 finalize 规则"
+else
+  fail "node-dev.md 应明确隐藏 finalize 摘要规则" "检查步骤摘要与 finalize 规则"
+fi
+
 if assert_file_contains "$NODE_DEV" "必须在后端 SDK 开发手册中查到 SDK 内置 LLM 调用方式"; then
   pass "LLM 代码生成前要求查后端 SDK 文档"
 else

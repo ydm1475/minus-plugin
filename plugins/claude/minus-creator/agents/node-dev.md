@@ -55,7 +55,7 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
 
 「下一个问题：拿到这些数据之后，怎么处理？」
 
-「比如：直接透传原始数据？做聚合排序？按某个字段筛选/排序？」
+「比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？」
 
 ### ② 处理逻辑
 
@@ -67,12 +67,24 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
 
 引导时不要主动推销"大模型生成"作为默认选项；只在 Creator 明确表达，或任务确实需要自然语言理解/判断/生成时使用。
 
-如果使用 LLM，先用通俗语言确认输出目标，不暴露技术细节。例如：
-「好的，这一步用大模型根据数据自动生成分析结论。你希望它偏向总结重点、给出建议，还是提示风险？」
+如果使用 LLM，必须先完成一次动态确认，不暴露技术细节：
+1. 根据当前步骤的数据内容、Creator 已表达的业务目标和上下文，动态生成需要确认的问题。⛔ 禁止照搬固定问题清单。
+2. Creator 回答后，用通俗语言归纳大模型将生成什么、重点关注什么、有哪些边界，并询问「这样可以吗？」
+3. 只有 Creator 明确确认后，才能记录 `logic llm` 并进入下一维度。
 
-Creator 确认后，执行：
+例如：
+「好的，这一步会用大模型根据实际数据生成分析结论。结合当前数据，你希望它重点关注哪些内容？」
+
+Creator 回答后：
+「明白了。这一步会重点生成：{根据 Creator 回答动态归纳的内容}。这样可以吗？」
+
+Creator 确认后，根据处理方式执行其中一个命令：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic
+# 排序、筛选、聚合、格式化等确定性处理
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic deterministic
+
+# 大模型生成、AI 总结、自动分析等 LLM 处理
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic llm
 ```
 
 然后**先判断是否为最后一步**：
@@ -164,13 +176,22 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm interacti
 ```bash
 bash "$PLUGIN_ROOT/lib/generate-node-code.sh" {step_number}
 ```
-此脚本会检查四维度是否全部 COMPLETE，并输出 `CONFIRM_MODE`（auto/interactive）和前端代码模板。
+此脚本会检查四维度是否全部 COMPLETE，并输出 `LOGIC_MODE`（deterministic/llm）、`LLM_REQUIRED`（YES/NO）、`CONFIRM_MODE`（auto/interactive）和前端代码模板。
 - 如果输出 `GATE_PASSED` → 可以开始写代码
 - 如果报错 → 四维度未全部确认，必须补完
 
 ⛔ **禁止在门禁通过前编辑 pipeline.py 或 main.tsx。** 任何代码修改必须在 `generate-node-code.sh` 返回 `GATE_PASSED` 之后。
 
-根据门禁输出的 `CONFIRM_MODE` 和收集到的意图一次性生成所有代码。
+根据门禁输出的 `LOGIC_MODE`、`LLM_REQUIRED`、`CONFIRM_MODE` 和收集到的意图一次性生成所有代码。`LLM_REQUIRED=YES` 时，后端必须使用 SDK 内置 LLM 能力。
+
+### 步骤摘要与 finalize 规则
+
+步骤摘要必须来自后端 payload，不能只在前端临时拼接。这样摘要会随步骤结果持久化，用户回放时不会丢失。
+
+- 如果摘要不依赖用户确认结果：直接在当前步骤输出摘要。
+- 如果摘要依赖用户最终确认的数据：在用户确认后追加一个隐藏 finalize 步骤，让后端基于最终确认结果生成并持久化摘要。Creator 定义的模板和 SDK 内置 LLM 摘要都走这条规则，例如“供选择 n 个关键词”里的 `n` 必须基于最终确认后的实际数据计算。
+- 具体前端配置、回挂位置、运行态表现和示例代码，统一以前端 SDK 开发手册（frontend-guide.md）为准。Plugin 只负责判断什么时候该用这条平台能力，⛔ 不要在这里重复定义 UI 契约或手写摘要 wrapper。
+- ⛔ 禁止修改 Python SDK，禁止把 finalize 当成新的业务步骤向 Creator 展示。
 
 ### 写代码前：必须查 API 文档（硬性前置步骤）
 

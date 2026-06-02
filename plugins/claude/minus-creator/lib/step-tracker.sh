@@ -3,7 +3,7 @@
 # 跟踪节点开发四维度的完成状态
 # 用法:
 #   step-tracker.sh status <step_number>          — 查看某步骤四维度状态
-#   step-tracker.sh complete <step_number> <dim>   — 标记某维度完成（dim: data|logic|output|confirm）
+#   step-tracker.sh complete <step_number> <dim> [mode] — 标记某维度完成（logic: deterministic|llm；confirm: auto|interactive）
 #   step-tracker.sh check <step_number>            — 检查四维度是否全部完成
 #   step-tracker.sh reset <step_number>            — 重置某步骤的状态
 #   step-tracker.sh is-last <step_number>            — 判断是否为最后一步（YES/NO）
@@ -29,7 +29,11 @@ case "${1:-}" in
       dim="${DIMS[$i]}"
       name="${DIM_NAMES[$i]}"
       if [ -f "$TRACKER_DIR/step_${STEP}_${dim}" ]; then
-        echo "  ✓ ${name}"
+        if [ "$dim" = "logic" ] && [ -f "$TRACKER_DIR/step_${STEP}_logic_mode" ]; then
+          echo "  ✓ ${name}（模式: $(cat "$TRACKER_DIR/step_${STEP}_logic_mode")）"
+        else
+          echo "  ✓ ${name}"
+        fi
       else
         echo "  ○ ${name}（未完成）"
       fi
@@ -48,6 +52,15 @@ case "${1:-}" in
     if [ "$VALID" = false ]; then
       echo "错误：无效的维度 '$DIM'，可选：data|logic|output|confirm" >&2
       exit 1
+    fi
+
+    # logic 维度保存处理模式。旧调用不带参数时默认 deterministic，保持已有项目兼容。
+    if [ "$DIM" = "logic" ]; then
+      MODE="${4:-deterministic}"
+      if [ "$MODE" != "deterministic" ] && [ "$MODE" != "llm" ]; then
+        echo "错误：logic 模式必须是 deterministic 或 llm，收到: '$MODE'" >&2
+        exit 1
+      fi
     fi
 
     # confirm 维度必须指定模式（auto 或 interactive）
@@ -88,8 +101,10 @@ case "${1:-}" in
     done
 
     touch "$TRACKER_DIR/step_${STEP}_${DIM}"
-    # confirm 维度保存模式信息
-    if [ "$DIM" = "confirm" ]; then
+    # logic / confirm 维度保存模式信息
+    if [ "$DIM" = "logic" ]; then
+      echo "$MODE" > "$TRACKER_DIR/step_${STEP}_logic_mode"
+    elif [ "$DIM" = "confirm" ]; then
       echo "$MODE" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
     fi
     echo "✓ 步骤 $STEP — ${DIM} 已确认${MODE:+ (模式: $MODE)}"
