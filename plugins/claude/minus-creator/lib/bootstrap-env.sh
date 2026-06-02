@@ -181,6 +181,17 @@ win_local_bin() {
   echo "$up/.local/bin" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
 }
 
+# Volta 的 shim 目录：Windows 是 %LOCALAPPDATA%\Volta\bin，其余平台是 $HOME/.volta/bin。
+# volta_on_path 据此把正确的 shim 目录提到 PATH 最前。
+volta_bin_dir() {
+  if [ "$OS" = "windows" ]; then
+    local la="${LOCALAPPDATA:-${USERPROFILE:-$HOME}/AppData/Local}"
+    echo "$la/Volta/bin" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
+  else
+    echo "${VOLTA_HOME:-$HOME/.volta}/bin"
+  fi
+}
+
 # ════════════════════════════════════════════
 # Step 0 — Node 运行时保障（硬下限 >= NODE_FLOOR）
 # ════════════════════════════════════════════
@@ -208,26 +219,43 @@ node_major_ok() {
 # 实现：先剔除 PATH 里所有已存在的 ~/.volta/bin，再 prepend，保证幂等且必在最前。
 volta_on_path() {
   export VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+  local vbin; vbin="$(volta_bin_dir)"
   local cleaned="" entry oldifs="$IFS" glob_off=1
   case $- in *f*) ;; *) glob_off=0; set -f ;; esac   # 暂关 glob，避免 PATH 含 * 被展开
   IFS=':'
   for entry in $PATH; do
     [ -z "$entry" ] && continue
-    [ "$entry" = "$VOLTA_HOME/bin" ] && continue
+    [ "$entry" = "$vbin" ] && continue
     cleaned="${cleaned:+$cleaned:}$entry"
   done
   IFS="$oldifs"
   [ "$glob_off" -eq 0 ] && set +f
-  export PATH="$VOLTA_HOME/bin:$cleaned"
+  export PATH="$vbin:$cleaned"
   hash -r 2>/dev/null || true
   have volta
 }
 
-# 确保 Volta 可用：先看是否已装（仅 PATH，无网络）；没有才在 Unix 上 curl 安装。
-# windows / 无 curl 直接 return 1。返回 volta 是否最终可用。
+# Windows：用 winget 装 Volta。返回 volta 在「本会话」是否立即可用。
+# 注意：winget 把 volta.exe 装到 Program Files\Volta 并写 System PATH、shim 到
+# %LOCALAPPDATA%\Volta\bin，二者通常都要重开终端才生效——故本会话很可能仍 return 1，
+# 这是预期的，调用方（ensure_pnpm）会走 npm-g 兜底。
+install_volta_windows() {
+  have winget || have powershell.exe || return 1
+  say "通过 winget 安装 Volta（可能需要几分钟）……"
+  powershell.exe -NoProfile -Command \
+    "winget install -e --id Volta.Volta --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
+  hash -r 2>/dev/null || true
+  volta_on_path
+}
+
+# 确保 Volta 可用：先看是否已装（仅 PATH，无网络）；没有才按 OS 安装。
+# 返回 volta 是否最终可用（Windows 多半要重启终端才生效，本会话可能 return 1）。
 ensure_volta() {
   volta_on_path && return 0
-  [ "$OS" = "windows" ] && return 1
+  if [ "$OS" = "windows" ]; then
+    install_volta_windows
+    return $?
+  fi
   have curl || return 1
   say "安装 Volta（Node 版本管理器，单次安装全局共享）……"
   curl -fsSL https://get.volta.sh | bash -s -- --skip-setup >/dev/null 2>&1 || true
@@ -266,19 +294,18 @@ ensure_node() {
   fi
 
   if [ "$OS" = "windows" ]; then
-    if have winget || have powershell.exe; then
-      say "通过 winget 安装 Volta（可能需要几分钟）……"
-      powershell.exe -NoProfile -Command \
-        "winget install -e --id Volta.Volta --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
+    if ensure_volta; then
+      LAST_ERR="$(volta install "node@${NODE_TARGET}" 2>&1)"
       hash -r 2>/dev/null || true
-      if have volta; then
-        LAST_ERR="$(volta install "node@${NODE_TARGET}" 2>&1)"
-        hash -r 2>/dev/null || true
-        if node_major_ok; then
-          say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
-          return 0
-        fi
+      if node_major_ok; then
+        say "Node.js 安装完成（$(node -v 2>/dev/null)）。"
+        return 0
       fi
+      finish_fail RESTART_NEEDED "Volta 已安装，但当前终端 PATH 未刷新。请重启 Claude Code / 终端后重跑 /minus。"
+    fi
+    # ensure_volta 没能让 volta 在本会话立即可用：若确实尝试过 winget 安装（有 winget/powershell），
+    # 多半是 PATH 未刷新 → 让用户重启；否则真的无从安装 → NO_NODE。
+    if have winget || have powershell.exe; then
       finish_fail RESTART_NEEDED "Volta 已安装，但当前终端 PATH 未刷新。请重启 Claude Code / 终端后重跑 /minus。"
     fi
     finish_fail NO_NODE "未找到 winget，无法自动安装。请安装 Node.js v${NODE_FLOOR}+（https://volta.sh 或 https://nodejs.org）后重跑 /minus。"
@@ -329,12 +356,23 @@ ensure_pnpm() {
       say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，Volta 管理）。"
       return 0
     fi
-  else
-    LAST_ERR="无法获取 Volta（未安装且自动安装失败；需联网从 https://get.volta.sh 下载）。"
+  fi
+
+  # Windows 兜底：Volta shim 多半要重启终端才生效，本会话装不上 pnpm。
+  # Windows 的 npm 全局 prefix = %APPDATA%\npm（用户可写、免 admin、无 EACCES），
+  # 故 npm -g 在 Windows 上安全——这正是 mac 上被砍掉的那条兜底在 Windows 上可用的原因。
+  if [ "$OS" = "windows" ] && have npm; then
+    say "经 Volta 未就绪，改用 npm 全局安装 pnpm@${PNPM_PIN}（Windows，写 %APPDATA%\\npm，免 admin）……"
+    LAST_ERR="$(npm install -g "pnpm@${PNPM_PIN}" 2>&1)"
+    hash -r 2>/dev/null || true
+    if pnpm_ok; then
+      say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，npm 全局）。"
+      return 0
+    fi
   fi
 
   # 真实错误透出，不再吞掉——这样下次失败能一眼看出是网络、Volta 还是版本问题。
-  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。真实错误：${LAST_ERR:-（无输出）}。手动可试：curl https://get.volta.sh | bash 后 VOLTA_FEATURE_PNPM=1 volta install pnpm@${PNPM_PIN}"
+  finish_fail PNPM_INSTALL_FAILED "pnpm 安装失败。真实错误：${LAST_ERR:-（无输出）}。手动可试：curl https://get.volta.sh | bash 后 VOLTA_FEATURE_PNPM=1 volta install pnpm@${PNPM_PIN}（Windows：npm install -g pnpm@${PNPM_PIN}）"
 }
 
 # ════════════════════════════════════════════

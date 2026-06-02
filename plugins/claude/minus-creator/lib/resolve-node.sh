@@ -9,7 +9,7 @@
 # 它带 #!/usr/bin/env node，裸调会落到老 node 上崩在 ?? 语法）都该先用本脚本解析出
 # 一个够新的 node，再把它的目录前置到 PATH 后调用。
 #
-# 候选顺序与 mcp-servers/minus-platform/launch.sh 保持一致：
+# 候选顺序与 mcp-servers/minus-platform/launch.cjs 保持一致：
 #   PATH → Volta image 真身 → Volta shim → nvm 最新 → Homebrew → /usr/local
 # install.sh 一定会用 Volta 装好 Node 24，故 $HOME/.volta 这条几乎必中。
 

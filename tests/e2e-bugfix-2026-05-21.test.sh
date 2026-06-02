@@ -232,6 +232,35 @@ else
   fail "维度②不应包含写代码指令" "应只收集意图"
 fi
 
+# ── TC-09: node-dev.md 支持 SDK 内置 LLM 能力 ──
+
+echo ""
+echo "TC-09: 处理逻辑支持 SDK 内置 LLM 能力"
+
+if assert_file_not_contains "$NODE_DEV" "SDK 不支持 LLM 调用"; then
+  pass "node-dev.md 不再保留旧的 LLM 禁令"
+else
+  fail "node-dev.md 不应再声明 SDK 不支持 LLM" "当前 SDK 已支持大模型调用"
+fi
+
+if assert_file_contains "$NODE_DEV" "可使用 SDK 内置 LLM 能力"; then
+  pass "维度②允许摘要/洞察等场景使用 SDK LLM"
+else
+  fail "维度②应说明可使用 SDK 内置 LLM 能力" "检查处理逻辑章节"
+fi
+
+if assert_file_contains "$NODE_DEV" "Creator 明确说\"用大模型自动生成\""; then
+  pass "维度②识别 Creator 明确的大模型自动生成意图"
+else
+  fail "维度②应识别用户明确的大模型生成意图" "检查处理逻辑章节"
+fi
+
+if assert_file_contains "$NODE_DEV" "必须在后端 SDK 开发手册中查到 SDK 内置 LLM 调用方式"; then
+  pass "LLM 代码生成前要求查后端 SDK 文档"
+else
+  fail "LLM 代码生成前应查 SDK 文档" "避免在 Plugin 中硬编码 LLM API 形态"
+fi
+
 # ── Summary ──
 
 echo ""

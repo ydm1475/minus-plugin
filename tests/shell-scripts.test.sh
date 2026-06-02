@@ -964,15 +964,47 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: cli 入口 → 只输出 cd 启动命令，不含图片/选文件夹文案。
+# Test: cli 入口（无真实路径）→ 回退 ~/minus/{name}，不含图片/选文件夹文案。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude" \
+  if echo "$OUTPUT" | grep -q 'cd ~/minus/"竞品分析_SKILL" && claude' \
      && ! echo "$OUTPUT" | grep -q '!\[' \
      && ! echo "$OUTPUT" | grep -q "选择 .*文件夹作为工作目录"; then
-    pass "generate-next-steps: cli → cd 命令，无图无选文件夹"
+    pass "generate-next-steps: cli 无路径 → 回退 ~/minus/{name}"
   else
-    fail "generate-next-steps: cli 文案" "got: $OUTPUT"
+    fail "generate-next-steps: cli 回退文案" "got: $OUTPUT"
+  fi
+)
+
+# Test: cli 入口（有真实 targetDir）→ cd 用真实绝对路径并加引号，不再硬编码 ~/minus。
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" "/custom/work/竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q 'cd "/custom/work/竞品分析_SKILL" && claude' \
+     && ! echo "$OUTPUT" | grep -q "~/minus"; then
+    pass "generate-next-steps: cli 有 targetDir → cd 真实路径，无 ~/minus 硬编码"
+  else
+    fail "generate-next-steps: cli 真实路径" "got: $OUTPUT"
+  fi
+)
+
+# Test: 真实路径在 $HOME 下 → 展示折叠成 ~（desktop 文案可读性）。
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" "$HOME/minus/竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q "选择 \`~/minus/竞品分析_SKILL\`"; then
+    pass "generate-next-steps: \$HOME 下真实路径 → 折叠成 ~"
+  else
+    fail "generate-next-steps: ~ 折叠" "got: $OUTPUT"
+  fi
+)
+
+# Test: Windows 真实路径 → 原样显示，绝不伪造 ~/minus（核心跨平台修复）。
+(
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" "C:/Users/wangshu/projects/竞品分析_SKILL" 2>&1)
+  if echo "$OUTPUT" | grep -q "选择 \`C:/Users/wangshu/projects/竞品分析_SKILL\`" \
+     && ! echo "$OUTPUT" | grep -q "~/minus"; then
+    pass "generate-next-steps: Windows 真实路径原样显示，不伪造 ~/minus"
+  else
+    fail "generate-next-steps: Windows 路径" "got: $OUTPUT"
   fi
 )
 
@@ -1407,6 +1439,48 @@ write_stub() {
   fi
 )
 
+# Test【Windows 跨平台】: node>=24 已就绪、pnpm≠pin、Volta 本会话不可用（无 winget/powershell）
+# → 走 Windows npm-g 兜底（npm install -g pnpm@pin），最终 ok。复现真实 Windows 装机日志的卡点：
+# 旧代码 ensure_volta 在 windows 硬 return 1、ensure_pnpm 无兜底 → 假性 PNPM_INSTALL_FAILED。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  # npm: install -g pnpm@pin → 翻转 pnpm 桩版本；其余记日志
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; case \"\$*\" in *'install -g pnpm@11.4.0'*) touch $TMP/pnpm-installed;; esac; exit 0"
+  write_stub "$SB" pnpm "case \"\$1\" in --version|-v) if [ -f $TMP/pnpm-installed ]; then echo 11.4.0; else echo 9.1.0; fi;; *) echo ok;; esac"
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # 故意不提供 volta / winget / powershell.exe → ensure_volta 在 windows 必失败 → 触发 npm-g 兜底
+  : > "$TMP/npm.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" USERPROFILE="$TMP" BOOTSTRAP_OS=windows PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && assert_contains "$(cat "$TMP/npm.log")" "install -g pnpm@11.4.0" \
+     && [ ! -s "$TMP/volta.log" ]; then
+    pass "bootstrap-env: Windows Volta 不可用 → npm-g 兜底装 pnpm，最终 ok"
+  else
+    fail "bootstrap-env: Windows npm-g 兜底" "out: $OUTPUT; npm.log: $(cat "$TMP/npm.log")"
+  fi
+)
+
+# Test【静态】: B 的跨平台改造落到源码——ensure_volta 不再 windows 硬 return 1、
+# volta shim 目录认 Windows %LOCALAPPDATA%\Volta\bin、ensure_pnpm 有 Windows npm-g 兜底。
+(
+  ok=1
+  # ensure_volta 内不应再出现「windows 直接 return 1」这条硬挡
+  if grep -qE '\[ "\$OS" = "windows" \] && return 1' "$BS"; then ok=0; fi
+  # volta_bin_dir 处理 Windows shim 布局
+  grep -q 'volta_bin_dir' "$BS" || ok=0
+  grep -q 'Volta/bin' "$BS" || ok=0
+  grep -q 'LOCALAPPDATA' "$BS" || ok=0
+  # ensure_pnpm 的 Windows npm-g 兜底
+  grep -q 'npm install -g "pnpm@' "$BS" || ok=0
+  if [ "$ok" -eq 1 ]; then
+    pass "bootstrap-env: ensure_volta 跨平台 + volta shim 认 win + ensure_pnpm 有 npm-g 兜底"
+  else
+    fail "bootstrap-env: B 跨平台静态校验" "缺 volta_bin_dir/LOCALAPPDATA/npm-g 兜底 或残留 windows 硬 return 1"
+  fi
+)
+
 # Test: SKILL.md drives bootstrap via the script, not inline install commands
 (
   if grep -q "bootstrap-env.sh" "$SKILL_MD" 2>/dev/null \
@@ -1805,60 +1879,69 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 
 # Test: install.sh 校验 launcher 存在（.mcp.json command 实际跑它）
 (
-  if grep -q 'launch.sh' "$INSTALL_SH"; then
-    pass "install.sh: 校验 MCP launcher (launch.sh) 存在"
+  if grep -q 'launch.cjs' "$INSTALL_SH" && ! grep -q 'launch.sh' "$INSTALL_SH"; then
+    pass "install.sh: 校验 MCP launcher (launch.cjs) 存在"
   else
-    fail "install.sh: 校验 launch.sh" "missing launch.sh validation"
+    fail "install.sh: 校验 launch.cjs" "missing launch.cjs validation or stale launch.sh ref"
   fi
 )
 
-echo "═══ MCP launcher (launch.sh) ═══"
+echo "═══ MCP launcher (launch.cjs) ═══"
 
 MCP_DIR="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform"
-LAUNCH_SH="$MCP_DIR/launch.sh"
+LAUNCH_CJS="$MCP_DIR/launch.cjs"
 MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 
-# Test: launch.sh 存在且可执行
+# Test: launch.cjs 存在（经 node 跑，无需可执行位）；旧 launch.sh 已删
 (
-  if [ -f "$LAUNCH_SH" ] && [ -x "$LAUNCH_SH" ]; then
-    pass "launch.sh: 存在且可执行"
+  if [ -f "$LAUNCH_CJS" ] && [ ! -f "$MCP_DIR/launch.sh" ]; then
+    pass "launch.cjs: 存在且旧 launch.sh 已删"
   else
-    fail "launch.sh: 存在且可执行" "missing or not +x"
+    fail "launch.cjs: 存在/launch.sh 已删" "missing launch.cjs or stale launch.sh"
   fi
 )
 
-# Test: launch.sh 探测 node（下限单源 toolchain.sh，含 Volta image 真身），再 exec bundle
+# Test: launch.cjs 探测 node（下限单源 toolchain.sh，含 Volta image 真身），再 spawn bundle
 (
-  if grep -q 'NODE_RUNTIME_FLOOR' "$LAUNCH_SH" \
-     && grep -q 'toolchain.sh' "$LAUNCH_SH" \
-     && grep -q '.volta/tools/image/node' "$LAUNCH_SH" \
-     && grep -q 'exec .*dist/minus-platform.cjs\|exec "\$PICKED" "\$BUNDLE"' "$LAUNCH_SH"; then
-    pass "launch.sh: 下限单源 toolchain.sh + 探测 Volta image 后 exec bundle"
+  if grep -q 'NODE_RUNTIME_FLOOR' "$LAUNCH_CJS" \
+     && grep -q 'toolchain.sh' "$LAUNCH_CJS" \
+     && grep -qi 'volta' "$LAUNCH_CJS" \
+     && grep -q 'image' "$LAUNCH_CJS" \
+     && grep -q 'minus-platform.cjs' "$LAUNCH_CJS" \
+     && grep -q 'spawnSync' "$LAUNCH_CJS"; then
+    pass "launch.cjs: 下限单源 toolchain.sh + 探测 Volta image 后 spawn bundle"
   else
-    fail "launch.sh: node 探测/exec" "missing NODE_RUNTIME_FLOOR/toolchain source/volta image/exec bundle"
+    fail "launch.cjs: node 探测/spawn" "missing NODE_RUNTIME_FLOOR/toolchain source/volta image/spawn bundle"
   fi
 )
 
-# Test: .mcp.json 的 minus-platform 经 launch.sh 启动，而非裸 node
+# Test: .mcp.json 的 minus-platform 经 node launch.cjs 启动（command==node 且 args 指向 launch.cjs，非裸 bundle）
 (
-  if grep -q 'launch.sh' "$MCP_JSON" && ! grep -q '"command": "node"' "$MCP_JSON"; then
-    pass ".mcp.json: minus-platform 经 launch.sh 启动（不再裸 node）"
+  if grep -q '"command": "node"' "$MCP_JSON" \
+     && grep -q 'launch.cjs' "$MCP_JSON" \
+     && ! grep -q 'launch.sh' "$MCP_JSON" \
+     && ! grep -q '/bin/sh' "$MCP_JSON"; then
+    pass ".mcp.json: minus-platform 经 node launch.cjs 启动（跨平台，非 /bin/sh）"
   else
-    fail ".mcp.json: 经 launch.sh 启动" "still bare node command or missing launch.sh"
+    fail ".mcp.json: 经 node launch.cjs 启动" "command 非 node 或 args 未指向 launch.cjs 或残留 /bin/sh"
   fi
 )
 
-# Test: 没有任何 >=18 node 时，launch.sh 给人话报错（口径：建议 Node 24），而非神秘失败
+# Test: 没有任何达标 node 时，launch.cjs 给人话报错（口径：建议 Node 24），而非神秘失败。
+# launch.cjs 由 node 跑，process.execPath 恒为候选——无法靠限 PATH 模拟「无 node」。
+# 改用 stub toolchain.sh 把 NODE_RUNTIME_FLOOR 抬到 999：任何真实 node 都 < 999 → 必走报错分支。
+# 临时树两级目录，让 launch.cjs 的 ../../lib/toolchain.sh 落到 stub 上。
 (
-  if host_has_abs_modern_node; then
-    skip "launch.sh: 无可用 node 时给「建议 Node 24」人话报错" "本机系统路径已有 >=18 node，无法模拟无 node"
+  T="$(mktemp -d)"
+  mkdir -p "$T/a/b" "$T/lib"
+  cp "$LAUNCH_CJS" "$T/a/b/launch.cjs"
+  printf 'NODE_RUNTIME_FLOOR=999\nNODE_TARGET=24\n' > "$T/lib/toolchain.sh"
+  if OUT=$(node "$T/a/b/launch.cjs" </dev/null 2>&1); then RC=0; else RC=$?; fi
+  rm -rf "$T"
+  if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q '建议使用 Node 24'; then
+    pass "launch.cjs: 无达标 node 时给「建议 Node 24」人话报错并 exit 非 0"
   else
-    OUT=$(PATH=/usr/bin:/bin HOME=/tmp/minus-no-node-$$ /bin/sh "$LAUNCH_SH" </dev/null 2>&1 || true)
-    if echo "$OUT" | grep -q '建议使用 Node 24'; then
-      pass "launch.sh: 无可用 node 时给「建议 Node 24」人话报错"
-    else
-      fail "launch.sh: 无 node 报错" "out: $OUT"
-    fi
+    fail "launch.cjs: 无 node 报错" "rc=$RC out: $OUT"
   fi
 )
 
@@ -1866,7 +1949,7 @@ echo "═══ resolve-node.sh ═══"
 
 RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
 
-# Test: resolve-node.sh 存在、下限单源 toolchain.sh、与 launch.sh 同序探测（含 Volta image）
+# Test: resolve-node.sh 存在、下限单源 toolchain.sh、与 launch.cjs 同序探测（含 Volta image）
 (
   if [ -f "$RESOLVE_NODE" ] \
      && grep -q 'NODE_RUNTIME_FLOOR' "$RESOLVE_NODE" \

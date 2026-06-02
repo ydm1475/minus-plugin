@@ -38,15 +38,20 @@ find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -
   if [ -f "$MCP_SRC/pnpm-lock.yaml" ]; then
     cp "$MCP_SRC/pnpm-lock.yaml" "$CACHE_DIR/pnpm-lock.yaml"
   fi
-  # 自包含 bundle —— .mcp.json 经 launch.sh 指向它，必须一起同步
+  # 自包含 bundle —— .mcp.json 经 launch.cjs 指向它，必须一起同步
   if [ -f "$MCP_SRC/dist/minus-platform.cjs" ]; then
     mkdir -p "$CACHE_DIR/dist"
     cp "$MCP_SRC/dist/minus-platform.cjs" "$CACHE_DIR/dist/minus-platform.cjs"
   fi
-  # launcher —— .mcp.json 的 command 实际跑的是它（探测 >=18 node 再跑 bundle）
-  if [ -f "$MCP_SRC/launch.sh" ]; then
-    cp "$MCP_SRC/launch.sh" "$CACHE_DIR/launch.sh"
-    chmod +x "$CACHE_DIR/launch.sh"
+  # launcher —— .mcp.json 的 command:"node" 实际跑的是它（跨平台，探测 >=18 node 再跑 bundle）
+  if [ -f "$MCP_SRC/launch.cjs" ]; then
+    cp "$MCP_SRC/launch.cjs" "$CACHE_DIR/launch.cjs"
+  fi
+  # 清理旧 unix-only launcher（已被 launch.cjs 取代）
+  rm -f "$CACHE_DIR/launch.sh"
+  # .mcp.json —— launcher 入口改名后必须同步，否则缓存仍指向旧 /bin/sh launch.sh
+  if [ -f "$PLUGIN_SRC/.mcp.json" ]; then
+    cp "$PLUGIN_SRC/.mcp.json" "$(dirname "$CACHE_DIR")/../.mcp.json"
   fi
   echo "  ✓ mcp-server: $CACHE_DIR"
 done

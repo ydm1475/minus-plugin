@@ -17,11 +17,11 @@ const MCP_BUNDLE = path.resolve(
   "../plugins/claude/minus-creator/mcp-servers/minus-platform/dist/minus-platform.cjs"
 );
 
-// launcher —— .mcp.json 的 command 实际跑它（/bin/sh launch.sh），它探测 >=18 node
-// 再 exec bundle。冒烟测试保证整条「客户端入口」链路能起、能列工具。
+// launcher —— .mcp.json 的 command:"node" 实际跑它（node launch.cjs），它探测 >=18 node
+// 再 re-exec bundle（跨平台）。冒烟测试保证整条「客户端入口」链路能起、能列工具。
 const MCP_LAUNCHER = path.resolve(
   import.meta.dirname,
-  "../plugins/claude/minus-creator/mcp-servers/minus-platform/launch.sh"
+  "../plugins/claude/minus-creator/mcp-servers/minus-platform/launch.cjs"
 );
 
 // JSON-RPC helper to talk to MCP server via stdio
@@ -156,6 +156,15 @@ describe("MCP Config - .mcp.json validation", () => {
         }
       }
     }
+  });
+
+  it("minus-platform launches via node launch.cjs (跨平台引导器，非 /bin/sh、非裸 bundle)", () => {
+    const mp = config["minus-platform"];
+    assert.ok(mp, "minus-platform server must exist");
+    assert.equal(mp.command, "node", "command 必须是 node（跨平台），不再是 /bin/sh");
+    assert.ok(Array.isArray(mp.args) && mp.args.length === 1, "args 应只指向 launcher");
+    assert.match(mp.args[0], /launch\.cjs$/, "args 必须指向 launch.cjs 引导器（而非裸 dist bundle）");
+    assert.ok(!/launch\.sh/.test(mp.args[0]), "不应再引用 launch.sh");
   });
 
   it("http/sse servers should have url field", () => {
@@ -442,9 +451,9 @@ describe("MCP Server - bundle (dist/minus-platform.cjs)", () => {
   });
 });
 
-// launcher 冒烟测试：跑 .mcp.json 真正的入口（/bin/sh launch.sh），确认它能挑到
+// launcher 冒烟测试：跑 .mcp.json 真正的入口（node launch.cjs），确认它能挑到
 // 当前 node（测试环境本身 >=18）并把 bundle 起起来。覆盖「客户端 command 链路」。
-describe("MCP Server - launcher (launch.sh → bundle)", () => {
+describe("MCP Server - launcher (launch.cjs → bundle)", () => {
   let client;
 
   before(async () => {
@@ -454,7 +463,7 @@ describe("MCP Server - launcher (launch.sh → bundle)", () => {
     await client.start(
       { MINUS_API_BASE: "http://127.0.0.1:19999" },
       MCP_LAUNCHER,
-      "/bin/sh"
+      "node"
     );
   });
 

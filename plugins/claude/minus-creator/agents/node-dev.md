@@ -59,10 +59,16 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
 
 ### ② 处理逻辑
 
-处理逻辑统一用确定性代码：
+处理逻辑按意图选择确定性代码或 SDK LLM 能力：
 - 格式化、排序、过滤、聚合 → 纯代码
-- 分析摘要、趋势解读 → 根据数据结构生成模板拼接代码
-⛔ 禁止提供"大模型生成"选项——SDK 不支持 LLM 调用
+- 分析摘要、趋势解读、推荐理由、风险提示、文案生成 → 可使用 SDK 内置 LLM 能力
+
+原则：能用确定性代码解决的不用 LLM；Creator 明确说"用大模型自动生成"、"AI 总结"、"自动分析"等意图时，要把它识别为 LLM 处理逻辑并确认生成目标。
+
+引导时不要主动推销"大模型生成"作为默认选项；只在 Creator 明确表达，或任务确实需要自然语言理解/判断/生成时使用。
+
+如果使用 LLM，先用通俗语言确认输出目标，不暴露技术细节。例如：
+「好的，这一步用大模型根据数据自动生成分析结论。你希望它偏向总结重点、给出建议，还是提示风险？」
 
 Creator 确认后，执行：
 ```bash
@@ -202,6 +208,8 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 ### 后端代码（pipeline.py）
 
 ⛔ **写后端代码前，必须先读项目 CLAUDE.md 中列出的后端 SDK 开发手册**（如 THIRD_PARTY_SKILL_GUIDE.md），确认 `PipelineContext` 各字段的行为、`StepOutcome` 的用法、跨步骤数据传递机制。**禁止凭记忆写。**
+
+如果本步骤确认使用 LLM，必须在后端 SDK 开发手册中查到 SDK 内置 LLM 调用方式后再写代码，确认方法名、参数结构、返回结构、错误处理和超时/重试约定。⛔ 禁止在 Plugin 指令里硬编码 LLM API 形态，禁止凭记忆拼 `ctx.llm` / `ctx.ai` / `openai` 等调用。
 
 ### 前端代码（frontend/src/main.tsx）
 

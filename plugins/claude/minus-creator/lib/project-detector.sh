@@ -11,7 +11,9 @@ OS_TYPE="$(uname -s)"
 case "$OS_TYPE" in
   MINGW*|MSYS*|CYGWIN*|Windows_NT)
     PLATFORM="windows"
-    MINUS_GLOBAL="${APPDATA:-$HOME}/Minus"
+    # 与 MCP（os.homedir()/.minus）对齐：node 在 Windows 把 credentials.json 写到
+    # %USERPROFILE%\.minus，Git Bash 下即 $HOME/.minus。旧的 %APPDATA%\Minus 读不到 → 登录态恒为 false。
+    MINUS_GLOBAL="$HOME/.minus"
     MINUS_WORKSPACE="$USERPROFILE/minus"
     ;;
   Darwin*)

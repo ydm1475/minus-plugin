@@ -182,7 +182,7 @@ Plugin: 请按以下步骤打开项目：
 
 ```bash
 PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}"
+bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__CREATE_RESULT__.targetDir}"
 ```
 
 脚本内部按客户端类型分支：desktop 输出引导文案 + 两张操作截图外链（markdown 图片），cli 输出 `cd` 启动命令。Agent 不需要自己判定客户端，直接转达脚本输出即可。

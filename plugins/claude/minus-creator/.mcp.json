@@ -1,7 +1,7 @@
 {
   "minus-platform": {
-    "command": "/bin/sh",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/minus-platform/launch.sh"],
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/minus-platform/launch.cjs"],
     "env": {
       "MINUS_API_BASE": "http://47.107.144.22:18990"
     }
