@@ -118,13 +118,27 @@ else
   # 国内镜像源（与 bootstrap 同源，MINUS_MIRROR=off 可关）：让下面 volta/npm 装包走国内源
   [ -f "$PLUGIN_ROOT/lib/bootstrap-env.sh" ] && . "$PLUGIN_ROOT/lib/bootstrap-env.sh" && setup_cn_mirror >/dev/null 2>&1
   # 无条件对齐到 @beta（已是最新则命中缓存，秒过）：优先 Volta，无 Volta 回退 npm。
+  # 官方源作为版本真相；镜像同步短暂延迟时，安装后不一致则走官方源精确版本重试。
   echo "正在安装/更新 @minus-ai/create-skill@beta……"
+  CREATE_SKILL_EXPECTED=$("$(dirname "$NODE_BIN")/npm" view @minus-ai/create-skill@beta version --registry=https://registry.npmjs.org 2>/dev/null || true)
   if [ -x "$HOME/.volta/bin/volta" ]; then
     "$HOME/.volta/bin/volta" install @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+    CREATE_SKILL_INSTALLED=$("$NODE_BIN" -p "try{require('$HOME/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill/package.json').version}catch{''}" 2>/dev/null || true)
   else
     "$(dirname "$NODE_BIN")/npm" install -g @minus-ai/create-skill@beta >/dev/null 2>&1 || true
+    CREATE_SKILL_INSTALLED=$("$(dirname "$NODE_BIN")/npm" list -g @minus-ai/create-skill --depth=0 --json 2>/dev/null | "$NODE_BIN" -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).dependencies['@minus-ai/create-skill'].version}catch{''}" 2>/dev/null || true)
   fi
-  if command -v create-skill >/dev/null 2>&1; then
+  if [ -n "$CREATE_SKILL_EXPECTED" ] && [ "$CREATE_SKILL_INSTALLED" != "$CREATE_SKILL_EXPECTED" ]; then
+    echo "镜像版本未就绪，改用官方 npm 源重试……"
+    if [ -x "$HOME/.volta/bin/volta" ]; then
+      npm_config_registry=https://registry.npmjs.org "$HOME/.volta/bin/volta" install "@minus-ai/create-skill@$CREATE_SKILL_EXPECTED" >/dev/null 2>&1 || true
+      CREATE_SKILL_INSTALLED=$("$NODE_BIN" -p "try{require('$HOME/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill/package.json').version}catch{''}" 2>/dev/null || true)
+    else
+      "$(dirname "$NODE_BIN")/npm" install -g "@minus-ai/create-skill@$CREATE_SKILL_EXPECTED" --registry=https://registry.npmjs.org >/dev/null 2>&1 || true
+      CREATE_SKILL_INSTALLED=$("$(dirname "$NODE_BIN")/npm" list -g @minus-ai/create-skill --depth=0 --json 2>/dev/null | "$NODE_BIN" -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).dependencies['@minus-ai/create-skill'].version}catch{''}" 2>/dev/null || true)
+    fi
+  fi
+  if [ -n "$CREATE_SKILL_EXPECTED" ] && [ "$CREATE_SKILL_INSTALLED" = "$CREATE_SKILL_EXPECTED" ] && command -v create-skill >/dev/null 2>&1; then
     cd ~/minus && create-skill "项目名称" --non-interactive
   else
     echo "CREATE_SKILL_INSTALL_FAILED"

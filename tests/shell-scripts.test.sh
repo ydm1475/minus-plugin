@@ -1952,11 +1952,15 @@ echo "═══ auth fallback prohibition ═══"
 # 不能再有 `if ! command -v create-skill` 的"缺了才装"门禁，否则装过一次就永远停在旧版。
 (
   if grep -q 'volta/bin/volta" install @minus-ai/create-skill@beta' "$SKILL_MD" \
+     && grep -q 'CREATE_SKILL_EXPECTED=' "$SKILL_MD" \
+     && grep -q 'CREATE_SKILL_INSTALLED=' "$SKILL_MD" \
+     && grep -q 'registry.npmjs.org' "$SKILL_MD" \
+     && grep -q 'CREATE_SKILL_INSTALLED" = "$CREATE_SKILL_EXPECTED' "$SKILL_MD" \
      && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$SKILL_MD" \
      && ! grep -q 'if ! command -v create-skill' "$SKILL_MD"; then
-    pass "SKILL.md: create-skill 每次无条件对齐 @beta（无缺失门禁）"
+    pass "SKILL.md: create-skill 每次对齐官方 @beta，安装后版本硬校验"
   else
-    fail "SKILL.md: create-skill 自动对齐 @beta" "expected unconditional volta install + no 'if ! command -v create-skill' gate"
+    fail "SKILL.md: create-skill 自动对齐 @beta" "expected official version lookup + installed version gate + no missing-only gate"
   fi
 )
 
