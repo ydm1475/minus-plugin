@@ -202,6 +202,7 @@ bash "$PLUGIN_ROOT/lib/generate-node-code.sh" {step_number}
 3. **ctx.sif.request 返回值已解包**：SDK 会自动解包 API 响应的外层 `{"code":1, "data":{...}}`，`ctx.sif.request` 返回的就是 `data` 的内容。⛔ 禁止再写 `resp.get("data")`，直接从返回值取字段（如 `resp.get("list")`、`resp.get("keywords")`）
 4. **Null 安全**：外部 API 返回的数值字段可能是显式 `null`（不是缺失），`.get(key, 0)` 防不住——key 存在但值为 None 时仍返回 None。必须用 `or` 兜底：`kw.get("estSearchesNum") or 0`，排序用 `key=lambda r: r["field"]`（字段在构造时已兜底）
 5. **前后端字段对齐**：后端 payload 的 key 和前端渲染读取的 key 必须完全一致
+6. **数据契约完整性**：Creator 已确认展示的每个字段必须逐项核对真实接口或计算来源。切换接口后逐项重新核对。⛔ 禁止在尚未接入真实数据来源时，用固定占位值 `"-"`、`"—"`、`"N/A"` 伪装成已完成。接口已真实调用但个别数据为空时，可以展示缺省值。如果无法提供某字段，先向 Creator 说明并确认删减。
 
 ```bash
 # 示例：写 competePatternFlexibleGroupByWeekly 调用前
@@ -235,6 +236,10 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 ### 前端代码（frontend/src/main.tsx）
 
 ⛔ **写前端代码前，必须先读项目 CLAUDE.md 中列出的前端 SDK 开发手册**（如 frontend-guide.md），根据当前步骤的 `CONFIRM_MODE`（auto/interactive）和展示需求，从文档中查找对应的组件用法和示例代码。**禁止凭记忆猜测组件选择、prop 名称或回调签名。**
+
+项目 `CLAUDE.md` 中的前端 SDK 文档使用远程 `${platformUrl}/runtime/...` 稳定地址。文档不可达时，明确告诉 Creator 并停止写前端代码。⛔ 禁止通过遍历用户目录、搜索不存在的本地 runtime 包或解析 minified CDN JavaScript 来猜公开 API。
+
+需要在默认确认值之外向下一步追加字段时，使用前端 SDK 手册里的 `extendConfirmed`；`mapConfirmed` 是完全自定义 payload 的高级能力，使用不当会导致 readonly 回放丢失用户选择。
 
 ### 代码生成后
 

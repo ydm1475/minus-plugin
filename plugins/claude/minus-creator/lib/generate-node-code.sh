@@ -147,6 +147,9 @@ for (const m of prevRefs) {
   echo "  1. 当前步骤的 payload 字段名 → 下一步是否正确读取"
   echo "  2. 上一步的 payload 字段名 → 当前步骤是否正确引用"
   echo "  3. 多值输入字段（如 keywords）→ 是否做了 split 遍历"
+  echo "  4. Creator 已确认展示的每个字段 → 是否都有真实接口或计算来源"
+  echo "  5. 是否存在尚未接入真实数据来源，却用 \"-\" / \"—\" / \"N/A\" 伪装完成的字段"
+  echo "  6. 切换接口后 → 是否重新核对全部展示字段"
 fi
 
 # ── SDK PipelineContext 可用属性 ──

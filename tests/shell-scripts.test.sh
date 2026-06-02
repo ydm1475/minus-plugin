@@ -691,6 +691,27 @@ ST="$LIB_DIR/step-tracker.sh"
   fi
 )
 
+# Test: code generation gate rejects silent placeholder degradation
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 1 > .minus/total-steps
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
+  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  if assert_contains "$OUTPUT" "真实接口或计算来源" \
+     && assert_contains "$OUTPUT" "尚未接入真实数据来源" \
+     && assert_contains "$OUTPUT" "重新核对全部展示字段"; then
+    pass "generate-node-code: emits data-contract completeness checks"
+  else
+    fail "generate-node-code: data-contract completeness checks" "got: $OUTPUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ generate-steps.sh ═══"
@@ -992,6 +1013,18 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
     pass "node-dev.md: references pipeline.py"
   else
     fail "node-dev.md: should reference pipeline.py" ""
+  fi
+)
+
+# Test: node-dev.md keeps frontend SDK usage on documented stable APIs
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "extendConfirmed" \
+     && assert_contains "$CONTENT" "禁止通过遍历用户目录" \
+     && assert_contains "$CONTENT" "禁止在尚未接入真实数据来源时"; then
+    pass "node-dev.md: uses extendConfirmed and prohibits undocumented fallback guessing"
+  else
+    fail "node-dev.md: should document stable frontend API usage and data completeness" ""
   fi
 )
 
