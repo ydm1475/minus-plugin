@@ -263,12 +263,12 @@ else
   fail "BUG-7/8 修复验证：应包含一次性生成代码阶段" "包含声明" "未找到"
 fi
 
-# TC-R17: step-tracker 拒绝非最后一步使用 auto 模式
-REJECT_AUTO=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
-if echo "$REJECT_AUTO" | grep -q "不能用 auto 模式"; then
-  pass "硬编码门禁：非最后一步 confirm auto 被拒绝"
+# TC-R17: step-tracker 允许非最后一步使用 auto 模式（最终用户不用确认）
+AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
+  pass "硬编码门禁：非最后一步 confirm auto 被允许"
 else
-  fail "硬编码门禁：非最后一步 confirm auto 应被拒绝" "包含拒绝信息" "$REJECT_AUTO"
+  fail "硬编码门禁：非最后一步 confirm auto 应允许" "confirm 已确认" "$AUTO_RESULT"
 fi
 
 # TC-R18: generate-node-code.sh 门禁 — 维度未全部完成时拒绝生成

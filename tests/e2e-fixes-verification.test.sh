@@ -152,17 +152,17 @@ else
   fail "is-last fallback 应返回 YES（pipeline.py 1 step）" "YES" "$IS_LAST_FALLBACK"
 fi
 
-# confirm auto 校验也用 .minus/total-steps
+# confirm auto 不受是否最后一步限制；它表示最终用户不用暂停确认
 echo "3" > .minus/total-steps
 mkdir -p .minus/dev-progress
 touch .minus/dev-progress/step_1_data
 touch .minus/dev-progress/step_1_logic
 touch .minus/dev-progress/step_1_output
-REJECT_AUTO=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
-if echo "$REJECT_AUTO" | grep -q "不能用 auto 模式"; then
-  pass "confirm auto 校验：从 total-steps 读取，非最后一步被拒绝"
+AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
+  pass "confirm auto 校验：非最后一步也允许 auto"
 else
-  fail "confirm auto 校验应拒绝非最后一步" "包含拒绝信息" "$REJECT_AUTO"
+  fail "confirm auto 应允许非最后一步" "confirm 已确认" "$AUTO_RESULT"
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -300,16 +300,16 @@ else
   fail "步骤 3 应 COMPLETE" "COMPLETE" "$CHECK_STEP3"
 fi
 
-# 对比：如果非最后一步（步骤 1）用 auto 应被拒绝
+# 对比：非最后一步（步骤 1）也可以用 auto
 bash "$LIB_DIR/step-tracker.sh" reset 1 > /dev/null 2>&1
 touch .minus/dev-progress/step_1_data
 touch .minus/dev-progress/step_1_logic
 touch .minus/dev-progress/step_1_output
-REJECT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
-if echo "$REJECT" | grep -q "不能用 auto 模式"; then
-  pass "非最后一步（步骤 1）confirm auto 被拒绝——必须问 Creator"
+AUTO_STEP1=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+if echo "$AUTO_STEP1" | grep -q "✓ 步骤 1 — confirm 已确认"; then
+  pass "非最后一步（步骤 1）confirm auto 成功——最终用户不用确认"
 else
-  fail "非最后一步 confirm auto 应被拒绝" "包含拒绝信息" "$REJECT"
+  fail "非最后一步 confirm auto 应成功" "步骤 1 confirm 已确认" "$AUTO_STEP1"
 fi
 
 # ══════════════════════════════════════════════════════════════

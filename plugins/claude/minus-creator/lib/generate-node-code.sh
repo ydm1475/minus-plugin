@@ -101,6 +101,10 @@ FRONTEND_TEMPLATE=display
 #   ),
 # },
 #
+# 只渲染 Creator 在输出定义阶段明确确认的展示内容。
+# 接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容。
+# Creator 未明确要求概览、摘要、统计卡片或顶部汇总时，禁止生成这类 UI。
+#
 # 查 SDK 文档了解可用的 display widget。
 # 后端使用 StepOutcome.complete(payload={...})
 TEMPLATE

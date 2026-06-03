@@ -108,11 +108,12 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 
 「比如一个数据表格、一段文字摘要、一个评分卡片……」
 
-### ③ 展示内容
+### ③ 输出定义
 
 只收集展示意图（不写代码）：
 - **展示给用户的内容**：表格、摘要、卡片等
 - 传给下一步的数据在维度④确认后再问
+- ⛔ **禁止自动补展示内容**：代码只能渲染 Creator 在输出定义阶段明确确认的展示内容。接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容。Creator 只说"表格"就只生成表格；只有 Creator 明确要求"概览/摘要/统计卡片/顶部汇总"时，才可以添加这类 UI。
 
 Creator 确认后，执行：
 ```bash
@@ -142,13 +143,13 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
 
 **最后一步硬性跳过**：如果 `step-tracker.sh is-last` 返回 YES，本维度已在维度③结束时自动完成，不会走到这里。
 
-⛔ **非最后一步必须问 Creator 确认模式。** `step-tracker.sh` 会拒绝对非最后一步执行 `complete confirm auto`，必须用 `interactive`。
+⛔ **非最后一步必须问 Creator 确认模式。** Creator 可以选择运行时暂停让最终用户确认（interactive），也可以选择自动进入下一步（auto）。不要把“用户不用确认”改写成 interactive。
 
 **分两轮收集：**
 
 **第一轮：确认模式**
 - "需要确认" → 记录 interactive
-- "自动继续" → 记录 auto（非最后一步会被 step-tracker 拒绝）
+- "自动继续" / "用户不用确认" → 记录 auto
 
 **第二轮：传递数据（根据确认模式调整措辞）**
 
@@ -166,7 +167,7 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm interactive
+bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm <auto|interactive>
 ```
 然后执行门禁检查进入阶段二。
 

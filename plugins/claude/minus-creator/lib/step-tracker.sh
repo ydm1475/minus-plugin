@@ -74,19 +74,6 @@ case "${1:-}" in
         echo "错误：confirm 模式必须是 auto 或 interactive，收到: '$MODE'" >&2
         exit 1
       fi
-      # 非最后一步不允许 auto（必须问 Creator）
-      if [ "$MODE" = "auto" ]; then
-        TOTAL_STEPS_FILE=".minus/total-steps"
-        if [ -f "$TOTAL_STEPS_FILE" ]; then
-          TOTAL_STEPS=$(cat "$TOTAL_STEPS_FILE")
-        else
-          TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "pipeline.py" 2>/dev/null || echo 0)
-        fi
-        if [ "$STEP" -lt "$TOTAL_STEPS" ]; then
-          echo "错误：步骤 $STEP 不是最后一步（共 $TOTAL_STEPS 步），不能用 auto 模式，必须问 Creator 确认后用 interactive" >&2
-          exit 1
-        fi
-      fi
     fi
 
     # 检查前置维度是否完成

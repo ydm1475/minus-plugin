@@ -411,10 +411,30 @@ PD_SCRIPT="$LIB_DIR/project-detector.sh"
   echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
   cd "$TMP/test-project"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "自动触发" && ! assert_contains "$OUTPUT" "npm run dev" 2>/dev/null; then
+  if assert_contains "$OUTPUT" "默认入口" \
+     && assert_contains "$OUTPUT" "minus-creator:minus" \
+     && assert_contains "$OUTPUT" "不要直接按普通代码任务修改项目文件" \
+     && ! assert_contains "$OUTPUT" "npm run dev" 2>/dev/null; then
     pass "project-detector: Skill project auto-triggers minus skill"
   else
     fail "project-detector: Skill project auto-triggers minus skill" "got: $OUTPUT"
+  fi
+)
+
+# Test: Skill project output includes project root and Creator workflow scope
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  mkdir -p "$TMP/.minus"
+  mkdir -p "$TMP/test-project/.minus"
+  echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
+  cd "$TMP/test-project"
+  OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
+  if assert_contains "$OUTPUT" "项目根目录：$TMP/test-project" \
+     && assert_contains "$OUTPUT" "Skill 输入、步骤、pipeline、前端步骤渲染、测试或发布"; then
+    pass "project-detector: Skill project declares root and workflow scope"
+  else
+    fail "project-detector: Skill project should declare root and workflow scope" "got: $OUTPUT"
   fi
 )
 
@@ -1025,6 +1045,30 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
     pass "node-dev.md: uses extendConfirmed and prohibits undocumented fallback guessing"
   else
     fail "node-dev.md: should document stable frontend API usage and data completeness" ""
+  fi
+)
+
+# Test: node-dev.md prohibits unrequested overview/summary cards
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "禁止自动补展示内容" \
+     && assert_contains "$CONTENT" "Creator 只说\"表格\"就只生成表格" \
+     && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容"; then
+    pass "node-dev.md: prohibits unrequested overview cards"
+  else
+    fail "node-dev.md: should prohibit unrequested overview cards" ""
+  fi
+)
+
+# Test: generate-node-code.sh display template prohibits unrequested overview cards
+(
+  CONTENT=$(cat "$LIB_DIR/generate-node-code.sh")
+  if assert_contains "$CONTENT" "只渲染 Creator 在输出定义阶段明确确认的展示内容" \
+     && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容" \
+     && assert_contains "$CONTENT" "Creator 未明确要求概览、摘要、统计卡片或顶部汇总时"; then
+    pass "generate-node-code: display template prohibits unrequested overview cards"
+  else
+    fail "generate-node-code: should prohibit unrequested overview cards" ""
   fi
 )
 

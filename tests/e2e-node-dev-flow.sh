@@ -101,14 +101,13 @@ fi
 
 bash "$TRACKER" complete 1 output 2>&1
 
-# 非最后一步，维度④必须用 interactive（不能 auto）
-if ! bash "$TRACKER" complete 1 confirm auto 2>/dev/null; then
-  pass "step-tracker 拒绝非最后一步使用 confirm auto"
+# 非最后一步，Creator 可以选择自动往下走（最终用户不用确认）
+if bash "$TRACKER" complete 1 confirm auto 2>/dev/null; then
+  pass "step-tracker 允许非最后一步使用 confirm auto"
 else
-  fail "step-tracker 允许了非最后一步 confirm auto" "应该拒绝"
+  fail "step-tracker 应允许非最后一步 confirm auto" "不应拒绝"
 fi
 
-bash "$TRACKER" complete 1 confirm interactive 2>&1
 CHECK=$(bash "$TRACKER" check 1 2>&1)
 if echo "$CHECK" | grep -q "COMPLETE"; then
   pass "步骤 1 四维度全部 COMPLETE（含维度④）"

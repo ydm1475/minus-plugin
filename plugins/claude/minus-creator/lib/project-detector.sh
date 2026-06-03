@@ -93,9 +93,11 @@ if [ -f "$MINUS_JSON" ]; then
   echo "<context>"
   echo "Minus Creator Plugin 已加载。"
   echo "当前目录是 Minus Skill 项目：$PROJ_DISPLAY_NAME"
+  echo "项目根目录：$(pwd)"
   echo "登录状态：$LOGGED_IN"
   echo "$NODE_INFO"
-  echo "[自动触发] 检测到 Skill 项目，必须立即调用 Skill 工具执行 minus-creator:minus，不要等用户输入。"
+  echo "默认入口：检测到 Minus Skill 项目后，必须立即调用 Skill 工具执行 minus-creator:minus。"
+  echo "在该项目内，凡是涉及 Skill 输入、步骤、pipeline、前端步骤渲染、测试或发布的请求，都属于 Minus Creator 开发流程；不要直接按普通代码任务修改项目文件。"
   echo "</context>"
 
 # 场景 2：在 Workspace 目录中

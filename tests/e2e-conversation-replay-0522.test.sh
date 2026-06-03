@@ -147,16 +147,14 @@ fi
 # 维度③ output: 对话 line 278 "表格列出关键词和搜索量"
 bash "$LIB_DIR/step-tracker.sh" complete 1 output > /dev/null 2>&1
 
-# 维度④ confirm: 对话 line 269 "用户需要勾选将确认的数据传给下一步"
-# 非最后一步 → 必须 interactive
-REJECT_AUTO=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
-if echo "$REJECT_AUTO" | grep -q "不能用 auto 模式"; then
-  pass "非最后一步 confirm auto 被拒绝"
+# 维度④ confirm: 非最后一步也允许 auto（最终用户不用确认）
+AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
+  pass "非最后一步 confirm auto 被允许"
 else
-  fail "非最后一步 confirm auto 应被拒绝" "实际: $REJECT_AUTO"
+  fail "非最后一步 confirm auto 应允许" "实际: $AUTO_RESULT"
 fi
 
-bash "$LIB_DIR/step-tracker.sh" complete 1 confirm interactive > /dev/null 2>&1
 CHECK_1=$(bash "$LIB_DIR/step-tracker.sh" check 1 2>&1)
 if echo "$CHECK_1" | grep -q "COMPLETE"; then
   pass "步骤 1 四维度全部完成"
@@ -169,10 +167,10 @@ echo ""
 echo "── 步骤 1 代码生成门禁 ──"
 
 GATE_1=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
-if echo "$GATE_1" | grep -q "GATE_PASSED" && echo "$GATE_1" | grep -q "CONFIRM_MODE=interactive"; then
-  pass "步骤 1 门禁通过，CONFIRM_MODE=interactive"
+if echo "$GATE_1" | grep -q "GATE_PASSED" && echo "$GATE_1" | grep -q "CONFIRM_MODE=auto"; then
+  pass "步骤 1 门禁通过，CONFIRM_MODE=auto"
 else
-  fail "步骤 1 门禁应通过且为 interactive" "实际: $GATE_1"
+  fail "步骤 1 门禁应通过且为 auto" "实际: $GATE_1"
 fi
 
 # ══════════════════════════════════════════════════════════════
