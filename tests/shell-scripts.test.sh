@@ -73,6 +73,17 @@ make_tmp() {
   mktemp -d "$TMPDIR_BASE/test.XXXXXX"
 }
 
+TEST_PYTHON="/Users/tutu/minus/CLI-create/.venv/bin/python"
+if [ ! -x "$TEST_PYTHON" ]; then
+  TEST_PYTHON=$(find "$HOME/.local/share/uv/python" -path '*/bin/python3.12' -type f -perm +111 2>/dev/null | head -1 || true)
+fi
+if [ -z "$TEST_PYTHON" ] || [ ! -x "$TEST_PYTHON" ]; then
+  TEST_PYTHON=$(find "$HOME/.local/share/uv/python" -path '*/bin/python3.12' -type f 2>/dev/null | head -1 || true)
+fi
+if [ -z "$TEST_PYTHON" ] || [ ! -x "$TEST_PYTHON" ]; then
+  TEST_PYTHON=$(command -v python3 || true)
+fi
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ projects-manager.sh ═══"
@@ -1001,6 +1012,106 @@ GRD="$LIB_DIR/generate-result-design.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ check-python-deps.sh ═══"
+# ══════════════════════════════════════════════════════
+
+CPD="$LIB_DIR/check-python-deps.sh"
+
+write_pyproject() {
+  local file="$1"
+  local deps="$2"
+  cat > "$file" <<EOF
+[project]
+name = "test-skill"
+version = "1.0.0"
+dependencies = [
+    "minus-ai-sdk-python",
+    "python-dotenv",
+    "uvicorn[standard]"$deps
+]
+EOF
+}
+
+# Test: missing third-party dependency is rejected
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .venv/bin
+  ln -s "$TEST_PYTHON" .venv/bin/python
+  cat > pipeline.py <<'PY'
+from openpyxl import Workbook
+from minus_ai_sdk import Pipeline
+PY
+  write_pyproject pyproject.toml ""
+  OUTPUT=$(bash "$CPD" 2>&1 || true)
+  if assert_contains "$OUTPUT" "未声明的 Python 依赖" \
+     && assert_contains "$OUTPUT" "openpyxl" \
+     && assert_contains "$OUTPUT" "Agent 必须先把缺失依赖加入 pyproject.toml" \
+     && assert_contains "$OUTPUT" "禁止把这个修复交给 Creator 手动处理"; then
+    pass "check-python-deps: rejects missing third-party dependency"
+  else
+    fail "check-python-deps: should reject missing openpyxl" "got: $OUTPUT"
+  fi
+)
+
+# Test: declared dependency passes import scan when pipeline imports no unavailable runtime package
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .venv/bin
+  ln -s "$TEST_PYTHON" .venv/bin/python
+  cat > pipeline.py <<'PY'
+import datetime
+from io import BytesIO
+PY
+  write_pyproject pyproject.toml ""
+  OUTPUT=$(bash "$CPD" 2>&1)
+  if assert_contains "$OUTPUT" "DEPENDENCIES_OK"; then
+    pass "check-python-deps: allows stdlib imports"
+  else
+    fail "check-python-deps: stdlib imports should pass" "got: $OUTPUT"
+  fi
+)
+
+# Test: import/package name mapping works
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .venv/bin
+  ln -s "$TEST_PYTHON" .venv/bin/python
+  mkdir -p PIL
+  touch PIL/__init__.py
+  cat > pipeline.py <<'PY'
+from PIL import Image
+PY
+  write_pyproject pyproject.toml ',
+    "pillow"'
+  OUTPUT=$(bash "$CPD" 2>&1 || true)
+  if ! assert_contains "$OUTPUT" "未声明的 Python 依赖" 2>/dev/null; then
+    pass "check-python-deps: maps PIL import to pillow dependency"
+  else
+    fail "check-python-deps: PIL should be satisfied by pillow" "got: $OUTPUT"
+  fi
+)
+
+# Test: missing project venv is rejected
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  cat > pipeline.py <<'PY'
+import datetime
+PY
+  write_pyproject pyproject.toml ""
+  OUTPUT=$(bash "$CPD" 2>&1 || true)
+  if assert_contains "$OUTPUT" "未找到项目虚拟环境 Python"; then
+    pass "check-python-deps: rejects missing project venv"
+  else
+    fail "check-python-deps: should reject missing project venv" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ agent files ═══"
 # ══════════════════════════════════════════════════════
 
@@ -1057,6 +1168,44 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
     pass "node-dev.md: prohibits unrequested overview cards"
   else
     fail "node-dev.md: should prohibit unrequested overview cards" ""
+  fi
+)
+
+# Test: node-dev.md reminds Creator how to test after step implementation
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "重新输入测试数据开始一次新的流程" \
+     && assert_contains "$CONTENT" "点击【重新执行】按钮" \
+     && assert_contains "$CONTENT" "用同一份输入重新跑一遍流程" \
+     && assert_contains "$CONTENT" "看完如果没问题，我们继续开发步骤 {next_step_number}「{next_step_name}」吗？" \
+     && assert_contains "$CONTENT" "看完如果没问题，我们继续进入结果呈现设计"; then
+    pass "node-dev.md: step completion includes test reminder"
+  else
+    fail "node-dev.md: should include step completion test reminder" ""
+  fi
+)
+
+# Test: node-dev.md makes Agent responsible for dependency fixes
+(
+  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "Agent 必须自己更新 \`pyproject.toml\`" \
+     && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
+     && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
+    pass "node-dev.md: Agent owns dependency fixes"
+  else
+    fail "node-dev.md: should make Agent responsible for dependency fixes" ""
+  fi
+)
+
+# Test: generate-result-design.sh makes Agent responsible for dependency fixes
+(
+  CONTENT=$(cat "$LIB_DIR/generate-result-design.sh")
+  if assert_contains "$CONTENT" "Agent 必须自己更新 pyproject.toml" \
+     && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
+     && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
+    pass "generate-result-design: Agent owns dependency fixes"
+  else
+    fail "generate-result-design: should make Agent responsible for dependency fixes" ""
   fi
 )
 

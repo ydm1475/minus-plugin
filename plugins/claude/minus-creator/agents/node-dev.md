@@ -245,10 +245,37 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 ### 代码生成后
 
 1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
-2. 告诉 Creator 重新输入数据跑一遍流程来测试效果（刷新页面不会重新执行 pipeline，必须重新输入）
-3. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
-4. 保存进度到 Memory
-5. 询问是否继续开发下一个步骤
+2. 执行 Python 依赖一致性检查：
+
+```bash
+bash "$PLUGIN_ROOT/lib/check-python-deps.sh"
+```
+
+- 如果输出 `DEPENDENCIES_OK` → 继续
+- 如果报缺失依赖 → Agent 必须自己更新 `pyproject.toml`，执行 `uv pip install -e .`，然后重新检查；通过前不要让 Creator 测试
+- ⛔ 禁止把依赖修复交给 Creator 手动处理
+- ⛔ 禁止只对 `.venv` 临时安装某个包而不更新 `pyproject.toml`
+- ⛔ 禁止用系统 `python3` 验证依赖，必须使用项目 `.venv/bin/python`
+
+3. 告诉 Creator 可以测试当前步骤效果。原样输出：
+
+「步骤 {step_number}「{step_name}」已开发完成。」
+
+「你现在可以在预览页面重新输入测试数据开始一次新的流程，检查这个步骤的展示和数据是否符合预期。」
+
+「也可以在已有执行页面点击【重新执行】按钮，用同一份输入重新跑一遍流程。」
+
+如果不是最后一步，原样输出：
+
+「看完如果没问题，我们继续开发步骤 {next_step_number}「{next_step_name}」吗？」
+
+如果是最后一步，原样输出：
+
+「看完如果没问题，我们继续进入结果呈现设计。」
+
+4. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
+5. 保存进度到 Memory
+6. 等待 Creator 回答后再继续后续流程
 
 ## 交互规则
 
