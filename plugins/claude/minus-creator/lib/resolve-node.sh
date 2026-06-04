@@ -23,16 +23,31 @@ node_major() {
   "$1" -p "process.versions.node.split('.')[0]" 2>/dev/null
 }
 
-CANDIDATES="
-$(command -v node 2>/dev/null)
-$(ls -t "$HOME"/.volta/tools/image/node/*/bin/node 2>/dev/null | head -1)
-$HOME/.volta/bin/node
-$(ls -t "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | head -1)
-/opt/homebrew/bin/node
-/usr/local/bin/node
-"
+win_path() {
+  # Git Bash/MSYS 能执行 /c/...；Windows env 常给 C:\...。这里仅做无依赖转换。
+  p=$(printf '%s' "$1" | tr '\\' '/')
+  case "$p" in
+    [A-Za-z]:*)
+      d=$(printf '%.1s' "$p" | tr '[:upper:]' '[:lower:]')
+      printf '/%s%s\n' "$d" "${p#?:}"
+      ;;
+    *) printf '%s\n' "$p" ;;
+  esac
+}
 
-for c in $CANDIDATES; do
+emit_candidates() {
+  command -v node 2>/dev/null || true
+  ls -t "$HOME"/.volta/tools/image/node/*/bin/node 2>/dev/null | head -1
+  printf '%s\n' "$HOME/.volta/bin/node"
+  [ -n "${LOCALAPPDATA:-}" ] && win_path "$LOCALAPPDATA/Volta/bin/node.exe"
+  [ -n "${ProgramFiles:-}" ] && win_path "$ProgramFiles/nodejs/node.exe"
+  [ -n "${PROGRAMFILES:-}" ] && win_path "$PROGRAMFILES/nodejs/node.exe"
+  ls -t "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | head -1
+  printf '%s\n' /opt/homebrew/bin/node /usr/local/bin/node
+}
+
+CANDIDATES=$(emit_candidates)
+while IFS= read -r c; do
   [ -n "$c" ] && [ -x "$c" ] || continue
   m=$(node_major "$c")
   [ -n "$m" ] || continue
@@ -40,6 +55,8 @@ for c in $CANDIDATES; do
     echo "$c"
     exit 0
   fi
-done
+done <<EOF
+$CANDIDATES
+EOF
 
 exit 1

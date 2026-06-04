@@ -1411,6 +1411,39 @@ OP="$LIB_DIR/open-preview.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ check-project-state.sh ═══"
+# ══════════════════════════════════════════════════════
+
+CPS="$LIB_DIR/check-project-state.sh"
+
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(cd "$TMP" && bash "$CPS")
+  if assert_contains "$OUTPUT" "INITIALIZED=0" \
+     && assert_contains "$OUTPUT" "NODE_MODULES=0" \
+     && assert_contains "$OUTPUT" "VENV=0"; then
+    pass "check-project-state: missing state outputs 0"
+  else
+    fail "check-project-state: missing state" "out: $OUTPUT"
+  fi
+)
+
+(
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/.minus" "$TMP/node_modules" "$TMP/.venv"
+  touch "$TMP/.minus/initialized"
+  OUTPUT=$(cd "$TMP" && bash "$CPS")
+  if assert_contains "$OUTPUT" "INITIALIZED=1" \
+     && assert_contains "$OUTPUT" "NODE_MODULES=1" \
+     && assert_contains "$OUTPUT" "VENV=1"; then
+    pass "check-project-state: existing state outputs 1"
+  else
+    fail "check-project-state: existing state" "out: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ detect-preview-port.sh ═══"
 # ══════════════════════════════════════════════════════
 
@@ -1857,14 +1890,23 @@ write_stub() {
   fi
 )
 
-# Test: SKILL.md 的 create-skill 自动安装块复用镜像源（setup_cn_mirror），不另起炉灶
+(
+  if grep -q "check-project-state.sh" "$SKILL_MD" 2>/dev/null; then
+    pass "SKILL.md: env init uses check-project-state.sh for local state"
+  else
+    fail "SKILL.md: env init state check" "missing check-project-state.sh"
+  fi
+)
+
+# Test: run-create-skill.sh 的 create-skill 自动安装块复用镜像源（setup_cn_mirror），不另起炉灶
 # create-skill 包自身的 volta/npm 全局安装在 bootstrap 之前跑，必须自己接上同一套镜像逻辑。
 (
-  if grep -q "@minus-ai/create-skill" "$SKILL_MD" 2>/dev/null \
-     && grep -q "setup_cn_mirror" "$SKILL_MD" 2>/dev/null; then
-    pass "SKILL.md: create-skill 自动安装复用 setup_cn_mirror 镜像源"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  if grep -q "@minus-ai/create-skill" "$RCS" 2>/dev/null \
+     && grep -q "setup_cn_mirror" "$RCS" 2>/dev/null; then
+    pass "run-create-skill.sh: create-skill 自动安装复用 setup_cn_mirror 镜像源"
   else
-    fail "SKILL.md: create-skill 安装走镜像源" "未在 SKILL.md 找到 setup_cn_mirror 调用"
+    fail "run-create-skill.sh: create-skill 安装走镜像源" "未在 run-create-skill.sh 找到 setup_cn_mirror 调用"
   fi
 )
 
@@ -2127,6 +2169,36 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
   fi
 )
 
+(
+  if grep -q 'lsof' "$SKILL_MD"; then
+    fail "SKILL.md: no lsof precheck for dev server" "Windows/Git Bash 不保证 lsof，dev cleanup belongs to minus-dev"
+  else
+    pass "SKILL.md: no lsof precheck for dev server"
+  fi
+)
+
+(
+  if grep -q '"$PNPM_CMD" run dev:win' "$SKILL_MD" \
+     && grep -q '"$PNPM_CMD" run dev:win:backend' "$SKILL_MD" \
+     && grep -q '"$PNPM_CMD" dev:backend' "$SKILL_MD" \
+     && grep -q '"$PNPM_CMD" dev' "$SKILL_MD" \
+     && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SKILL_MD"; then
+    pass "SKILL.md: Windows uses dev:win while mac/Linux keeps stable dev scripts"
+  else
+    fail "SKILL.md: platform dev script selection" "missing dev:win branch or mac/Linux stable command"
+  fi
+)
+
+(
+  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SKILL_MD" \
+     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SKILL_MD" \
+     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SKILL_MD"; then
+    pass "SKILL.md: dev server launch resolves pnpm via VOLTA_HOME before PATH"
+  else
+    fail "SKILL.md: pnpm resolution for GUI PATH" "missing VOLTA_HOME/PNPM_CMD resolution"
+  fi
+)
+
 # Test: SKILL.md must NOT contain sed patch for vite.config.ts (anti-pattern per CLAUDE.md principle 4)
 (
   if grep -q "sed.*open.*true.*open.*false" "$SKILL_MD"; then
@@ -2158,29 +2230,48 @@ echo "═══ auth fallback prohibition ═══"
   fi
 )
 
-# Test: create-skill 经 resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
+# Test: create-skill 经 run-create-skill.sh → resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
 (
-  if grep -q 'resolve-node.sh' "$SKILL_MD" \
-     && grep -q 'export PATH="$(dirname "$NODE_BIN")' "$SKILL_MD"; then
-    pass "SKILL.md: create-skill 经 resolve-node.sh 解析 node 后调用"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  if grep -q 'run-create-skill.sh' "$SKILL_MD" \
+     && grep -q 'resolve-node.sh' "$RCS" \
+     && grep -q 'node_dir="$(dirname "$NODE_BIN")' "$RCS"; then
+    pass "SKILL.md: create-skill 经 run-create-skill.sh/resolve-node.sh 解析 node 后调用"
   else
-    fail "SKILL.md: create-skill 解析 node" "still bare create-skill or missing resolve-node.sh"
+    fail "SKILL.md: create-skill 解析 node" "still bare create-skill or missing run-create-skill.sh/resolve-node.sh"
   fi
 )
 
 # Test: create-skill 每次无条件对齐 @beta（Volta 优先 / 不碰 /usr/local），失败才提示手动。
 # 不能再有 `if ! command -v create-skill` 的"缺了才装"门禁，否则装过一次就永远停在旧版。
 (
-  if grep -q 'volta/bin/volta" install @minus-ai/create-skill@beta' "$SKILL_MD" \
-     && grep -q 'CREATE_SKILL_EXPECTED=' "$SKILL_MD" \
-     && grep -q 'CREATE_SKILL_INSTALLED=' "$SKILL_MD" \
-     && grep -q 'registry.npmjs.org' "$SKILL_MD" \
-     && grep -q 'CREATE_SKILL_INSTALLED" = "$CREATE_SKILL_EXPECTED' "$SKILL_MD" \
-     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$SKILL_MD" \
-     && ! grep -q 'if ! command -v create-skill' "$SKILL_MD"; then
-    pass "SKILL.md: create-skill 每次对齐官方 @beta，安装后版本硬校验"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  if grep -q 'CREATE_SKILL_SPEC="${MINUS_CREATE_SKILL_SPEC:-@minus-ai/create-skill@beta}"' "$RCS" \
+     && grep -q 'install "$CREATE_SKILL_SPEC"' "$RCS" \
+     && grep -q 'CREATE_SKILL_EXPECTED=' "$RCS" \
+     && grep -q 'CREATE_SKILL_INSTALLED=' "$RCS" \
+     && grep -q 'registry.npmjs.org' "$RCS" \
+     && grep -q 'CREATE_SKILL_INSTALLED" != "$CREATE_SKILL_EXPECTED' "$RCS" \
+     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$RCS" \
+     && ! grep -q 'if ! command -v create-skill' "$RCS"; then
+    pass "run-create-skill.sh: create-skill 每次对齐官方 @beta，安装后版本硬校验"
   else
-    fail "SKILL.md: create-skill 自动对齐 @beta" "expected official version lookup + installed version gate + no missing-only gate"
+    fail "run-create-skill.sh: create-skill 自动对齐 @beta" "expected official version lookup + installed version gate + no missing-only gate"
+  fi
+)
+
+(
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  if grep -q 'MINUS_CREATE_SKILL_SPEC' "$RCS" \
+     && ! grep -q 'MINUS_CREATE_SKILL_BIN' "$RCS" \
+     && ! grep -q 'windows-canary' "$RCS" \
+     && ! grep -q '.npm-global/bin' "$RCS" \
+     && ! grep -q 'installed_version_via_command' "$RCS" \
+     && ! grep -q 'add_npm_global_bin' "$RCS" \
+     && ! grep -q 'command -v create-skill' "$RCS"; then
+    pass "run-create-skill.sh: 测试包仅通过 MINUS_CREATE_SKILL_SPEC 显式启用，不写死 canary/link"
+  else
+    fail "run-create-skill.sh: create-skill spec override" "must support env spec without link/bin/canary hardcode"
   fi
 )
 
@@ -2345,6 +2436,30 @@ RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
   fi
 )
 
+# Test: Windows Program Files 路径含空格时不能被 for-word-splitting 拆坏
+(
+  TMP=$(make_tmp)
+  RN_TMP="$TMP/lib/resolve-node.sh"
+  mkdir -p "$TMP/lib" "$TMP/Program Files/nodejs"
+  cp "$RESOLVE_NODE" "$RN_TMP"
+  printf 'NODE_RUNTIME_FLOOR=999\nNODE_TARGET=24\n' > "$TMP/lib/toolchain.sh"
+  cat > "$TMP/Program Files/nodejs/node.exe" <<'EOF'
+#!/bin/sh
+case "$1" in
+  -p) echo 999;;
+  -v) echo v999.0.0;;
+  *) echo 999;;
+esac
+EOF
+  chmod +x "$TMP/Program Files/nodejs/node.exe" "$RN_TMP"
+  OUT=$(HOME="$TMP/home" ProgramFiles="$TMP/Program Files" PATH=/bin:/usr/bin /bin/sh "$RN_TMP" 2>&1 || true)
+  if [ "$OUT" = "$TMP/Program Files/nodejs/node.exe" ]; then
+    pass "resolve-node.sh: Windows Program Files 空格路径可解析"
+  else
+    fail "resolve-node.sh: Windows Program Files 空格路径" "out=[$OUT]"
+  fi
+)
+
 # Test: MARKETPLACE_DIR 解析到含 marketplace.json 的目录（install.sh 在 minus-creator/ 内，
 # marketplace 根是其父级 claude/；旧 bug 拼成 $SCRIPT_DIR/plugins/claude 指向不存在的目录）
 (
@@ -2471,6 +2586,163 @@ PACK_SH="$LIB_DIR/pack.sh"
     pass "pack.sh: 排除 node_modules 并校验产物"
   else
     fail "pack.sh: 排除 node_modules + 校验" "missing node_modules 排除或打包后校验"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ run-create-skill.sh ═══"
+# ══════════════════════════════════════════════════════
+
+RCS="$LIB_DIR/run-create-skill.sh"
+
+# 隔离：run-create-skill.sh 按自身 SCRIPT_DIR 解析 resolve-node.sh / bootstrap-env.sh 兄弟文件，
+# 故复制真脚本到临时 lib、桩化两个兄弟，再桩化 node/npm/volta，整条创建流程可在本机离线跑。
+# node 桩：-p 读 $3 指向的 package.json 取 version（脚本探测已装 create-skill 版本即走此路）。
+# npm 桩：view 回固定 EXPECTED 版本；其余命令成功即可。
+# volta 桩：install 时按需写出 image package.json（版本可控）与 bin/create-skill（可控存在性）。
+setup_rcs() {
+  # $1=TMP；落盘 lib（真脚本 + 桩兄弟）与 sb（node/npm 桩）。EXPECTED 固定 1.2.3。
+  local TMP="$1" LIB="$1/lib" SB="$1/sb"
+  mkdir -p "$LIB" "$SB" "$TMP/.volta/bin"
+  cp "$RCS" "$LIB/run-create-skill.sh"
+  write_stub "$LIB" resolve-node.sh "echo \"$SB/node\""
+  # bootstrap 桩须提供 ensure_project_node 依赖的 NODE_FLOOR / provision_node_via_volta；
+  # 默认 provision 成功（关注 node24 配给的用例会按需覆盖本桩）。
+  write_stub "$LIB" bootstrap-env.sh 'NODE_FLOOR=24
+setup_cn_mirror() { :; }
+provision_node_via_volta() { return 0; }'
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) f="$3"; if [ -n "$f" ] && [ -f "$f" ]; then sed -n '"'"'s/.*"version"[: ]*"\([^"]*\)".*/\1/p'"'"' "$f"; fi;; *) echo 24;; esac'
+  write_stub "$SB" npm 'case "$1" in view) echo 1.2.3;; *) exit 0;; esac'
+  # 默认预置一份 ≥NODE_FLOOR 的 Volta node image → ensure_project_node 命中、跳过 provision，
+  # 让既有创建流程用例不受 node24 配给逻辑干扰。
+  mkdir -p "$TMP/.volta/tools/image/node/24.16.0"
+}
+
+# Test: Volta happy path —— node 合格 + volta 装好版本==EXPECTED + bin 存在 → 执行 create-skill
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  VB="$TMP/.volta/bin"; IMG="$TMP/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill"
+  write_stub "$VB" volta "echo \"volta \$*\" >> $TMP/volta.log
+mkdir -p '$IMG'
+printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'
+printf '#!/bin/bash\necho \"create-skill \$*\" >> $TMP/cs.log\n' > '$VB/create-skill'
+chmod +x '$VB/create-skill'"
+  : > "$TMP/volta.log"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if ! assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" \
+     && [ -f "$TMP/cs.log" ] && assert_contains "$(cat "$TMP/cs.log")" "my-skill"; then
+    pass "run-create-skill: Volta happy path → 执行 create-skill"
+  else
+    fail "run-create-skill: Volta happy path" "out: $OUTPUT; cs.log: $(cat "$TMP/cs.log" 2>/dev/null)"
+  fi
+)
+
+# Test: 首次 volta install 版本≠EXPECTED → 改用官方源重试到一致 → 成功执行
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  VB="$TMP/.volta/bin"; IMG="$TMP/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill"
+  # @beta 装出陈旧 0.0.1；@1.2.3（重试）才装出 EXPECTED 并落 bin
+  write_stub "$VB" volta "echo \"volta \$*\" >> $TMP/volta.log
+mkdir -p '$IMG'
+case \"\$2\" in
+  @minus-ai/create-skill@1.2.3) printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'; printf '#!/bin/bash\necho \"create-skill \$*\" >> $TMP/cs.log\n' > '$VB/create-skill'; chmod +x '$VB/create-skill';;
+  *) printf '{\"version\":\"0.0.1\"}' > '$IMG/package.json';;
+esac"
+  : > "$TMP/volta.log"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if assert_contains "$OUTPUT" "改用官方 npm 源重试" \
+     && ! assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" \
+     && [ -f "$TMP/cs.log" ]; then
+    pass "run-create-skill: 版本不一致 → 官方源重试到一致后执行"
+  else
+    fail "run-create-skill: 版本不一致重试" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log")"
+  fi
+)
+
+# Test（回归改动1）：volta 报版本==EXPECTED 但 bin/create-skill 缺失 → CREATE_SKILL_INSTALL_FAILED，
+# 绝不去执行不存在的文件。撤掉 Volta 分支的 -x 校验，本用例应由绿转红。
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  VB="$TMP/.volta/bin"; IMG="$TMP/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill"
+  # 版本对得上，但故意不写 bin/create-skill
+  write_stub "$VB" volta "echo \"volta \$*\" >> $TMP/volta.log
+mkdir -p '$IMG'
+printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'"
+  : > "$TMP/volta.log"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" && [ ! -f "$TMP/cs.log" ]; then
+    pass "run-create-skill: 版本符但 bin 缺失 → INSTALL_FAILED，不执行不存在文件"
+  else
+    fail "run-create-skill: bin 缺失应 INSTALL_FAILED" "out: $OUTPUT; cs.log 存在? $([ -f "$TMP/cs.log" ] && echo yes || echo no)"
+  fi
+)
+
+# Test: resolve-node 解析不到合格 node → NO_GOOD_NODE，不进入安装流程
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  write_stub "$TMP/lib" resolve-node.sh 'exit 0'   # 不输出任何路径
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if assert_contains "$OUTPUT" "NO_GOOD_NODE"; then
+    pass "run-create-skill: 无合格 node → NO_GOOD_NODE"
+  else
+    fail "run-create-skill: 无合格 node → NO_GOOD_NODE" "out: $OUTPUT"
+  fi
+)
+
+# Test: 缺项目名 → CREATE_SKILL_MISSING_NAME
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" 2>&1)
+  if assert_contains "$OUTPUT" "CREATE_SKILL_MISSING_NAME"; then
+    pass "run-create-skill: 缺项目名 → CREATE_SKILL_MISSING_NAME"
+  else
+    fail "run-create-skill: 缺项目名" "out: $OUTPUT"
+  fi
+)
+
+# Test: 同事场景 —— 机器无 node24 image（只有 node22）→ 创建前自动经 Volta 备好 node24 → 正常创建。
+# 验证根因修复：create 路径不再缺 node24 provision，create-skill 第①档命中、不退出。
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  rm -rf "$TMP/.volta/tools/image/node"   # 没有任何已装 node image
+  # provision 桩：模拟 volta install node@24 成功并落 image，留 marker 证明确被调用
+  write_stub "$TMP/lib" bootstrap-env.sh "NODE_FLOOR=24
+setup_cn_mirror() { :; }
+provision_node_via_volta() { mkdir -p '$TMP/.volta/tools/image/node/24.16.0'; echo provisioned > '$TMP/provision.log'; return 0; }"
+  VB="$TMP/.volta/bin"; IMG="$TMP/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill"
+  write_stub "$VB" volta "mkdir -p '$IMG'
+printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'
+printf '#!/bin/bash\necho \"create-skill \$*\" >> $TMP/cs.log\n' > '$VB/create-skill'
+chmod +x '$VB/create-skill'"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if [ -f "$TMP/provision.log" ] \
+     && ! assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" \
+     && [ -f "$TMP/cs.log" ]; then
+    pass "run-create-skill: 无 node24 → 自动 Volta provision → 正常创建"
+  else
+    fail "run-create-skill: 无 node24 自动 provision" "out: $OUTPUT; provision: $([ -f "$TMP/provision.log" ] && echo yes || echo no); cs: $([ -f "$TMP/cs.log" ] && echo yes || echo no)"
+  fi
+)
+
+# Test（第二层防护）：node24 provision 失败 → 输出固定标记 NODE24_PROVISION_FAILED，
+# 绝不跑 create-skill（cs.log 不产生），也就不会把 create-skill 的「未找到 Node 24+」
+# stderr 透传给 Agent 去自行 brew 装 node。
+(
+  TMP=$(make_tmp); setup_rcs "$TMP"
+  rm -rf "$TMP/.volta/tools/image/node"
+  write_stub "$TMP/lib" bootstrap-env.sh 'NODE_FLOOR=24
+setup_cn_mirror() { :; }
+provision_node_via_volta() { return 1; }'
+  VB="$TMP/.volta/bin"
+  # 即便 create-skill bin 摆在那，也不该被执行
+  write_stub "$VB" volta 'exit 0'
+  write_stub "$VB" create-skill "echo \"create-skill \$*\" >> $TMP/cs.log"
+  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  if assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" && [ ! -f "$TMP/cs.log" ]; then
+    pass "run-create-skill: provision 失败 → 固定标记，不跑 create-skill"
+  else
+    fail "run-create-skill: provision 失败应固定标记" "out: $OUTPUT; cs 存在? $([ -f "$TMP/cs.log" ] && echo yes || echo no)"
   fi
 )
 

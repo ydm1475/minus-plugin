@@ -98,59 +98,24 @@ Plugin: 你有这些本地项目：
 
 **Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
 
-⚠️ **不要裸调 `create-skill`。** 它带 `#!/usr/bin/env node`，裸调会落到 PATH 上的老 node
-（实测有 v12/v13），崩在 `??` 语法。必须先用 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
-把它的目录前置到 PATH 再调用——这样 create-skill 的 shebang 就会拿到够新的 node。
-
-**每次都把 create-skill 对齐到 `@beta` 当前版本**（无条件安装/升级，不再是"缺了才装"——
-否则装过一次就永远停在旧版，拿不到 Platform 的修复）：优先 Volta（写入 `~/.volta`，无需
-sudo），无 Volta 时回退到解析出的 node 旁边的 npm。一律 **不碰 `/usr/local`**，避免撞 root
-权限和老 node。`@beta` 是浮动 tag，版本没变时 Volta 命中缓存不重复下载，只多一次轻量的
-registry 解析。
+⚠️ **不要裸调 `create-skill`，不要内联安装逻辑。** 创建项目的执行逻辑单源在
+`lib/run-create-skill.sh`：脚本会先经 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
+把 node/npm/Volta 路径处理好，再把 `@minus-ai/create-skill@beta` 对齐到官方当前版本
+并执行 `create-skill`。测试预发布包时可通过环境变量 `MINUS_CREATE_SKILL_SPEC`
+覆盖包 spec；默认值永远是 `@minus-ai/create-skill@beta`，不要在指令里写死测试 tag。
+它同时复用 `bootstrap-env.sh` 的镜像源策略，避免在指令里复制安装细节。
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/resolve-node.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-NODE_BIN=$(sh "$PLUGIN_ROOT/lib/resolve-node.sh")
-if [ -z "$NODE_BIN" ]; then
-  echo "NO_GOOD_NODE"
-else
-  export PATH="$(dirname "$NODE_BIN"):$HOME/.volta/bin:$PATH"
-  # 国内镜像源（与 bootstrap 同源，MINUS_MIRROR=off 可关）：让下面 volta/npm 装包走国内源
-  [ -f "$PLUGIN_ROOT/lib/bootstrap-env.sh" ] && . "$PLUGIN_ROOT/lib/bootstrap-env.sh" && setup_cn_mirror >/dev/null 2>&1
-  # 无条件对齐到 @beta（已是最新则命中缓存，秒过）：优先 Volta，无 Volta 回退 npm。
-  # 官方源作为版本真相；镜像同步短暂延迟时，安装后不一致则走官方源精确版本重试。
-  echo "正在安装/更新 @minus-ai/create-skill@beta……"
-  CREATE_SKILL_EXPECTED=$("$(dirname "$NODE_BIN")/npm" view @minus-ai/create-skill@beta version --registry=https://registry.npmjs.org 2>/dev/null || true)
-  if [ -x "$HOME/.volta/bin/volta" ]; then
-    "$HOME/.volta/bin/volta" install @minus-ai/create-skill@beta >/dev/null 2>&1 || true
-    CREATE_SKILL_INSTALLED=$("$NODE_BIN" -p "try{require('$HOME/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill/package.json').version}catch{''}" 2>/dev/null || true)
-  else
-    "$(dirname "$NODE_BIN")/npm" install -g @minus-ai/create-skill@beta >/dev/null 2>&1 || true
-    CREATE_SKILL_INSTALLED=$("$(dirname "$NODE_BIN")/npm" list -g @minus-ai/create-skill --depth=0 --json 2>/dev/null | "$NODE_BIN" -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).dependencies['@minus-ai/create-skill'].version}catch{''}" 2>/dev/null || true)
-  fi
-  if [ -n "$CREATE_SKILL_EXPECTED" ] && [ "$CREATE_SKILL_INSTALLED" != "$CREATE_SKILL_EXPECTED" ]; then
-    echo "镜像版本未就绪，改用官方 npm 源重试……"
-    if [ -x "$HOME/.volta/bin/volta" ]; then
-      npm_config_registry=https://registry.npmjs.org "$HOME/.volta/bin/volta" install "@minus-ai/create-skill@$CREATE_SKILL_EXPECTED" >/dev/null 2>&1 || true
-      CREATE_SKILL_INSTALLED=$("$NODE_BIN" -p "try{require('$HOME/.volta/tools/image/packages/@minus-ai/create-skill/lib/node_modules/@minus-ai/create-skill/package.json').version}catch{''}" 2>/dev/null || true)
-    else
-      "$(dirname "$NODE_BIN")/npm" install -g "@minus-ai/create-skill@$CREATE_SKILL_EXPECTED" --registry=https://registry.npmjs.org >/dev/null 2>&1 || true
-      CREATE_SKILL_INSTALLED=$("$(dirname "$NODE_BIN")/npm" list -g @minus-ai/create-skill --depth=0 --json 2>/dev/null | "$NODE_BIN" -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).dependencies['@minus-ai/create-skill'].version}catch{''}" 2>/dev/null || true)
-    fi
-  fi
-  if [ -n "$CREATE_SKILL_EXPECTED" ] && [ "$CREATE_SKILL_INSTALLED" = "$CREATE_SKILL_EXPECTED" ] && command -v create-skill >/dev/null 2>&1; then
-    cd ~/minus && create-skill "项目名称" --non-interactive
-  else
-    echo "CREATE_SKILL_INSTALL_FAILED"
-  fi
-fi
+PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/run-create-skill.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+bash "$PLUGIN_ROOT/lib/run-create-skill.sh" "项目名称"
 ```
 
 - 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥18，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
 - 输出 `CREATE_SKILL_INSTALL_FAILED` → 自动安装失败（通常是网络或全局目录权限），提示 Creator 手动安装 `@minus-ai/create-skill@beta`（见下方命令）后重跑 `/minus`，并终止。
+- 输出 `NODE24_PROVISION_FAILED` → 脚本自动用 Volta 准备 Node 24 失败（通常是没联网或 Volta 装不上）。原样提示 Creator："自动准备 Node 24 失败，请先安装 Node 24（推荐 https://volta.sh：`curl https://get.volta.sh | bash` 后 `volta install node@24`）再重跑 /minus"，并终止。⛔ **不要自己用 brew / nvm / 其它方式装 Node**——准备 Node 的唯一途径是脚本里的 Volta，绕开它只会制造版本不一致。
 - ⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
 - ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
-- ✅ 必须：通过 Bash tool 执行上面这段（经 resolve-node.sh 解析 node）
+- ✅ 必须：通过 Bash tool 执行上面这段（脚本内部经 resolve-node.sh 解析 node）
 
 描述由 agent 根据项目名称自动生成，输入类型默认为 asin（页面自带 ASIN 输入框 + 国家选择器）。结构设计第一步确认输入类型后，如果 Creator 要的不是 ASIN，再切换。
 
@@ -208,6 +173,12 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
 **环境初始化（每次进入都执行）：**
 
 1. **准备开发环境（依赖工具 + 项目依赖）**：
+   - 先用脚本读取本地状态，禁止自己写 `Test-Path` / `test -f` 等内联检查：
+     ```bash
+     PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/check-project-state.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+     bash "$PLUGIN_ROOT/lib/check-project-state.sh"
+     ```
+     输出固定为 `INITIALIZED=0|1`、`NODE_MODULES=0|1`、`VENV=0|1`。
    - 若 `node_modules` 或 `.venv` 任一缺失（需要安装）：**先原样告诉 Creator**「正在准备开发环境，首次安装依赖可能需要几分钟，请稍候」，**再**执行 bootstrap 脚本（前台、单条命令、给足超时）：
      ```bash
      PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/bootstrap-env.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
@@ -227,18 +198,23 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
 
    **分支 A：Desktop + Claude_Preview 可用**
 
-   1. 检查后端是否已在运行：
+   1. 后台启动后端。mac/Linux 保持旧稳定脚本 `pnpm dev:backend`；Windows 才走跨平台 `pnpm run dev:win:backend`：
       ```bash
-      DEV_PORTS_FILE=".minus/dev-ports.json"
-      if [ -f "$DEV_PORTS_FILE" ]; then
-        BACKEND_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend||'')" 2>/dev/null)
-        if [ -n "$BACKEND_PORT" ] && lsof -i :$BACKEND_PORT -t >/dev/null 2>&1; then
-          echo "backend already running on port $BACKEND_PORT"
-        fi
+      VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+      if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
+        PNPM_CMD="$VOLTA_HOME/bin/pnpm"
+      elif command -v pnpm >/dev/null 2>&1; then
+        PNPM_CMD="$(command -v pnpm)"
+      else
+        PNPM_CMD="pnpm"
       fi
+      OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+      case "$OS_NAME" in
+        MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win:backend ;;
+        *) "$PNPM_CMD" dev:backend ;;
+      esac
       ```
-   2. 后端未运行 → `Bash(pnpm dev:backend)` 后台启动（只启动后端）。如果项目没有 `dev:backend` 脚本，则用 `Bash(pnpm dev)` 启动全部，然后 kill 前端 vite 进程让出端口。
-   3. 创建 `.claude/launch.json`（幂等，已存在则跳过）。
+   2. 创建 `.claude/launch.json`（幂等，已存在则跳过）。
 
       ⚠️ **`runtimeExecutable` 必须写 pnpm 的绝对路径，不能写裸 `"pnpm"`。** Claude_Preview 是被客户端 spawn 的非交互进程，拿到的是 launchd PATH（GUI 启动不含 `~/.volta/bin`），裸 `"pnpm"` 会落到系统老 Node 上导致 Preview 崩。优先用 Volta 管理的 pnpm shim 绝对路径。
 
@@ -273,22 +249,36 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
       fi
       ```
 
-   4. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
-   5. 检测预览端口（预览已由 `preview_start` 打开，这里只取端口，用 `AUTO_OPEN=0` 禁止重复打开）：
+   3. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
+   4. 检测预览端口（预览已由 `preview_start` 打开，这里只取端口，用 `AUTO_OPEN=0` 禁止重复打开）：
       ```bash
       PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
       PREVIEW_PORT=$(AUTO_OPEN=0 bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null | head -1)
       echo "PREVIEW_PORT=${PREVIEW_PORT}"
       ```
-   6. 按检测结果原样输出（不改写）：
+   5. 按检测结果原样输出（不改写）：
       - 检测到端口（非 `DETECT_FAILED`）→「预览已在右侧面板打开（http://localhost:{port}）。」
       - 检测失败 →「预览已在右侧面板打开。」
 
    **分支 B：CLI 或 Claude_Preview 不可用**
 
-   1. 检查 dev server 是否已在运行（同分支 A 步骤 1）
-   2. 未运行 → `Bash(pnpm dev)` 后台启动前后端
-   3. 检测前端预览端口：
+   1. 后台启动前后端。mac/Linux 保持旧稳定脚本 `pnpm dev`；Windows 才走跨平台 `pnpm run dev:win`：
+      ```bash
+      VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+      if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
+        PNPM_CMD="$VOLTA_HOME/bin/pnpm"
+      elif command -v pnpm >/dev/null 2>&1; then
+        PNPM_CMD="$(command -v pnpm)"
+      else
+        PNPM_CMD="pnpm"
+      fi
+      OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+      case "$OS_NAME" in
+        MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win ;;
+        *) "$PNPM_CMD" dev ;;
+      esac
+      ```
+   2. 检测前端预览端口：
       ```bash
       PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
       DETECT_OUT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
@@ -302,17 +292,33 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
       fi
       ```
       `detect-preview-port.sh` 会自动等待端口就绪（最多 15s）。**检测成功后脚本会自动打开预览**（CLI 打开浏览器，Desktop 只输出 URL），无需额外调用。
-   4. 按上面输出的 `CLIENT` 选对应文案**原样输出**（不改写、不合并两版、不要自己描述预览在哪）：
+   3. 按上面输出的 `CLIENT` 选对应文案**原样输出**（不改写、不合并两版、不要自己描述预览在哪）：
       - `CLIENT=cli` →「预览地址：http://localhost:{port} —— 已自动在浏览器打开。」
       - `CLIENT=desktop` →「预览已在右侧面板打开（http://localhost:{port}）。」
 
       端口检测失败（`PREVIEW_DETECT_FAILED`）时，让 Creator 自己从终端日志里找 vite 输出的地址。
 
 4. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
-   - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重新启动（先清掉旧端口文件，SDK 的 `minus-dev-cleanup` 会自动清理残留进程）
+   - 执行下面的固定重启脚本（先清掉旧端口文件；mac/Linux 仍用旧稳定 `pnpm dev`，Windows 用 `pnpm run dev:win`）：
+     ```bash
+     rm -f .minus/dev-ports.json
+     VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+     if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
+       PNPM_CMD="$VOLTA_HOME/bin/pnpm"
+     elif command -v pnpm >/dev/null 2>&1; then
+       PNPM_CMD="$(command -v pnpm)"
+     else
+       PNPM_CMD="pnpm"
+     fi
+     OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+     case "$OS_NAME" in
+       MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win ;;
+       *) "$PNPM_CMD" dev ;;
+     esac
+     ```
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 5. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
-   - 执行 `Bash(rm -f .minus/dev-ports.json && pnpm dev)` 重启前后端 dev server
+   - 执行上面的固定重启脚本重启前后端 dev server
    - 重新检测预览端口（步骤 3 分支 B）
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
