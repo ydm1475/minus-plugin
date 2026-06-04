@@ -275,6 +275,9 @@ provision_node_via_volta() {
 }
 
 ensure_node() {
+  # 起手先把已装的 ~/.volta/bin 顶到 PATH 最前再检测：继承环境（Desktop spawn）里
+  # 没有 ~/.volta/bin、node@22 在前，不先 prepend 就会每次漏掉已装的 node24、空转重配。
+  volta_on_path || true
   # 已就绪且版本达标 → 直接放行
   if node_major_ok; then
     say "Node/npm 已就绪（$(node -v 2>/dev/null)）。"

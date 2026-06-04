@@ -1576,6 +1576,33 @@ write_stub() {
   fi
 )
 
+# Test: 系统 node 为 v22，但 Volta 已装 node24（在 ~/.volta/bin、不在初始 PATH）
+# → ensure_node 起手先 volta_on_path 顶前，命中已装 node24 直接放行，绝不重跑 volta install node。
+# 回归本机场景：Desktop spawn 的继承 PATH 里 node@22 在前、~/.volta/bin 缺席；
+# 不在 node_major_ok 之前 prepend，就会每次撞 node22、空转重配（并连累后续 pnpm）。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.volta/bin" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  # 继承 PATH 上的 node 是旧 v22
+  write_stub "$SB" node 'case "$1" in -v) echo v22.22.3;; -p) echo 22;; *) echo 22;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  # Volta 管理的 node24 / pnpm 落在 ~/.volta/bin（不在初始 PATH）
+  write_stub "$TMP/.volta/bin" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$TMP/.volta/bin" npm 'exit 0'
+  write_stub "$TMP/.volta/bin" pnpm 'echo 11.4.0'
+  write_stub "$TMP/.volta/bin" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
+  : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  if assert_contains "$OUTPUT" "Node/npm 已就绪" \
+     && ! assert_contains "$OUTPUT" "通过 Volta 安装并选中 Node" \
+     && ! assert_contains "$(cat "$TMP/volta.log")" "install node"; then
+    pass "bootstrap-env: 系统 node22 但 Volta 已装 node24 → 起手顶前复用，不重配"
+  else
+    fail "bootstrap-env: node24 已装应复用不重配" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log")"
+  fi
+)
+
 # Test: all tools + deps present → BOOTSTRAP_RESULT=ok, no install attempted
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
