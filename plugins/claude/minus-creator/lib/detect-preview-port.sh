@@ -24,20 +24,46 @@ found_port() {
   exit 0
 }
 
+is_windows() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# 找监听该端口的进程 PID（跨平台）。Unix 用 lsof；Windows Git Bash 没有 lsof，用 netstat -ano。
+port_pid() {
+  local port=$1
+  if is_windows; then
+    # netstat -ano 的 LISTENING 行：本地地址以 :port 结尾，末列是 PID（状态恒为英文 LISTENING）。
+    netstat -ano 2>/dev/null \
+      | grep -i 'LISTENING' \
+      | grep -E "[:.]${port}[[:space:]]" \
+      | awk '{print $NF}' | head -1
+  else
+    lsof -i :"$port" -t 2>/dev/null | head -1
+  fi
+}
+
 verify_port() {
   local port=$1
   local pid
-  pid=$(lsof -i :"$port" -t 2>/dev/null | head -1 || true)
+  pid=$(port_pid "$port")
   if [ -z "$pid" ]; then
     return 1
   fi
-  local cwd
-  cwd=$(lsof -p "$pid" -Fn 2>/dev/null | grep -A1 '^fcwd' | grep '^n' | sed 's/^n//' || true)
-  if [ -z "$cwd" ]; then
-    cwd=$(ls -l /proc/"$pid"/cwd 2>/dev/null | awk '{print $NF}' || true)
-  fi
-  if [ -n "$cwd" ] && [ "$cwd" != "$PROJECT_DIR" ] && [[ "$cwd" != "$PROJECT_DIR"/* ]]; then
-    return 1
+  # 归属校验（CLAUDE.md #5：存在≠属于我）。Windows Git Bash 拿不到进程 cwd（需 wmic/PowerShell，
+  # 慢且不稳），故 Windows 跳过 cwd 校验：方法1 的端口取自本项目 .minus/dev-ports.json，归属由
+  # 文件位置保证；方法3 扫描为最后兜底，仅靠可达性。Unix 仍做严格 cwd 校验。
+  if ! is_windows; then
+    local cwd
+    cwd=$(lsof -p "$pid" -Fn 2>/dev/null | grep -A1 '^fcwd' | grep '^n' | sed 's/^n//' || true)
+    if [ -z "$cwd" ]; then
+      cwd=$(ls -l /proc/"$pid"/cwd 2>/dev/null | awk '{print $NF}' || true)
+    fi
+    if [ -n "$cwd" ] && [ "$cwd" != "$PROJECT_DIR" ] && [[ "$cwd" != "$PROJECT_DIR"/* ]]; then
+      return 1
+    fi
   fi
   curl -s -o /dev/null -w '' --max-time 2 "http://localhost:$port/" 2>/dev/null
 }

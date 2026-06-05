@@ -15,9 +15,11 @@ if [ ! -f "pyproject.toml" ]; then
   exit 1
 fi
 
+# venv 解释器路径按平台选：Unix 是 .venv/bin/python，Windows 是 .venv/Scripts/python.exe。
 PYTHON_BIN=".venv/bin/python"
+[ -x "$PYTHON_BIN" ] || PYTHON_BIN=".venv/Scripts/python.exe"
 if [ ! -x "$PYTHON_BIN" ]; then
-  echo "错误：未找到项目虚拟环境 Python：$PYTHON_BIN" >&2
+  echo "错误：未找到项目虚拟环境 Python（.venv/bin/python 或 .venv/Scripts/python.exe）。" >&2
   echo "请先通过 /minus 准备开发环境，或运行 bootstrap-env.sh 创建 .venv。" >&2
   exit 1
 fi

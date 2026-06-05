@@ -1,0 +1,30 @@
+#!/bin/bash
+# check-dev-server.sh
+# 进入「结构设计」前的硬门禁：dev server 必须已在运行且属于当前项目。
+#
+# 用法: check-dev-server.sh
+# 退出码:
+#   0  → 前端 dev server 在跑且归属本项目（输出 GATE_PASSED + PREVIEW_PORT=端口）
+#   1  → 未检测到属于本项目的 dev server（输出 GATE_FAILED + 启动指引）
+#
+# 设计原因（CLAUDE.md #1 能硬编码的别靠 Agent 自觉）：启动 dev server 是散文步骤，
+# Agent 可能整段跳过。本门禁把「dev server 必须在跑」从 Agent 自觉变成代码强制——
+# 跳过启动就进不了结构设计。
+# 归属校验（CLAUDE.md #5 存在≠属于我）复用 detect-preview-port.sh，它已验证占用
+# 进程的 cwd 属于本项目（Windows 靠 dev-ports.json 文件位置保证归属）。
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 复用端口检测脚本，AUTO_OPEN=0 避免门禁里重复弹预览。
+PORT=$(AUTO_OPEN=0 bash "$SCRIPT_DIR/detect-preview-port.sh" 2>/dev/null | head -1)
+
+if [ -n "$PORT" ] && [ "$PORT" != "DETECT_FAILED" ]; then
+  echo "GATE_PASSED"
+  echo "PREVIEW_PORT=$PORT"
+  exit 0
+fi
+
+echo "GATE_FAILED"
+echo "未检测到属于当前项目的 dev server，禁止进入结构设计。" >&2
+echo "请先按 SKILL.md「3. 已登录 + 有项目」的步骤 2（探测预览能力）和步骤 3（启动 dev server + 打开预览）启动 dev server，再重试。" >&2
+exit 1

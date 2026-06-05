@@ -89,11 +89,27 @@ if ($null -eq $nmaj -or $nmaj -lt $NodeMin) {
   Write-Ok "Node 已就绪（v$nmaj）"
 }
 
+# 2.5 自迁移：把 marketplace 根目录固化到稳定家目录，绝不从临时/下载目录注册。
+#     根因：directory-source marketplace 存的是对该路径的实时引用，每次启动都去读；
+#     源目录一旦被删/移动（如 Agent 清理解压临时目录），就 cache-miss，/minus 消失。
+#     把"目录必须持久"从口头契约变成代码保证（对齐设计原则 #1：能硬编码的别靠 Agent 自觉）。
+$StableHome = Join-Path $env:USERPROFILE '.claude\minus-creator-marketplace'
+$srcResolved = (Resolve-Path $MarketplaceDir).Path.TrimEnd('\')
+if ($srcResolved -ine $StableHome.TrimEnd('\')) {
+  Write-Step "固化 marketplace 到稳定目录：$StableHome"
+  # robocopy /MIR 镜像，排除 node_modules/.git；退出码 <8 都算成功（1=有文件被复制）
+  robocopy $MarketplaceDir $StableHome /MIR /XD node_modules .git /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) { Write-Err "固化失败（robocopy 退出码 $LASTEXITCODE）。"; exit 1 }
+  $global:LASTEXITCODE = 0   # robocopy 的非零成功码会污染后续 $LASTEXITCODE 判断
+  $MarketplaceDir = $StableHome
+  Write-Ok "已固化到 $StableHome"
+}
+
 # 3. 注册 marketplace —— 固化 remove->add 规避逻辑
 #    已知坑：单纯 add 在某些情况下报"成功"但后续 install 找不到 marketplace。
 #    先 remove（忽略"不存在"错误）再 add，强制刷新到可用列表。
-#    幂等性：重复运行会先移除已注册的（含已装插件的）marketplace 再加回；插件状态由第 4 步重新判定，可自愈。
-Write-Step "注册 marketplace（remove->add 强制刷新）..."
+#    重指：机器上若残留指向已死临时目录的旧注册，remove->add 会重新指向上面的稳定目录，自愈。
+Write-Step "注册 marketplace（remove->add 强制重指稳定目录）..."
 try { & claude plugin marketplace remove $MarketplaceName 2>$null | Out-Null } catch {}
 & claude plugin marketplace add "$MarketplaceDir"
 if ($LASTEXITCODE -ne 0) {
@@ -119,6 +135,17 @@ switch (Get-PluginState) {
     Write-Ok "插件已启用"
   }
   default {
+    # 装前清残留缓存：claude plugin install 先把插件解到 temp_local_* 暂存目录，再
+    # rename 成 cache\<mp>\<plugin>\<ver>。Windows 上 fs.rename 无法覆盖已存在的非空
+    # 目标目录 → 撞到上次失败/旧版的残留就 EPERM（mac 的 rename 语义不同，不复现）。
+    # 清掉残留暂存目录 + 本插件 cache 目标，保证 rename 有干净落点（原则 #1：别靠 agent 手动清）。
+    $cacheRoot = Join-Path $env:USERPROFILE '.claude\plugins\cache'
+    if (Test-Path $cacheRoot) {
+      Get-ChildItem -Path $cacheRoot -Filter 'temp_local_*' -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue }
+      $pluginCache = Join-Path $cacheRoot (Join-Path $MarketplaceName $PluginName)
+      if (Test-Path $pluginCache) { Remove-Item -Recurse -Force $pluginCache -ErrorAction SilentlyContinue }
+    }
     & claude plugin install $PluginId
     if ($LASTEXITCODE -ne 0) { Write-Err "安装插件失败。"; exit 1 }
     Write-Ok "插件安装成功"

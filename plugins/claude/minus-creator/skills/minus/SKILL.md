@@ -113,7 +113,7 @@ bash "$PLUGIN_ROOT/lib/run-create-skill.sh" "项目名称"
 
 - 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥18，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
 - 输出 `CREATE_SKILL_INSTALL_FAILED` → 自动安装失败（通常是网络或全局目录权限），提示 Creator 手动安装 `@minus-ai/create-skill@beta`（见下方命令）后重跑 `/minus`，并终止。
-- 输出 `NODE24_PROVISION_FAILED` → 脚本自动用 Volta 准备 Node 24 失败（通常是没联网或 Volta 装不上）。原样提示 Creator："自动准备 Node 24 失败，请先安装 Node 24（推荐 https://volta.sh：`curl https://get.volta.sh | bash` 后 `volta install node@24`）再重跑 /minus"，并终止。⛔ **不要自己用 brew / nvm / 其它方式装 Node**——准备 Node 的唯一途径是脚本里的 Volta，绕开它只会制造版本不一致。
+- 输出 `NODE24_PROVISION_FAILED` → 脚本自动用 Volta 准备 Node 24 失败。脚本会在该标记后**按现场打印**真实错误（`原因：…`）和可操作指引（`提示：…`，已区分「Volta 已装/未装」「Windows/mac/Linux」）。把脚本输出里的 `原因：` 和 `提示：` 两行**原样转达**给 Creator 后终止，不要自己改写或套用固定文案。⛔ **不要自己用 brew / nvm / 其它方式装 Node**——准备 Node 的唯一途径是脚本里的 Volta，绕开它只会制造版本不一致。
 - ⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
 - ⛔ 禁止：在执行 create-skill 之前再问描述、输入类型等任何问题
 - ✅ 必须：通过 Bash tool 执行上面这段（脚本内部经 resolve-node.sh 解析 node）
@@ -199,21 +199,10 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
 
    **分支 A：Desktop + Claude_Preview 可用**
 
-   1. 后台启动后端。mac/Linux 保持旧稳定脚本 `pnpm dev:backend`；Windows 才走跨平台 `pnpm run dev:win:backend`：
+   1. 后台启动后端（用 `Bash` 的 `run_in_background`）。启动逻辑已下沉到 `start-dev.sh`，跨平台/pnpm 路径解析都在脚本里：
       ```bash
-      VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
-      if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
-        PNPM_CMD="$VOLTA_HOME/bin/pnpm"
-      elif command -v pnpm >/dev/null 2>&1; then
-        PNPM_CMD="$(command -v pnpm)"
-      else
-        PNPM_CMD="pnpm"
-      fi
-      OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
-      case "$OS_NAME" in
-        MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win:backend ;;
-        *) "$PNPM_CMD" dev:backend ;;
-      esac
+      PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+      bash "$PLUGIN_ROOT/lib/start-dev.sh" backend
       ```
    2. 创建 `.claude/launch.json`（幂等，已存在则跳过）。
 
@@ -241,6 +230,7 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
             "name": "frontend",
             "runtimeExecutable": "${PNPM_BIN}",
             "runtimeArgs": ["--filter", "./frontend", "exec", "vite"],
+            "env": { "VOLTA_FEATURE_PNPM": "1" },
             "port": 5173,
             "autoPort": true
           }
@@ -263,21 +253,10 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
 
    **分支 B：CLI 或 Claude_Preview 不可用**
 
-   1. 后台启动前后端。mac/Linux 保持旧稳定脚本 `pnpm dev`；Windows 才走跨平台 `pnpm run dev:win`：
+   1. 后台启动前后端（用 `Bash` 的 `run_in_background`）。启动逻辑已下沉到 `start-dev.sh`：
       ```bash
-      VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
-      if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
-        PNPM_CMD="$VOLTA_HOME/bin/pnpm"
-      elif command -v pnpm >/dev/null 2>&1; then
-        PNPM_CMD="$(command -v pnpm)"
-      else
-        PNPM_CMD="pnpm"
-      fi
-      OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
-      case "$OS_NAME" in
-        MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win ;;
-        *) "$PNPM_CMD" dev ;;
-      esac
+      PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+      bash "$PLUGIN_ROOT/lib/start-dev.sh" full
       ```
    2. 检测前端预览端口：
       ```bash
@@ -300,28 +279,24 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
       端口检测失败（`PREVIEW_DETECT_FAILED`）时，让 Creator 自己从终端日志里找 vite 输出的地址。
 
 4. **dev server 异常处理**：如果用户反馈预览打不开或 dev server 有问题：
-   - 执行下面的固定重启脚本（先清掉旧端口文件；mac/Linux 仍用旧稳定 `pnpm dev`，Windows 用 `pnpm run dev:win`）：
+   - 执行下面的固定重启脚本（先清掉旧端口文件，再用 `Bash` 的 `run_in_background` 后台重启）：
      ```bash
      rm -f .minus/dev-ports.json
-     VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
-     if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
-       PNPM_CMD="$VOLTA_HOME/bin/pnpm"
-     elif command -v pnpm >/dev/null 2>&1; then
-       PNPM_CMD="$(command -v pnpm)"
-     else
-       PNPM_CMD="pnpm"
-     fi
-     OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
-     case "$OS_NAME" in
-       MINGW*|MSYS*|CYGWIN*) "$PNPM_CMD" run dev:win ;;
-       *) "$PNPM_CMD" dev ;;
-     esac
+     PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+     bash "$PLUGIN_ROOT/lib/start-dev.sh" full
      ```
    - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 5. **版本自动恢复后重启**：当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
    - 执行上面的固定重启脚本重启前后端 dev server
    - 重新检测预览端口（步骤 3 分支 B）
    - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
+6. **dev server 门禁（硬性，不可跳过）**：在进入下面的「首次进入」或「非首次进入」之前，必须执行门禁脚本确认 dev server 已在运行且属于本项目：
+   ```bash
+   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/check-dev-server.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+   bash "$PLUGIN_ROOT/lib/check-dev-server.sh"
+   ```
+   - 输出 `GATE_PASSED` → 继续进入下面的流程。
+   - 输出 `GATE_FAILED`（退出码 1）→ 说明步骤 3 的启动被跳过或失败。⛔ 禁止进入结构设计/继续开发。必须回到步骤 2、3 重新探测并启动 dev server，启动后重跑本门禁，通过后才能继续。
 
 **首次进入（.minus/initialized 不存在）：**
 

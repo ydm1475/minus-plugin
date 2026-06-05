@@ -117,7 +117,7 @@ cat << 'GUIDE'
      - 如果报缺失依赖 → Agent 必须自己更新 pyproject.toml，执行 uv pip install -e .，然后重新检查；通过前不要让 Creator 测试
      - 禁止把依赖修复交给 Creator 手动处理
      - 禁止只对 .venv 临时安装某个包而不更新 pyproject.toml
-     - 禁止用系统 python3 验证依赖，必须使用项目 .venv/bin/python
+     - 禁止用系统 python3 验证依赖，必须使用项目 venv 的 python（Unix：.venv/bin/python；Windows：.venv/Scripts/python.exe）
   3. 用 skill_update 将结果配置写入后端
   4. 告诉 Creator：开发完成，可以端到端测试了
 

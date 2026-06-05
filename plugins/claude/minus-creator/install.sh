@@ -81,16 +81,27 @@ else
   echo -e "${GREEN}✓${NC} Node 已就绪（$(node -v 2>/dev/null)）"
 fi
 
-# 2. 注册 marketplace（指向解压后的持久目录）
-echo ""
-echo "→ 注册 marketplace..."
-if claude plugin marketplace list 2>/dev/null | grep -q "$MARKETPLACE_NAME"; then
-  echo -e "${GREEN}✓${NC} Marketplace 已注册，刷新中..."
-  claude plugin marketplace update "$MARKETPLACE_NAME"
-else
-  claude plugin marketplace add "$MARKETPLACE_DIR"
-  echo -e "${GREEN}✓${NC} Marketplace 注册成功"
+# 1.6 自迁移：把 marketplace 根目录固化到稳定家目录，绝不从解压/下载目录注册。
+# 根因：directory-source marketplace 存的是对该路径的实时引用，源目录一旦被删/移动就 cache-miss。
+# 把"目录必须持久"从口头契约变成代码保证（对齐设计原则 #1）。
+STABLE_HOME="$HOME/.claude/minus-creator-marketplace"
+if [ "$(cd "$MARKETPLACE_DIR" && pwd -P)" != "$STABLE_HOME" ]; then
+  echo ""
+  echo "→ 固化 marketplace 到稳定目录：$STABLE_HOME"
+  rm -rf "$STABLE_HOME"; mkdir -p "$STABLE_HOME"
+  ( cd "$MARKETPLACE_DIR" && tar --exclude='./*/node_modules' --exclude='./.git' -cf - . ) \
+    | ( cd "$STABLE_HOME" && tar -xf - )
+  MARKETPLACE_DIR="$STABLE_HOME"
+  echo -e "${GREEN}✓${NC} 已固化到 $STABLE_HOME"
 fi
+
+# 2. 注册 marketplace（remove->add 强制重指稳定目录）
+# 重指：机器上若残留指向已死临时目录的旧注册，remove->add 会重新指向稳定目录，自愈。
+echo ""
+echo "→ 注册 marketplace（remove->add 强制重指稳定目录）..."
+claude plugin marketplace remove "$MARKETPLACE_NAME" 2>/dev/null || true
+claude plugin marketplace add "$MARKETPLACE_DIR"
+echo -e "${GREEN}✓${NC} Marketplace 注册成功（来源：$MARKETPLACE_DIR）"
 
 # 3. 安装并启用插件（区分 未装 / 已装未启用 / 已启用）
 echo ""
@@ -103,6 +114,15 @@ case "$(plugin_state)" in
     claude plugin enable "$PLUGIN_ID"
     echo -e "${GREEN}✓${NC} 插件已启用" ;;
   *)
+    # 装前清残留缓存：claude plugin install 先把插件解到 temp_local_* 暂存目录，再
+    # rename 成 cache/<mp>/<plugin>/<ver>。撞到上次失败/旧版的残留目标目录时，
+    # Windows 的 fs.rename 会 EPERM（无法覆盖非空目录）。清掉残留暂存目录 + 本插件
+    # cache 目标，保证 rename 有干净落点（原则 #1：别靠 agent 手动清缓存）。
+    CACHE_ROOT="$HOME/.claude/plugins/cache"
+    if [ -d "$CACHE_ROOT" ]; then
+      rm -rf "$CACHE_ROOT"/temp_local_* 2>/dev/null || true
+      rm -rf "$CACHE_ROOT/$MARKETPLACE_NAME/$PLUGIN_NAME" 2>/dev/null || true
+    fi
     claude plugin install "$PLUGIN_ID"
     echo -e "${GREEN}✓${NC} 插件安装成功" ;;
 esac

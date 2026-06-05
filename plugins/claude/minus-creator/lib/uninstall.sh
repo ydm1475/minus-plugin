@@ -43,6 +43,8 @@ rm -rf "$HOME/.claude/agents/node-dev.md" 2>/dev/null
 echo "✓ Skills/Agents 副本已清理"
 
 # 5. 清理散落的插件副本 / 解压目录（手动安装或测试时留下的，非正常安装产物）
+# install.sh/install.ps1 的自迁移会把 marketplace 固化到这个稳定家目录，卸载时一并清掉。
+rm -rf "$HOME/.claude/minus-creator-marketplace" 2>/dev/null
 rm -rf "$HOME/.claude/claude/minus-creator" 2>/dev/null
 rmdir "$HOME/.claude/claude" 2>/dev/null || true   # 仅当空时删掉空壳父目录
 rm -rf "$HOME/.claude/minus-installer" 2>/dev/null

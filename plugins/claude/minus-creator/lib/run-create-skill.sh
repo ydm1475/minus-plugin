@@ -87,6 +87,17 @@ if [ -f "$BOOTSTRAP_ENV" ]; then
   # 「未找到 Node 24+」stderr（那是诱导 Agent 自行装 node 的入口）。
   if ! ensure_project_node; then
     echo "NODE24_PROVISION_FAILED"
+    # 现场化指引：失败有两种，区分对待，别无脑喊「装 Volta」（Volta 多半已装）。
+    # 真实错误来自 bootstrap-env.sh 设的 LAST_ERR，原样透出不吞。
+    [ -n "${LAST_ERR:-}" ] && echo "原因：${LAST_ERR}"
+    if [ -x "$VOLTA_BIN" ] || have volta; then
+      # Volta 已就绪 → 失败的是拉取 node@24，多半网络/镜像问题。
+      echo "提示：Volta 已就绪，准备 Node 24 失败，通常是网络问题。请检查网络后重跑 /minus；若持续失败可手动执行 volta install node@24。"
+    elif [ "${OS:-}" = "windows" ]; then
+      echo "提示：请用 winget 安装 Volta：winget install -e --id Volta.Volta，重开终端后重跑 /minus（脚本会自动准备 Node 24，无需手动 volta install）。"
+    else
+      echo "提示：请先安装 Volta：curl https://get.volta.sh | bash，重开终端后重跑 /minus（脚本会自动准备 Node 24，无需手动 volta install）。"
+    fi
     exit 0
   fi
 fi

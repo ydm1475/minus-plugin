@@ -1110,6 +1110,25 @@ PY
   fi
 )
 
+# Test【Windows venv 布局】: 只有 .venv/Scripts/python.exe（无 .venv/bin/python）时也能找到解释器。
+# 复现真实 Windows 卡点：旧代码写死 .venv/bin/python → Windows 永远报"未找到项目虚拟环境"。
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .venv/Scripts
+  ln -s "$TEST_PYTHON" .venv/Scripts/python.exe
+  cat > pipeline.py <<'PY'
+import datetime
+PY
+  write_pyproject pyproject.toml ""
+  OUTPUT=$(bash "$CPD" 2>&1 || true)
+  if assert_contains "$OUTPUT" "DEPENDENCIES_OK"; then
+    pass "check-python-deps: 认 Windows venv 布局（.venv/Scripts/python.exe）"
+  else
+    fail "check-python-deps: Windows venv 布局应通过" "got: $OUTPUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ agent files ═══"
@@ -1409,6 +1428,23 @@ OP="$LIB_DIR/open-preview.sh"
   fi
 )
 
+# Test【Windows】: CLI 模式用 start 开浏览器（不是 mac 的 open）。
+# 复现真实 Windows 卡点：旧代码只会调 open → Windows 上打不开浏览器。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo MINGW64_NT-10.0'
+  write_stub "$SB" start "echo \"start \$*\" >> $TMP/start.log"
+  : > "$TMP/start.log"
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
+  if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:5173" \
+     && assert_contains "$(cat "$TMP/start.log")" "http://localhost:5173"; then
+    pass "open-preview: Windows CLI 用 start 开浏览器"
+  else
+    fail "open-preview: Windows CLI start" "out: $OUTPUT; start.log: $(cat "$TMP/start.log")"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ check-project-state.sh ═══"
@@ -1484,6 +1520,25 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   fi
 )
 
+# Test【Windows】: 无 lsof，用 netstat 找端口；dev-ports.json 命中即认（跳过 cwd 校验）。
+# 复现真实 Windows 卡点：旧代码 verify_port 只用 lsof → Windows 永远空 PID → 服务活着也 DETECT_FAILED。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"
+  cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo MINGW64_NT-10.0'                                          # 强制 windows 分支
+  write_stub "$SB" netstat 'echo "  TCP    0.0.0.0:5199     0.0.0.0:0      LISTENING       4321"'
+  write_stub "$SB" curl 'exit 0'                                                          # 端口可达
+  # 故意不提供 lsof：若 windows 分支仍调 lsof 即失败
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$DPP" 2>&1 || true)
+  if [ "$OUTPUT" = "5199" ]; then
+    pass "detect-preview-port: Windows 用 netstat 命中 dev-ports.json 端口（无 lsof）"
+  else
+    fail "detect-preview-port: Windows netstat 检测" "got: $OUTPUT"
+  fi
+)
+
 # Test: DETECT_PORT_MAX_WAIT env controls polling duration
 (
   TMP=$(make_tmp)
@@ -1496,6 +1551,114 @@ DPP="$LIB_DIR/detect-preview-port.sh"
     pass "detect-preview-port: MAX_WAIT=0 skips polling"
   else
     fail "detect-preview-port: MAX_WAIT=0 skips polling" "took ${ELAPSED}s"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ start-dev.sh ═══"
+# ══════════════════════════════════════════════════════
+
+SD="$LIB_DIR/start-dev.sh"
+
+# Test: mac/Linux full → pnpm dev；并导出 VOLTA_FEATURE_PNPM
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"; echo "FEATURE=$VOLTA_FEATURE_PNPM"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$" && echo "$OUTPUT" | grep -q "FEATURE=1"; then
+    pass "start-dev: mac/Linux full → pnpm dev + VOLTA_FEATURE_PNPM=1"
+  else
+    fail "start-dev: mac/Linux full" "got: $OUTPUT"
+  fi
+)
+
+# Test: Windows full → pnpm run dev:win
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo MINGW64_NT-10.0'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=run dev:win$"; then
+    pass "start-dev: Windows full → pnpm run dev:win"
+  else
+    fail "start-dev: Windows full" "got: $OUTPUT"
+  fi
+)
+
+# Test: backend 模式 → dev:backend（mac/Linux）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend$"; then
+    pass "start-dev: backend 模式 → pnpm dev:backend"
+  else
+    fail "start-dev: backend 模式" "got: $OUTPUT"
+  fi
+)
+
+# Test: 优先用 Volta shim 的 pnpm 绝对路径
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; VB="$TMP/novolta/bin"; mkdir -p "$SB" "$VB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$VB" pnpm 'echo "FROM=volta-shim PNPM_ARGS=$*"'
+  write_stub "$SB" pnpm 'echo "FROM=path"'   # 不应被选中
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "FROM=volta-shim"; then
+    pass "start-dev: 优先 Volta shim 的 pnpm"
+  else
+    fail "start-dev: 优先 Volta shim" "got: $OUTPUT"
+  fi
+)
+
+# Test: 非法模式 → 退出码 2
+(
+  if OUTPUT=$(bash "$SD" bogus 2>&1); then RC=0; else RC=$?; fi
+  if [ "$RC" = "2" ]; then
+    pass "start-dev: 非法模式退出码 2"
+  else
+    fail "start-dev: 非法模式退出码" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ check-dev-server.sh ═══"
+# ══════════════════════════════════════════════════════
+
+CDS="$LIB_DIR/check-dev-server.sh"
+
+# Test: 无 dev server → GATE_FAILED + 退出码 1（门禁拦截）
+(
+  TMP=$(make_tmp); cd "$TMP"
+  if OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$CDS" 2>&1); then RC=0; else RC=$?; fi
+  if echo "$OUTPUT" | grep -q "GATE_FAILED" && [ "$RC" = "1" ]; then
+    pass "check-dev-server: 无 server → GATE_FAILED 退出码 1"
+  else
+    fail "check-dev-server: 无 server" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: dev server 在跑且归属本项目 → GATE_PASSED（复用 detect-preview-port，Windows 路径命中 dev-ports.json）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo MINGW64_NT-10.0'
+  write_stub "$SB" netstat 'echo "  TCP    0.0.0.0:5199     0.0.0.0:0      LISTENING       4321"'
+  write_stub "$SB" curl 'exit 0'
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=5199" && [ "$RC" = "0" ]; then
+    pass "check-dev-server: server 在跑且归属 → GATE_PASSED"
+  else
+    fail "check-dev-server: GATE_PASSED" "rc=$RC out=$OUTPUT"
   fi
 )
 
@@ -1766,6 +1929,41 @@ write_stub() {
   fi
 )
 
+# Test【回归·静态】: bootstrap 全局 export VOLTA_FEATURE_PNPM=1
+# 防止有人把这行删掉/挪进只覆盖安装的局部作用域 —— 它必须在文件顶层、对所有 pnpm 调用生效。
+(
+  if grep -Eq '^[[:space:]]*export VOLTA_FEATURE_PNPM=1' "$BS"; then
+    pass "bootstrap-env: 顶层 export VOLTA_FEATURE_PNPM=1（覆盖所有 pnpm 调用）"
+  else
+    fail "bootstrap-env: 缺少顶层 export VOLTA_FEATURE_PNPM=1" "未找到 'export VOLTA_FEATURE_PNPM=1'"
+  fi
+)
+
+# Test【回归·行为】: pnpm 是「实验 flag 装的」—— 运行时不带 VOLTA_FEATURE_PNPM=1 就报
+# Could not find executable，带上才返回版本。复现彭元峰机器的真实坏态：pnpm 其实装好了，
+# 但 bootstrap 的 pnpm_ok 校验（裸 pnpm --version）误判为失败 → 假性 PNPM_INSTALL_FAILED。
+# 现在 bootstrap 顶层 export 了 flag，gated pnpm 也应被识别为「已就绪」，不再误判、不重装。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  write_stub "$SB" node 'case "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac'
+  write_stub "$SB" npm "echo \"npm \$*\" >> $TMP/npm.log; exit 0"
+  # gated pnpm：--version 仅在 VOLTA_FEATURE_PNPM=1 时返回 11.4.0，否则模拟 Volta 报错并退非零
+  write_stub "$SB" pnpm 'case "$1" in --version|-v) if [ "$VOLTA_FEATURE_PNPM" = "1" ]; then echo 11.4.0; else echo "Volta error: Could not find executable \"pnpm\"" >&2; exit 1; fi;; *) echo ok;; esac'
+  write_stub "$SB" uv 'echo "uv 0.5.0"'
+  write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
+  : > "$TMP/npm.log"; : > "$TMP/volta.log"
+  cd "$TMP/proj"
+  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  # 期望：识别为已就绪、整体 ok，且没触发任何 pnpm 重装（volta install pnpm 未被调用）
+  if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
+     && assert_contains "$OUTPUT" "pnpm 已就绪（11.4.0" \
+     && ! assert_contains "$(cat "$TMP/volta.log")" "install pnpm" 2>/dev/null; then
+    pass "bootstrap-env: gated pnpm（需 VOLTA_FEATURE_PNPM=1）不再被误判失败"
+  else
+    fail "bootstrap-env: gated pnpm 误判回归" "out: $OUTPUT; volta.log: $(cat "$TMP/volta.log")"
+  fi
+)
+
 # Test【核心保证】: 即便 npm 可写也统一走 Volta —— 绝不用 npm -g 写 /usr/local（EACCES 来源已砍）
 # 旧设计会在 npm 可写时优先 npm；现已统一经 Volta（免 sudo），从根上规避 EACCES。
 (
@@ -1861,15 +2059,49 @@ write_stub() {
   fi
 )
 
+# Test【Windows winget 自举】: winget 把 volta 装到 ProgramFiles\Volta（写 System PATH 本会话不生效、
+# shim 未初始化）。复现真实日志卡点：旧 install_volta_windows 只往 LOCALAPPDATA\Volta\bin 找、
+# 不接 ProgramFiles\Volta 也不跑 volta setup → 本会话 volta 找不到 → NODE24_PROVISION_FAILED。
+# 期望：新代码把 ProgramFiles\Volta 接进 PATH + 跑 volta setup → 同一会话即 volta 可用（return 0）。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  PF="$TMP/ProgFiles"; LA="$TMP/AppData/Local"; mkdir -p "$PF" "$LA"
+  : > "$TMP/setup.log"
+  # powershell winget install → 模拟 winget：把 volta 桩落到 ProgramFiles\Volta（不写当前 PATH）
+  write_stub "$SB" powershell.exe "mkdir -p '$PF/Volta'; printf '%s\n' '#!/bin/bash' 'case \"\$1\" in setup) echo setup >> $TMP/setup.log; mkdir -p \"\${VOLTA_HOME:-\$HOME/.volta}/bin\";; --version) echo 2.0.2;; esac' > '$PF/Volta/volta'; chmod +x '$PF/Volta/volta'; exit 0"
+  OUTPUT=$(HOME="$TMP" USERPROFILE="$TMP" LOCALAPPDATA="$LA" ProgramFiles="$PF" BOOTSTRAP_OS=windows PATH="$SB:/usr/bin:/bin" bash -c '. "'"$BS"'"; if install_volta_windows; then echo VOLTA_READY; else echo VOLTA_NOT_READY; fi' 2>&1)
+  if assert_contains "$OUTPUT" "VOLTA_READY" && assert_contains "$(cat "$TMP/setup.log")" "setup"; then
+    pass "bootstrap-env: Windows winget 装完自举（接 ProgramFiles\\Volta + volta setup）本会话即可用"
+  else
+    fail "bootstrap-env: Windows winget 自举" "out: $OUTPUT; setup.log: $(cat "$TMP/setup.log")"
+  fi
+)
+
+# Test【静态】: winget 自举两步落到源码——install_volta_windows 接 ProgramFiles 目录 + 跑 volta setup；
+# 且 VOLTA_HOME 与 volta shim 目录同源（volta_home_base），不再 LOCALAPPDATA / $HOME/.volta 打架。
+(
+  ok=1
+  grep -q 'win_volta_install_dir' "$BS" || ok=0          # 接 winget 落地目录进 PATH
+  grep -q 'volta setup' "$BS" || ok=0                      # 初始化 shim
+  grep -q 'volta_home_base' "$BS" || ok=0                  # VOLTA_HOME 与 bin 目录单源
+  # volta_on_path 不再写死 $HOME/.volta，改用 volta_home_base
+  grep -qE 'export VOLTA_HOME="\$\(volta_home_base\)"' "$BS" || ok=0
+  if [ "$ok" -eq 1 ]; then
+    pass "bootstrap-env: winget 自举两步 + VOLTA_HOME 单源（volta_home_base）落到源码"
+  else
+    fail "bootstrap-env: winget 自举静态校验" "缺 win_volta_install_dir / volta setup / volta_home_base 单源"
+  fi
+)
+
 # Test【静态】: B 的跨平台改造落到源码——ensure_volta 不再 windows 硬 return 1、
 # volta shim 目录认 Windows %LOCALAPPDATA%\Volta\bin、ensure_pnpm 有 Windows npm-g 兜底。
 (
   ok=1
   # ensure_volta 内不应再出现「windows 直接 return 1」这条硬挡
   if grep -qE '\[ "\$OS" = "windows" \] && return 1' "$BS"; then ok=0; fi
-  # volta_bin_dir 处理 Windows shim 布局
+  # volta_bin_dir 处理 Windows shim 布局（家目录单源 volta_home_base + /bin）
   grep -q 'volta_bin_dir' "$BS" || ok=0
-  grep -q 'Volta/bin' "$BS" || ok=0
+  grep -qE 'volta_home_base.*/bin|/Volta' "$BS" || ok=0
   grep -q 'LOCALAPPDATA' "$BS" || ok=0
   # ensure_pnpm 的 Windows npm-g 兜底
   grep -q 'npm install -g "pnpm@' "$BS" || ok=0
@@ -1907,6 +2139,44 @@ write_stub() {
     pass "run-create-skill.sh: create-skill 自动安装复用 setup_cn_mirror 镜像源"
   else
     fail "run-create-skill.sh: create-skill 安装走镜像源" "未在 run-create-skill.sh 找到 setup_cn_mirror 调用"
+  fi
+)
+
+# Test【现场化文案】: NODE24_PROVISION_FAILED 时 Volta 已装 → 引导「网络/重试」而非重装 Volta。
+# 复现用户质疑：旧文案无脑喊「curl 装 Volta」，但 Volta 可能早装好，失败的是拉 node@24。
+(
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  TMP=$(make_tmp); SB="$TMP/sb"; VB="$TMP/.volta/bin"; mkdir -p "$SB" "$VB"
+  # node 桩固定 18：≥18 过 resolve-node，但 < NODE_FLOOR(24) → provision 后 node_major_ok 失败
+  write_stub "$SB" node 'case "$1" in -v) echo v18.0.0;; *) echo 18;; esac'
+  write_stub "$SB" npm 'exit 0'
+  # volta 已装（桩）：install node@24 不真正升级 node → provision 失败，但 Volta 在场
+  write_stub "$VB" volta 'exit 0'
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$RCS" "测试项目" 2>&1 || true)
+  if assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" \
+     && assert_contains "$OUTPUT" "Volta 已就绪" \
+     && ! assert_contains "$OUTPUT" "get.volta.sh"; then
+    pass "run-create-skill: Volta 已装时引导网络/重试，不喊重装 Volta"
+  else
+    fail "run-create-skill: Volta 已装文案" "out: $OUTPUT"
+  fi
+)
+
+# Test【现场化文案】: NODE24_PROVISION_FAILED 时 Volta 未装 + mac → 引导 curl 装 Volta，并透出真实原因。
+(
+  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub "$SB" node 'case "$1" in -v) echo v18.0.0;; *) echo 18;; esac'
+  write_stub "$SB" npm 'exit 0'
+  write_stub "$SB" curl 'exit 1'   # 有 curl 但下载失败 → ensure_volta 失败、不触网
+  # 不提供 volta / winget / powershell.exe → Volta 真的不在场
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$RCS" "测试项目" 2>&1 || true)
+  if assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" \
+     && assert_contains "$OUTPUT" "get.volta.sh" \
+     && assert_contains "$OUTPUT" "原因："; then
+    pass "run-create-skill: Volta 未装(mac) → 引导 curl 装 Volta + 透出真实原因"
+  else
+    fail "run-create-skill: Volta 未装(mac)文案" "out: $OUTPUT"
   fi
 )
 
@@ -2177,25 +2447,47 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
   fi
 )
 
+# 启动逻辑已下沉到 start-dev.sh（CLAUDE.md #3 单源化）：dev:win 分支 + pnpm 解析
+# 都在脚本里，SKILL.md 只引用脚本，不再内联。
 (
-  if grep -q '"$PNPM_CMD" run dev:win' "$SKILL_MD" \
-     && grep -q '"$PNPM_CMD" run dev:win:backend' "$SKILL_MD" \
-     && grep -q '"$PNPM_CMD" dev:backend' "$SKILL_MD" \
-     && grep -q '"$PNPM_CMD" dev' "$SKILL_MD" \
-     && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SKILL_MD"; then
-    pass "SKILL.md: Windows uses dev:win while mac/Linux keeps stable dev scripts"
+  if grep -q 'run dev:win' "$SD" \
+     && grep -q 'run dev:win:backend' "$SD" \
+     && grep -q '"\$PNPM_CMD" dev:backend' "$SD" \
+     && grep -q '"\$PNPM_CMD" dev' "$SD" \
+     && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SD"; then
+    pass "start-dev.sh: Windows uses dev:win while mac/Linux keeps stable dev scripts"
   else
-    fail "SKILL.md: platform dev script selection" "missing dev:win branch or mac/Linux stable command"
+    fail "start-dev.sh: platform dev script selection" "missing dev:win branch or mac/Linux stable command"
   fi
 )
 
 (
-  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SKILL_MD" \
-     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SKILL_MD" \
-     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SKILL_MD"; then
-    pass "SKILL.md: dev server launch resolves pnpm via VOLTA_HOME before PATH"
+  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SD" \
+     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SD" \
+     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SD"; then
+    pass "start-dev.sh: dev server launch resolves pnpm via VOLTA_HOME before PATH"
   else
-    fail "SKILL.md: pnpm resolution for GUI PATH" "missing VOLTA_HOME/PNPM_CMD resolution"
+    fail "start-dev.sh: pnpm resolution for GUI PATH" "missing VOLTA_HOME/PNPM_CMD resolution"
+  fi
+)
+
+# SKILL.md 不再内联启动逻辑，只引用 start-dev.sh（单源化）
+(
+  if grep -q 'lib/start-dev.sh' "$SKILL_MD" \
+     && ! grep -q '"$PNPM_CMD" run dev:win' "$SKILL_MD"; then
+    pass "SKILL.md: 启动逻辑引用 start-dev.sh，不内联"
+  else
+    fail "SKILL.md: 启动逻辑应引用 start-dev.sh" "仍内联 pnpm 启动块或未引用脚本"
+  fi
+)
+
+# SKILL.md 必须在进入结构设计前调 dev server 门禁
+(
+  if grep -q 'lib/check-dev-server.sh' "$SKILL_MD" \
+     && grep -q 'GATE_FAILED' "$SKILL_MD"; then
+    pass "SKILL.md: 结构设计前有 check-dev-server.sh 硬门禁"
+  else
+    fail "SKILL.md: 缺 dev server 门禁" "未引用 check-dev-server.sh 或未处理 GATE_FAILED"
   fi
 )
 
@@ -2473,6 +2765,59 @@ EOF
   fi
 )
 
+# Test: install.sh 自迁移——注册前把 marketplace 固化到稳定家目录（防 cache-miss）
+(
+  if grep -q 'minus-creator-marketplace' "$INSTALL_SH" \
+     && grep -q 'MARKETPLACE_DIR="\$STABLE_HOME"' "$INSTALL_SH"; then
+    pass "install.sh: 自迁移到稳定家目录 minus-creator-marketplace"
+  else
+    fail "install.sh: 自迁移" "未把 marketplace 固化到 ~/.claude/minus-creator-marketplace 再注册"
+  fi
+)
+
+# Test: install.sh 用 remove->add 强制重指（不再用 update，避免旧注册指向死目录）
+(
+  if grep -q 'marketplace remove "\$MARKETPLACE_NAME"' "$INSTALL_SH" \
+     && ! grep -q 'marketplace update "\$MARKETPLACE_NAME"' "$INSTALL_SH"; then
+    pass "install.sh: marketplace remove->add 强制重指（不再用 update）"
+  else
+    fail "install.sh: marketplace 重指" "仍用 update，旧注册可能指向已死目录"
+  fi
+)
+
+# Test: install.ps1 自迁移——固化到稳定家目录再注册
+(
+  INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
+  if [ -f "$INSTALL_PS1" ] && grep -q 'minus-creator-marketplace' "$INSTALL_PS1" \
+     && grep -q '\$MarketplaceDir = \$StableHome' "$INSTALL_PS1"; then
+    pass "install.ps1: 自迁移到稳定家目录 minus-creator-marketplace"
+  else
+    fail "install.ps1: 自迁移" "未把 marketplace 固化到稳定目录再注册"
+  fi
+)
+
+# Test: install.sh 装前清残留 plugin cache（防 Windows EPERM rename 撞已存在目标目录）
+(
+  if grep -q 'temp_local_\*' "$INSTALL_SH" \
+     && grep -q '\$CACHE_ROOT/\$MARKETPLACE_NAME/\$PLUGIN_NAME' "$INSTALL_SH"; then
+    pass "install.sh: 装前清残留 plugin cache（temp_local_* + 本插件目标）"
+  else
+    fail "install.sh: 清残留缓存" "未在 claude plugin install 前清 temp_local_* / 本插件 cache 目标"
+  fi
+)
+
+# Test: install.ps1 装前清残留 plugin cache（防 Windows EPERM rename 撞已存在目标目录）
+(
+  INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
+  if [ -f "$INSTALL_PS1" ] && grep -q "temp_local_\*" "$INSTALL_PS1" \
+     && grep -q 'plugins\\cache' "$INSTALL_PS1" \
+     && grep -q '\$pluginCache' "$INSTALL_PS1"; then
+    pass "install.ps1: 装前清残留 plugin cache（temp_local_* + 本插件目标）"
+  else
+    fail "install.ps1: 清残留缓存" "未在 claude plugin install 前清 temp_local_* / 本插件 cache 目标"
+  fi
+)
+
 # Test: bootstrap-env.sh 主流程被 BASH_SOURCE 守卫包住（可被 install.sh 安全 source）
 (
   if grep -q 'BASH_SOURCE\[0\].*=.*"\$0"' "$BS"; then
@@ -2515,6 +2860,15 @@ UNINSTALL_SH="$LIB_DIR/uninstall.sh"
     pass "uninstall.sh: data 目录 glob 清理（不再写死 -inline）"
   else
     fail "uninstall.sh: data glob" "仍写死 minus-creator-inline 或未用 glob"
+  fi
+)
+
+# Test: uninstall.sh 清理自迁移的稳定家目录 minus-creator-marketplace
+(
+  if grep -q 'minus-creator-marketplace' "$UNINSTALL_SH"; then
+    pass "uninstall.sh: 清理稳定家目录 minus-creator-marketplace"
+  else
+    fail "uninstall.sh: 清理稳定家目录" "未清理 ~/.claude/minus-creator-marketplace，卸载会残留"
   fi
 )
 

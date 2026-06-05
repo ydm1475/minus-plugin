@@ -52,6 +52,16 @@ PYTHON_TARGET="${PYTHON_TARGET:-3.12}"
 # 最近一次安装尝试的真实错误（供 finish_fail 透出，不再用 || true 吞掉）。
 LAST_ERR=""
 
+# ── Volta pnpm feature gate（全脚本统一带上）──────────────────
+# Volta 早期把 pnpm 当实验特性：若 pnpm 当初是开着 VOLTA_FEATURE_PNPM=1 装的，
+# 这个标记会永久贴死在该机器的 pnpm 上 —— 此后每次「运行」pnpm（不只是安装）都必须
+# 带这个 flag，否则报 `Volta error: Could not find executable "pnpm"`（pnpm 其实好着，
+# 是运行时校验在撒谎）。只在 volta install 那行带、在 pnpm --version / pnpm install
+# 处不带，会让「装好的 pnpm 被自己的校验误判为失败」。
+# 新版 Volta（pnpm 已转正）下该 flag 是 no-op；老/实验装的下是必需品 —— 故全局 export
+# 一次覆盖脚本内所有 pnpm 调用，对两类机器都安全（实测：无 gate 的安装加了也完全无副作用）。
+export VOLTA_FEATURE_PNPM=1
+
 # ── 国内镜像源（默认开启）──────────────────────────────────
 # 大多数 Minus 第三方开发者在国内，默认走国内源避免 npm/PyPI 拉包慢到超时。
 # 只 export 环境变量、不写任何工具的全局配置文件 —— 海外开发者 MINUS_MIRROR=off
@@ -181,16 +191,20 @@ win_local_bin() {
   echo "$up/.local/bin" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
 }
 
-# Volta 的 shim 目录：Windows 是 %LOCALAPPDATA%\Volta\bin，其余平台是 $HOME/.volta/bin。
-# volta_on_path 据此把正确的 shim 目录提到 PATH 最前。
-volta_bin_dir() {
+# Volta 的家目录：Windows 是 %LOCALAPPDATA%\Volta，其余平台是 $HOME/.volta。
+# 单源化——volta_bin_dir 与 volta_on_path 导出的 VOLTA_HOME 都从这里取，避免二者打架
+# （历史 bug：volta_bin_dir 在 Windows 用 LOCALAPPDATA、volta_on_path 却 export $HOME/.volta，
+#  导致 volta setup 把 shim 落到 $HOME/.volta 而 PATH 找的是 LOCALAPPDATA → shim 永远找不到）。
+volta_home_base() {
   if [ "$OS" = "windows" ]; then
     local la="${LOCALAPPDATA:-${USERPROFILE:-$HOME}/AppData/Local}"
-    echo "$la/Volta/bin" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
+    echo "$la/Volta" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
   else
-    echo "${VOLTA_HOME:-$HOME/.volta}/bin"
+    echo "${VOLTA_HOME:-$HOME/.volta}"
   fi
 }
+# Volta 的 shim 目录。volta_on_path 据此把正确的 shim 目录提到 PATH 最前。
+volta_bin_dir() { echo "$(volta_home_base)/bin"; }
 
 # ════════════════════════════════════════════
 # Step 0 — Node 运行时保障（硬下限 >= NODE_FLOOR）
@@ -218,7 +232,7 @@ node_major_ok() {
 #      → 假性 PNPM_INSTALL_FAILED。故必须把 ~/.volta/bin 提到最前，而非"已存在就跳过"。
 # 实现：先剔除 PATH 里所有已存在的 ~/.volta/bin，再 prepend，保证幂等且必在最前。
 volta_on_path() {
-  export VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
+  export VOLTA_HOME="$(volta_home_base)"
   local vbin; vbin="$(volta_bin_dir)"
   local cleaned="" entry oldifs="$IFS" glob_off=1
   case $- in *f*) ;; *) glob_off=0; set -f ;; esac   # 暂关 glob，避免 PATH 含 * 被展开
@@ -235,16 +249,41 @@ volta_on_path() {
   have volta
 }
 
-# Windows：用 winget 装 Volta。返回 volta 在「本会话」是否立即可用。
-# 注意：winget 把 volta.exe 装到 Program Files\Volta 并写 System PATH、shim 到
-# %LOCALAPPDATA%\Volta\bin，二者通常都要重开终端才生效——故本会话很可能仍 return 1，
-# 这是预期的，调用方（ensure_pnpm）会走 npm-g 兜底。
+# winget 把 volta.exe 装到的目录（默认 %ProgramFiles%\Volta），转成 MSYS 风格 /c/...。
+# winget 写的是 System PATH，需重开终端才生效——故本会话必须自己把这个目录接进 PATH，
+# 否则装完也找不到 volta.exe。
+win_volta_install_dir() {
+  local pf="${ProgramFiles:-${PROGRAMFILES:-C:/Program Files}}"
+  echo "$pf/Volta" | sed 's#\\#/#g; s#^\([A-Za-z]\):#/\L\1#'
+}
+
+# Windows：用 winget 装 Volta，并在「本会话」内自举到可用，无需重启终端。
+# winget 把 volta.exe 装到 Program Files\Volta（写 System PATH，需重开终端才生效），
+# shim 目录 %LOCALAPPDATA%\Volta\bin 则要 `volta setup` 才生成。两件事本会话都得自己补：
+#   1. 把 Program Files\Volta 接进当前 PATH —— 否则连 volta.exe 都调不到；
+#   2. 跑一次 volta setup —— 生成 %LOCALAPPDATA%\Volta\bin 下的 shim，volta_on_path 才有的找。
+# 补齐这两步后同一会话即可用，不再依赖用户重启终端（旧版漏了这两步 → NODE24_PROVISION_FAILED）。
 install_volta_windows() {
   have winget || have powershell.exe || return 1
   say "通过 winget 安装 Volta（可能需要几分钟）……"
   powershell.exe -NoProfile -Command \
     "winget install -e --id Volta.Volta --accept-source-agreements --accept-package-agreements" >/dev/null 2>&1 || true
   hash -r 2>/dev/null || true
+
+  # winget 的 System PATH 本会话不生效，手动把落地目录顶到 PATH 最前。
+  local vdir; vdir="$(win_volta_install_dir)"
+  [ -d "$vdir" ] && export PATH="$vdir:$PATH"
+  hash -r 2>/dev/null || true
+
+  # 生成 shim（落到 VOLTA_HOME/bin = %LOCALAPPDATA%\Volta\bin，由 volta_on_path 统一导出的
+  # VOLTA_HOME 决定，与 volta_bin_dir 同源），幂等；失败不致命，下面 volta_on_path 兜底判定。
+  if have volta; then
+    say "初始化 Volta（volta setup）……"
+    export VOLTA_HOME="$(volta_home_base)"
+    volta setup >/dev/null 2>&1 || true
+    hash -r 2>/dev/null || true
+  fi
+
   volta_on_path
 }
 
@@ -331,8 +370,9 @@ ensure_node() {
 # ════════════════════════════════════════════
 # 版本来自 toolchain.sh（PNPM_PIN ← PNPM_TARGET，已在文件顶部赋值）。
 # 统一经 Volta 安装：Volta 装到 ~/.volta（用户可写、免 sudo），不碰 /usr/local，
-# 从根上避开「npm i -g 写系统目录」的 EACCES。VOLTA_FEATURE_PNPM=1 兼容旧版 Volta
-# （pnpm 支持曾是实验特性需此 flag；新版无需，加了无害）。
+# 从根上避开「npm i -g 写系统目录」的 EACCES。
+# 注：VOLTA_FEATURE_PNPM=1 已在文件顶部全局 export（见那里的注释）—— 安装与「之后所有
+# pnpm 运行/校验」都带上，避免「装好却被校验误判失败」。这里不再单独前缀。
 # 不再保留 npm -g 兜底：它是唯一会写 /usr/local 触发 EACCES 的来源，已砍。
 
 ensure_pnpm() {
@@ -353,7 +393,7 @@ ensure_pnpm() {
   fi
 
   if ensure_volta; then
-    LAST_ERR="$(VOLTA_FEATURE_PNPM=1 volta install "pnpm@${PNPM_PIN}" 2>&1)"
+    LAST_ERR="$(volta install "pnpm@${PNPM_PIN}" 2>&1)"
     hash -r 2>/dev/null || true
     if pnpm_ok; then
       say "pnpm 安装完成（$(pnpm --version 2>/dev/null)，Volta 管理）。"

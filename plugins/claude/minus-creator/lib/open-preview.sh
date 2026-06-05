@@ -19,6 +19,11 @@ case "${CLAUDE_CODE_ENTRYPOINT:-}" in
   *)
     echo "PREVIEW_URL=$URL"
     echo "CLIENT=cli"
-    open "$URL" 2>/dev/null || echo "OPEN_FAILED"
+    # 打开浏览器的命令按平台选：mac=open，Windows=start（cmd 内建，需经 cmd.exe），Linux=xdg-open。
+    case "$(uname -s 2>/dev/null)" in
+      Darwin*) open "$URL" 2>/dev/null || echo "OPEN_FAILED" ;;
+      MINGW*|MSYS*|CYGWIN*) start "" "$URL" 2>/dev/null || cmd.exe /c start "" "$URL" 2>/dev/null || echo "OPEN_FAILED" ;;
+      *) xdg-open "$URL" 2>/dev/null || echo "OPEN_FAILED" ;;
+    esac
     ;;
 esac
