@@ -1322,13 +1322,14 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: cli 入口（无真实路径）→ 回退 ~/minus/{name}，不含图片/选文件夹文案。
+# Test: cli 入口（无真实路径）→ 回退 $HOME/minus/{name}（完整绝对路径，不用 ~ 简写），不含图片/选文件夹文案。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q 'cd ~/minus/"竞品分析_SKILL" && claude' \
+  if echo "$OUTPUT" | grep -q "cd \"$HOME/minus/竞品分析_SKILL\" && claude" \
+     && ! echo "$OUTPUT" | grep -q 'cd ~/minus' \
      && ! echo "$OUTPUT" | grep -q '!\[' \
      && ! echo "$OUTPUT" | grep -q "选择 .*文件夹作为工作目录"; then
-    pass "generate-next-steps: cli 无路径 → 回退 ~/minus/{name}"
+    pass "generate-next-steps: cli 无路径 → 回退完整 \$HOME/minus/{name}"
   else
     fail "generate-next-steps: cli 回退文案" "got: $OUTPUT"
   fi

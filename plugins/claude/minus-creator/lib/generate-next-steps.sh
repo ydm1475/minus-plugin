@@ -50,11 +50,11 @@ if [ "$CLIENT" = "desktop" ]; then
 3. 打开后说一句 **「开始」**（或输入 \`/minus\`）即可进入开发
 EOF
 else
-  # cd 用真实路径并加引号（含空格也安全）；缺省回退 ~/minus（~ 不能加引号，名字单独引）。
+  # cd 一律用完整绝对路径并加引号（含空格也安全）；缺省回退 $HOME/minus（与展示路径一致，不用 ~ 简写）。
   if [ -n "$PROJECT_PATH" ]; then
     CD_CMD="cd \"$PROJECT_PATH\""
   else
-    CD_CMD="cd ~/minus/\"${PROJECT_NAME}\""
+    CD_CMD="cd \"$HOME/minus/${PROJECT_NAME}\""
   fi
   cat << EOF
 项目已创建！接下来请在命令行运行：
