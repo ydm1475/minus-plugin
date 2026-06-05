@@ -453,7 +453,7 @@ Plugin: 好的，一个或多个关键词。                       ← ①
 3. 添加 `handleSubmit` 函数 + 对应验证：keyword → `validateKeywords`，ASIN → `validateAsins`
 4. 添加输入组件：keyword/ASIN → `AmazonSearchBar` + `CountrySelect` + `SearchSubmitButton`，file → `FilePicker`
 5. 补上对应的 import（`AmazonSearchBar`、`CountrySelect`、`SearchSubmitButton`、`validateAsins` / `validateKeywords`）
-6. 更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json` 中的 placeholder
+6. 更新 `frontend/src/locales/` 下的 locale 文件中的 placeholder
 7. 更新 `renderHome` 调用，传入 `onStart`
 8. 数量限制通过验证函数的第二个参数 `{ min, max }` 控制，具体签名读 SDK 类型定义
 9. 同步更新 `renderHistoryItem` 中的主标识字段名，与 `handleSubmit` 中 `onStart` 的字段名一致：
@@ -466,7 +466,7 @@ Plugin: 好的，一个或多个关键词。                       ← ①
 
 **如果 Home 已有输入组件（切换类型场景）：** 按最小改动原则，改验证函数 + onStart 字段名 + locale 文案，保留组件不动。
 
-⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/zh-CN.json` 和 `en-US.json`。
+⛔ 禁止：只改 main.tsx 不改 locale 文件。placeholder、按钮文案等必须同步更新 `frontend/src/locales/` 下的 locale 文件。
 ⛔ 禁止：在 Creator 确认输入类型之前就添加输入组件。
 ⛔ 禁止：把 AmazonSearchBar 替换为原生 textarea 或 input。AmazonSearchBar 是平台组件，placeholder 通过 locale 文件控制，不是通过 HTML 属性。
 ⛔ 禁止：更新 Home 输入组件后不同步更新 renderHistoryItem。两者的字段名必须匹配。
