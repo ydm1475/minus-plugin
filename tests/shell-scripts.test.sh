@@ -2746,6 +2746,104 @@ provision_node_via_volta() { return 1; }'
   fi
 )
 
+echo "═══ diagnose-mcp.sh ═══"
+
+DIAG="$REPO_DIR/plugins/claude/minus-creator/lib/diagnose-mcp.sh"
+
+# Test: 脚本存在、单源 toolchain.sh、始终 exit 0（SKILL.md 原样展示其 stdout）
+(
+  if [ -f "$DIAG" ] && grep -q 'toolchain.sh' "$DIAG"; then
+    pass "diagnose-mcp.sh: 存在且下限单源 toolchain.sh"
+  else
+    fail "diagnose-mcp.sh: 基本结构" "missing file 或未 source toolchain.sh"
+  fi
+)
+
+# Test: 坏 node（node -v 崩溃 + dyld/simdjson stderr）→ 给「brew reinstall / volta」自救指引
+(
+  T="$(mktemp -d)"
+  printf '#!/bin/sh\necho "dyld: Library not loaded: libsimdjson.31.dylib" >&2; exit 1\n' > "$T/node"
+  chmod +x "$T/node"
+  OUT=$(PATH="$T:$PATH" bash "$DIAG" 2>&1); RC=$?
+  rm -rf "$T"
+  if [ "$RC" -eq 0 ] \
+     && assert_contains "$OUT" '已损坏' \
+     && assert_contains "$OUT" 'brew reinstall node@22' \
+     && assert_contains "$OUT" 'volta install node@'; then
+    pass "diagnose-mcp.sh: 坏 node → brew/volta 自救指引（exit 0）"
+  else
+    fail "diagnose-mcp.sh: 坏 node 分支" "rc=$RC out: $OUT"
+  fi
+)
+
+# Test: PATH 无 node 但 off-path（Volta image）有合格 node → 提示 PATH 没带上 Volta
+# 造一个假 HOME，里面塞一个 Volta image 的 node v24 stub；PATH=/usr/bin:/bin（无 node）。
+(
+  T="$(mktemp -d)"
+  VIMG="$T/.volta/tools/image/node/24.0.0/bin"
+  mkdir -p "$VIMG"
+  printf '#!/bin/sh\ncase "$1" in -v) echo v24.16.0;; -p) echo 24;; *) echo 24;; esac\n' > "$VIMG/node"
+  chmod +x "$VIMG/node"
+  OUT=$(HOME="$T" PATH=/usr/bin:/bin bash "$DIAG" 2>&1); RC=$?
+  rm -rf "$T"
+  if [ "$RC" -eq 0 ] \
+     && assert_contains "$OUT" '未就绪' \
+     && assert_contains "$OUT" 'PATH'; then
+    pass "diagnose-mcp.sh: PATH 无 node 但 Volta 有 → 提示 PATH/Volta"
+  else
+    fail "diagnose-mcp.sh: off-path Volta 分支" "rc=$RC out: $OUT"
+  fi
+)
+
+# Test: 彻底无 node（PATH 与 off-path 都没有）→ 提示「未检测到 Node」+ install
+# 本机系统路径有 node 时无法模拟「彻底无 node」，skip（同 resolve-node 的处理）。
+(
+  if host_has_abs_modern_node; then
+    skip "diagnose-mcp.sh: 彻底无 node → 未检测到 Node" "本机系统路径已有 node，无法模拟彻底无 node"
+  else
+    T="$(mktemp -d)"
+    OUT=$(HOME="$T" PATH=/usr/bin:/bin bash "$DIAG" 2>&1); RC=$?
+    rm -rf "$T"
+    if [ "$RC" -eq 0 ] && assert_contains "$OUT" '未检测到 Node'; then
+      pass "diagnose-mcp.sh: 彻底无 node → 未检测到 Node + install 提示"
+    else
+      fail "diagnose-mcp.sh: 无 node 分支" "rc=$RC out: $OUT"
+    fi
+  fi
+)
+
+# Test: node 过旧（v18 < NODE_FLOOR 24）→ 提示过旧 + 建议 Node 24
+(
+  T="$(mktemp -d)"
+  printf '#!/bin/sh\necho v18.20.0\n' > "$T/node"
+  chmod +x "$T/node"
+  OUT=$(PATH="$T:$PATH" HOME="$T/fh" bash "$DIAG" 2>&1); RC=$?
+  rm -rf "$T"
+  if [ "$RC" -eq 0 ] \
+     && assert_contains "$OUT" '过旧' \
+     && assert_contains "$OUT" 'Node 24'; then
+    pass "diagnose-mcp.sh: 过旧 v18 → 升级 Node 24 提示"
+  else
+    fail "diagnose-mcp.sh: 过旧分支" "rc=$RC out: $OUT"
+  fi
+)
+
+# Test: node 看似正常（v24）→ 走「重启/launchd PATH」分支，且不误报「损坏」
+(
+  T="$(mktemp -d)"
+  printf '#!/bin/sh\ncase "$1" in -v) echo v24.16.0;; -p) echo 24;; esac\n' > "$T/node"
+  chmod +x "$T/node"
+  OUT=$(PATH="$T:$PATH" bash "$DIAG" 2>&1); RC=$?
+  rm -rf "$T"
+  if [ "$RC" -eq 0 ] \
+     && assert_contains "$OUT" '看起来正常' \
+     && ! assert_contains "$OUT" '已损坏'; then
+    pass "diagnose-mcp.sh: 正常 v24 → 重启/launchd 分支，不误报损坏"
+  else
+    fail "diagnose-mcp.sh: 正常分支" "rc=$RC out: $OUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════

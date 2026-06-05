@@ -47,7 +47,8 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate
 **第一步：检查登录态** —— 调用 `mcp__minus-platform__auth_status`：
 - 返回已登录 → 按下面 2 / 3 分支处理
 - 返回未登录（含 NOT_LOGGED_IN / 未登录）→ 走下面「1. 未登录」分支
-- 工具不可用 / 调用异常 → 原样输出"Minus 服务未就绪，请重启 Claude Code 会话后再用 /minus"并终止流程
+- 工具不可用 / 调用异常 → 运行下面的诊断脚本，**原样输出它的 stdout**，然后终止流程（文案单源于脚本，勿自行改写或补充）：
+  !`PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/diagnose-mcp.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname); bash "$PLUGIN_ROOT/lib/diagnose-mcp.sh" 2>/dev/null || echo "Minus 服务未就绪，请完全退出并重启 Claude Code 会话后再用 /minus。"`
 
 > auth_status 是只读状态查询，是判定登录态的手段，不属于 Step A 禁止的"登录动作"，不受其约束。
 
