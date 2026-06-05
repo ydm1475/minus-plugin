@@ -1539,6 +1539,40 @@ DPP="$LIB_DIR/detect-preview-port.sh"
   fi
 )
 
+# Test【mac 误报回归】: 端口同时有客户端连接(cwd 非本项目)和监听者(cwd 本项目)时，
+# port_pid 必须只取监听者。复现真实 bug：用户打开预览后浏览器对 vite 建连，旧代码
+# lsof -i :port -t | head -1 抓到客户端进程 → cwd 归属校验误判 → 活着的 server 被门禁误报失败。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus" "$TMP/frontend"
+  cd "$TMP"
+  PROJ="$(pwd)"   # 与 detect-preview-port.sh 的 PROJECT_DIR=$(pwd) 一致（避免 symlink 路径差异）
+  echo '{"frontend":5174,"backend":4002}' > .minus/dev-ports.json
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'   # 强制 unix 分支（走 cwd 校验）
+  write_stub "$SB" curl 'exit 0'         # 端口可达
+  # lsof 桩：
+  #   -sTCP:LISTEN -t  → 只返回监听者 PID 7777（正确）
+  #   -p 7777 -Fn      → fcwd 指向本项目 frontend（归属通过）
+  #   其余(旧式 -i :port -t) → 先返回客户端 PID 9999（cwd 非本项目，会误判）
+  cat > "$SB/lsof" <<EOF
+#!/bin/bash
+args="\$*"
+case "\$args" in
+  *"-sTCP:LISTEN"*) echo 7777 ;;
+  *"-p 7777"*) printf 'fcwd\nn%s/frontend\n' "$PROJ" ;;
+  *"-p 9999"*) printf 'fcwd\nn/somewhere/else\n' ;;
+  *) echo 9999 ;;
+esac
+EOF
+  chmod +x "$SB/lsof"
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$DPP" 2>&1 | head -1 || true)
+  if [ "$OUTPUT" = "5174" ]; then
+    pass "detect-preview-port: 只取监听者，忽略客户端连接（mac 误报回归）"
+  else
+    fail "detect-preview-port: 只取监听者" "got: ${OUTPUT} (expected 5174)"
+  fi
+)
+
 # Test: DETECT_PORT_MAX_WAIT env controls polling duration
 (
   TMP=$(make_tmp)

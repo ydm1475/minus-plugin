@@ -41,7 +41,11 @@ port_pid() {
       | grep -E "[:.]${port}[[:space:]]" \
       | awk '{print $NF}' | head -1
   else
-    lsof -i :"$port" -t 2>/dev/null | head -1
+    # 必须只取「监听者」：lsof -i :port 会连同与该端口建立连接的客户端进程一起返回
+    # （如用户打开预览后浏览器/iframe 对 vite 建的连接）。若 head -1 抓到客户端进程，
+    # 其 cwd 不在本项目 → verify_port 的归属校验误判失败 → 门禁把活着的 server 误报为没起。
+    # 加 -sTCP:LISTEN 过滤，只认监听进程。
+    lsof -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | head -1
   fi
 }
 
