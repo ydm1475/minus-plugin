@@ -1345,13 +1345,14 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   fi
 )
 
-# Test: 真实路径在 $HOME 下 → 展示折叠成 ~（desktop 文案可读性）。
+# Test: 真实路径在 $HOME 下 → 展示完整绝对路径（不折叠成 ~，与 CLI 分支一致）。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" "$HOME/minus/竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "选择 \`~/minus/竞品分析_SKILL\`"; then
-    pass "generate-next-steps: \$HOME 下真实路径 → 折叠成 ~"
+  if echo "$OUTPUT" | grep -q "选择 \`$HOME/minus/竞品分析_SKILL\`" \
+     && ! echo "$OUTPUT" | grep -q "选择 \`~/minus"; then
+    pass "generate-next-steps: \$HOME 下真实路径 → 完整绝对路径，不折叠 ~"
   else
-    fail "generate-next-steps: ~ 折叠" "got: $OUTPUT"
+    fail "generate-next-steps: 完整路径不折叠" "got: $OUTPUT"
   fi
 )
 
@@ -1372,7 +1373,8 @@ GNS="$LIB_DIR/generate-next-steps.sh"
   if echo "$OUTPUT" | grep -q "项目已创建" \
      && echo "$OUTPUT" | grep -q "https://i.postimg.cc/vBBxtGWW/start.png" \
      && echo "$OUTPUT" | grep -q "https://i.postimg.cc/sxrZtqqq/guide.png" \
-     && echo "$OUTPUT" | grep -q "~/minus/竞品分析_SKILL" \
+     && echo "$OUTPUT" | grep -q "$HOME/minus/竞品分析_SKILL" \
+     && ! echo "$OUTPUT" | grep -q "~/minus/竞品分析_SKILL" \
      && [ "$(echo "$OUTPUT" | grep -c "点击下图可查看操作示意")" -eq 2 ] \
      && ! echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude"; then
     pass "generate-next-steps: desktop → 文案 + 两张截图外链 + 两处备注，无 cd 命令"

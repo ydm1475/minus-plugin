@@ -21,14 +21,12 @@ if [ -z "$PROJECT_NAME" ]; then
   exit 1
 fi
 
-# 展示路径：优先真实 targetDir；unix 下把 $HOME 折叠成 ~ 便于阅读，Windows 原样。
+# 展示路径：优先真实 targetDir，原样显示完整绝对路径（不折叠成 ~）。
+# 给用户完整路径，避免 ~ 简写造成歧义、与 CLI 分支的 cd 命令显示不一致。
 if [ -n "$PROJECT_PATH" ]; then
-  case "$PROJECT_PATH" in
-    "$HOME"/*) DISPLAY_PATH="~${PROJECT_PATH#"$HOME"}" ;;
-    *)         DISPLAY_PATH="$PROJECT_PATH" ;;
-  esac
+  DISPLAY_PATH="$PROJECT_PATH"
 else
-  DISPLAY_PATH="~/minus/${PROJECT_NAME}"
+  DISPLAY_PATH="$HOME/minus/${PROJECT_NAME}"
 fi
 
 # 引导截图外链（postimg：不强制下载，桌面端可预览）。
