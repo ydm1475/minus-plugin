@@ -35,7 +35,7 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate
 !`cat .minus/skill.json 2>/dev/null || echo "{}"`
 
 开发进度（如存在）：
-!`cat .claude/memory/minus-progress.md 2>/dev/null || echo "NO_PROGRESS"`
+!`cat .minus/progress.json 2>/dev/null || echo "NO_PROGRESS"`
 
 客户端类型：
 !`PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-client.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname); bash "$PLUGIN_ROOT/lib/detect-client.sh" 2>/dev/null || echo "cli"`
@@ -214,13 +214,50 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
       mkdir -p .claude
       if [ ! -f .claude/launch.json ]; then
         # 解析 pnpm 绝对路径：优先 Volta shim，其次 PATH 上的 pnpm，最后兜底裸 pnpm
+        # Windows 的 Volta 家目录是 %LOCALAPPDATA%\Volta（不是 $HOME/.volta），
+        # 且 winget 把可执行文件装在 %ProgramFiles%\Volta\，两个位置都要查
         PNPM_BIN=""
-        if [ -x "${VOLTA_HOME:-$HOME/.volta}/bin/pnpm" ]; then
-          PNPM_BIN="${VOLTA_HOME:-$HOME/.volta}/bin/pnpm"
-        elif command -v pnpm >/dev/null 2>&1; then
-          PNPM_BIN="$(command -v pnpm)"
-        else
-          PNPM_BIN="pnpm"
+        case "$(uname -s 2>/dev/null)" in
+          MINGW*|MSYS*|CYGWIN*)
+            # 把环境变量里的反斜杠统一成正斜杠，再查 Volta 两个落地目录
+            _VOLTA_LOCAL="$(echo "${LOCALAPPDATA:-${USERPROFILE:-$HOME}/AppData/Local}" | tr '\\' '/')/Volta"
+            _VOLTA_PF="$(echo "${ProgramFiles:-${PROGRAMFILES:-C:/Program Files}}" | tr '\\' '/')/Volta"
+            if [ -x "$_VOLTA_LOCAL/bin/pnpm" ]; then
+              PNPM_BIN="$_VOLTA_LOCAL/bin/pnpm"
+            elif [ -x "$_VOLTA_PF/pnpm.exe" ]; then
+              PNPM_BIN="$_VOLTA_PF/pnpm.exe"
+            elif [ -x "$_VOLTA_PF/pnpm" ]; then
+              PNPM_BIN="$_VOLTA_PF/pnpm"
+            fi
+            # MSYS 路径 /c/... → C:/...（正斜杠，Node spawn 认且 JSON 不用转义）
+            if [ -n "$PNPM_BIN" ]; then
+              case "$PNPM_BIN" in
+                /[a-zA-Z]/*) PNPM_BIN="$(echo "$PNPM_BIN" | sed 's#^/\(.\)#\U\1:#')" ;;
+              esac
+              case "$PNPM_BIN" in *.exe|*.cmd) ;; *) PNPM_BIN="${PNPM_BIN}.exe" ;; esac
+            fi
+            ;;
+          *)
+            if [ -x "${VOLTA_HOME:-$HOME/.volta}/bin/pnpm" ]; then
+              PNPM_BIN="${VOLTA_HOME:-$HOME/.volta}/bin/pnpm"
+            fi
+            ;;
+        esac
+        if [ -z "$PNPM_BIN" ]; then
+          if command -v pnpm >/dev/null 2>&1; then
+            PNPM_BIN="$(command -v pnpm)"
+            # Windows: command -v 返回 MSYS 格式 /c/...，转成 C:/...
+            case "$(uname -s 2>/dev/null)" in
+              MINGW*|MSYS*|CYGWIN*)
+                case "$PNPM_BIN" in
+                  /[a-zA-Z]/*) PNPM_BIN="$(echo "$PNPM_BIN" | sed 's#^/\(.\)#\U\1:#')" ;;
+                esac
+                case "$PNPM_BIN" in *.exe|*.cmd) ;; *) PNPM_BIN="${PNPM_BIN}.exe" ;; esac
+                ;;
+            esac
+          else
+            PNPM_BIN="pnpm"
+          fi
         fi
         cat > .claude/launch.json <<EOF
       {
@@ -241,15 +278,15 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
       ```
 
    3. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
-   4. 检测预览端口（预览已由 `preview_start` 打开，这里只取端口，用 `AUTO_OPEN=0` 禁止重复打开）：
+   4. 从 `preview_start` 的返回结果中提取实际端口（`port` 字段）。`autoPort: true` 时实际端口可能与 launch.json 配置的 5173 不同，**必须以返回值为准**。如果返回结果中没有端口，才用 `detect-preview-port.sh` 兜底：
       ```bash
       PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
       PREVIEW_PORT=$(AUTO_OPEN=0 bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null | head -1)
       echo "PREVIEW_PORT=${PREVIEW_PORT}"
       ```
-   5. 按检测结果原样输出（不改写）：
-      - 检测到端口（非 `DETECT_FAILED`）→「预览已在右侧面板打开（http://localhost:{port}）。」
-      - 检测失败 →「预览已在右侧面板打开。」
+   5. 按端口输出（不改写）：
+      - 拿到端口 →「预览已在右侧面板打开（http://localhost:{port}）。」
+      - 没拿到端口 →「预览已在右侧面板打开。」
 
    **分支 B：CLI 或 Claude_Preview 不可用**
 
@@ -311,7 +348,7 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
    然后原样输出「第一步：确定输入」章节中定义的首次提问话术（三行，不改写不省略）。
 
 **非首次进入 — 根据状态给针对性提示：**
-通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② Memory 中的开发进度。
+通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② `.minus/progress.json` 中的开发进度。
 
 状态 A — 开发中（有未完成进度）：
 
@@ -338,7 +375,18 @@ bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__
 可以考虑发布了。输入 /minus publish 开始校验和打包。
 ```
 
-状态 D — 无进度（刚创建的项目）：
+状态 D — 结构设计进行中（progress.json 存在且 phase 为 designing）：
+
+根据 `designStage` 恢复到对应位置：
+- `input_done` → 输入定义已完成，直接进入「第二步：拆解步骤」，原样输出拆解步骤的提问话术
+- 无 `designStage` 或文件不存在 → 从头开始结构设计
+
+```
+当前项目：{名称} v{版本}
+上次已完成输入定义，接下来拆解步骤。
+```
+
+状态 E — 无进度（刚创建的项目，progress.json 不存在或为空）：
 
 ```
 ✓ Minus 已就绪 — {名称} v{版本}
@@ -375,7 +423,10 @@ Creator 回答后，先确认输入类型（ASIN/关键词/文件等）和数量
 ⛔ 禁止跳过此步，不管什么输入类型都必须问。
 
 **③ 输出确认：**
-提示语确认后才输出"✓ 输入定义确认"。
+提示语确认后才输出"✓ 输入定义确认"，然后立即写入进度文件：
+```bash
+printf '{"currentStep":0,"steps":{},"phase":"designing","designStage":"input_done","updatedAt":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .minus/progress.json
+```
 
 **首次提问必须原样输出以下内容（不改写、不省略、不合并，任何需要问这个问题的场景都用这段话）：**
 
@@ -506,6 +557,19 @@ bash "$PLUGIN_ROOT/lib/generate-steps.sh" --append "新步骤名称"
 
 此模式只在已有代码后面追加新步骤骨架，不会覆盖已实现的步骤代码。同时更新 `.minus/total-steps` 和 `main.tsx` 的 `buildSteps`。
 
+**结构设计完成后，保存进度到 `.minus/progress.json`：**
+```json
+{
+  "currentStep": 1,
+  "steps": {
+    "1": { "name": "步骤1名称", "status": "pending" },
+    "2": { "name": "步骤2名称", "status": "pending" }
+  },
+  "phase": "developing",
+  "updatedAt": "ISO8601 时间戳"
+}
+```
+
 ⛔ 禁止：对已有步骤的项目使用不带 `--append` 的 `generate-steps.sh`，这会覆盖所有已实现的代码。
 ⛔ 禁止：手写 pipeline.py 和 main.tsx 的步骤结构。必须用 generate-steps.sh 生成骨架，只在骨架基础上填充逻辑。
 
@@ -515,10 +579,9 @@ bash "$PLUGIN_ROOT/lib/generate-steps.sh" --append "新步骤名称"
 
 Plugin 引导 Creator 按顺序开发每个 pipeline 节点。
 
-**调用方式：** 进入节点开发前，用 Read 工具读取插件根目录下的 `agents/node-dev.md`（完整路径：`{PLUGIN_ROOT}/agents/node-dev.md`，PLUGIN_ROOT 见上方动态检测结果），然后**在当前对话中**严格按其中定义的四维度流程执行。
-⛔ 禁止启动子 agent（Agent 工具），因为子 agent 无法与 Creator 多轮对话。
+**调用方式：** 进入节点开发前，用 Read 工具读取插件根目录下的 `lib/node-dev.md`（完整路径：`{PLUGIN_ROOT}/lib/node-dev.md`，PLUGIN_ROOT 见上方动态检测结果），然后**在当前对话中**严格按其中定义的四维度流程执行。
 
-**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，保存进度到 Memory，进入下一个节点。
+**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，更新 `.minus/progress.json`（当前步骤标记 completed，下一步标记 in_progress，更新 currentStep 和 updatedAt），进入下一个节点。
 
 ## 结果呈现设计（Step 4.3）
 

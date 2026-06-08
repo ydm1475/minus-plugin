@@ -11,10 +11,10 @@
 //
 // 文案口径与 build.mjs banner 一致：以「建议 Node 24」为主，18 仅技术兜底（global fetch 需 18）。
 
-const { spawnSync } = require("node:child_process");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
+const { spawnSync } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 const DIR = __dirname;
 const BUNDLE = path.join(DIR, "dist", "minus-platform.cjs");

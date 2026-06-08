@@ -1,31 +1,35 @@
 #!/bin/bash
 # progress-saver.sh
-# 将当前开发状态写入 Claude Code Memory
+# 将当前开发状态写入 .minus/progress.json
 
 MINUS_JSON=".minus/skill.json"
-MEMORY_DIR=".claude/memory"
-PROGRESS_FILE="$MEMORY_DIR/minus-progress.md"
+PROGRESS_FILE=".minus/progress.json"
 
 if [ ! -f "$MINUS_JSON" ]; then
   echo "错误：未找到 .minus/skill.json，不在 Minus Skill 项目目录中" >&2
   exit 1
 fi
 
-mkdir -p "$MEMORY_DIR" 2>/dev/null
+TIMESTAMP=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-SKILL_ID=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$MINUS_JSON','utf8')).skillId||'unknown')}catch(e){console.log('unknown')}" 2>/dev/null)
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
-
-cat > "$PROGRESS_FILE" << EOF
-# Minus 开发进度
-
-## 项目：$SKILL_ID
-- 更新时间：$TIMESTAMP
-- 自动保存（由 Plugin 在 session 切换时生成）
-
-## 说明
-此文件由 Plugin 自动生成，记录开发进度以便在新 session 中恢复。
-具体的步骤状态请通过平台 API 查询。
+if [ -f "$PROGRESS_FILE" ]; then
+  # 更新 updatedAt
+  node -e "
+    const fs = require('fs');
+    const p = JSON.parse(fs.readFileSync('$PROGRESS_FILE','utf8'));
+    p.updatedAt = '$TIMESTAMP';
+    fs.writeFileSync('$PROGRESS_FILE', JSON.stringify(p, null, 2) + '\n');
+  " 2>/dev/null
+else
+  # 初始化空进度
+  cat > "$PROGRESS_FILE" << EOF
+{
+  "currentStep": 0,
+  "steps": {},
+  "phase": "designing",
+  "updatedAt": "$TIMESTAMP"
+}
 EOF
+fi
 
 echo "进度已保存到 $PROGRESS_FILE"

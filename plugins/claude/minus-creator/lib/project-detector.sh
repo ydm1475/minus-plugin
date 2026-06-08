@@ -59,14 +59,29 @@ fi
 # ── 检测项目列表 ──
 PROJECTS_JSON="$MINUS_GLOBAL/projects.json"
 PROJECT_COUNT=0
-if [ -f "$PROJECTS_JSON" ]; then
+if [ -f "$PROJECTS_JSON" ] || [ -d "$HOME/minus" ]; then
+  [ ! -f "$PROJECTS_JSON" ] && mkdir -p "$(dirname "$PROJECTS_JSON")" && echo '{"projects":[]}' > "$PROJECTS_JSON"
   PROJECT_COUNT=$(node -e "
-    const fs=require('fs');
+    const fs=require('fs'),path=require('path'),os=require('os');
     try{
       const d=JSON.parse(fs.readFileSync('$PROJECTS_JSON','utf8'));
       const before=(d.projects||[]).length;
       d.projects=(d.projects||[]).filter(p=>fs.existsSync(p.path));
-      if(d.projects.length<before) fs.writeFileSync('$PROJECTS_JSON',JSON.stringify(d,null,2));
+      if(!d.projects.length){
+        const scanRoot=path.join(os.homedir(),'minus');
+        try{
+          for(const name of fs.readdirSync(scanRoot)){
+            const pp=path.join(scanRoot,name);
+            const sj=path.join(pp,'.minus','skill.json');
+            if(!fs.statSync(pp).isDirectory())continue;
+            if(!fs.existsSync(sj))continue;
+            if(d.projects.some(p=>p.path===pp))continue;
+            const st=fs.statSync(sj);
+            d.projects.push({name,path:pp,created_at:st.birthtime.toISOString(),last_opened:st.mtime.toISOString()});
+          }
+        }catch{}
+      }
+      if(d.projects.length!==before)fs.writeFileSync('$PROJECTS_JSON',JSON.stringify(d,null,2));
       console.log(d.projects.length);
     }catch{console.log(0)}
   " 2>/dev/null)

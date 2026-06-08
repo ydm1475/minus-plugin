@@ -29,11 +29,26 @@ case "$1" in
   list)
     ensure_file
     node -e "
-      const fs = require('fs');
+      const fs = require('fs'), path = require('path'), os = require('os');
       const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
       const before = (d.projects||[]).length;
       d.projects = (d.projects||[]).filter(p => fs.existsSync(p.path));
-      if (d.projects.length < before) {
+      // 兜底：projects.json 为空时扫描 ~/minus/*/.minus/skill.json 重建
+      if (!d.projects.length) {
+        const scanRoot = path.join(os.homedir(), 'minus');
+        try {
+          for (const name of fs.readdirSync(scanRoot)) {
+            const projPath = path.join(scanRoot, name);
+            const skillJson = path.join(projPath, '.minus', 'skill.json');
+            if (!fs.statSync(projPath).isDirectory()) continue;
+            if (!fs.existsSync(skillJson)) continue;
+            if (d.projects.some(p => p.path === projPath)) continue;
+            const stat = fs.statSync(skillJson);
+            d.projects.push({ name, path: projPath, created_at: stat.birthtime.toISOString(), last_opened: stat.mtime.toISOString() });
+          }
+        } catch {}
+      }
+      if (d.projects.length !== before) {
         fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2));
       }
       const sorted = d.projects.sort((a,b) => (b.last_opened||'').localeCompare(a.last_opened||''));
