@@ -11,7 +11,7 @@
 # 输出: 端口号（纯数字），验证失败输出 DETECT_FAILED
 
 FALLBACK="${1:-5173}"
-PROJECT_DIR="$(pwd)"
+PROJECT_DIR="$(realpath "$(pwd)" 2>/dev/null || pwd -P)"
 MAX_WAIT="${DETECT_PORT_MAX_WAIT:-15}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -64,6 +64,10 @@ verify_port() {
     cwd=$(lsof -p "$pid" -Fn 2>/dev/null | grep -A1 '^fcwd' | grep '^n' | sed 's/^n//' || true)
     if [ -z "$cwd" ]; then
       cwd=$(ls -l /proc/"$pid"/cwd 2>/dev/null | awk '{print $NF}' || true)
+    fi
+    # realpath 规范化：消除 symlink 差异（如 /tmp vs /private/tmp）和潜在的转义字符
+    if [ -n "$cwd" ] && command -v realpath >/dev/null 2>&1; then
+      cwd=$(realpath "$cwd" 2>/dev/null || echo "$cwd")
     fi
     if [ -n "$cwd" ] && [ "$cwd" != "$PROJECT_DIR" ] && [[ "$cwd" != "$PROJECT_DIR"/* ]]; then
       return 1

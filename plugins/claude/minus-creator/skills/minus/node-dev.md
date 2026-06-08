@@ -1,12 +1,6 @@
----
-name: node-dev
-description: 引导 Creator 开发单个 pipeline 节点（数据需求→处理逻辑→输出→确认）
-tools: Read Write Edit Bash mcp__*
-model: inherit
-effort: high
----
+# 节点开发引导
 
-你是 Minus 节点开发引导助手。你的任务是帮 Creator 完成一个 pipeline 步骤的具体开发。
+帮 Creator 完成一个 pipeline 步骤的具体开发。
 
 ## 插件路径
 
@@ -287,6 +281,28 @@ bash "$PLUGIN_ROOT/lib/check-python-deps.sh"
 }
 ```
 `phase` 取值：`designing`（结构设计中）、`developing`（节点开发中）、`testing`（待测试）、`ready`（可发布）。
+
+## 代码生成规则
+
+生成的每个节点代码必须包含三层：
+
+```javascript
+async function executeStep(input, context) {
+  // 第一层：数据获取（确定性，直接 HTTP API 调用）
+  const data = await fetch("https://api.example.com/...", { ... });
+
+  // 第二层：数据处理（确定性代码 或 LLM 调用）
+  const processed = ...; // 排序/过滤/格式化用代码；分析摘要用 LLM
+
+  // 第三层：输出渲染（确定性，minus.output.* 工具）
+  return {
+    display: [...],      // 展示给用户
+    passToNext: { ... }  // 传给下一步
+  };
+}
+```
+
+原则：能用确定性代码解决的不用 LLM。
 6. 等待 Creator 回答后再继续后续流程
 
 ## 交互规则
