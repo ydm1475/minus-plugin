@@ -18,6 +18,12 @@ MODE="${1:-full}"
 export VOLTA_FEATURE_PNPM=1
 VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"
 
+# 确保 Volta bin 在 PATH 最前面：pnpm 的子进程（concurrently、vite 等）
+# 需要通过 PATH 找到正确版本的 node，否则会被系统旧 node 抢先。
+if [ -d "$VOLTA_HOME/bin" ] && [[ ":$PATH:" != *":$VOLTA_HOME/bin:"* ]]; then
+  export PATH="$VOLTA_HOME/bin:$PATH"
+fi
+
 # 解析 pnpm：优先 Volta shim，其次 PATH 上的 pnpm，最后兜底裸 pnpm。
 if [ -x "$VOLTA_HOME/bin/pnpm" ]; then
   PNPM_CMD="$VOLTA_HOME/bin/pnpm"
