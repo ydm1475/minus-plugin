@@ -65,7 +65,11 @@ verify_port() {
     if [ -z "$cwd" ]; then
       cwd=$(ls -l /proc/"$pid"/cwd 2>/dev/null | awk '{print $NF}' || true)
     fi
-    # realpath 规范化：消除 symlink 差异（如 /tmp vs /private/tmp）和潜在的转义字符
+    # lsof 在 macOS 上会将非 ASCII 字符转义为 \xHH 序列（如中文路径"美美桑"→"\xe7\xbe\x8e..."），
+    # 导致与实际 UTF-8 路径比较永远失败。用 printf 还原转义序列。
+    if [ -n "$cwd" ] && [[ "$cwd" == *'\'* ]]; then
+      cwd=$(printf '%b' "$cwd" 2>/dev/null || echo "$cwd")
+    fi
     if [ -n "$cwd" ] && command -v realpath >/dev/null 2>&1; then
       cwd=$(realpath "$cwd" 2>/dev/null || echo "$cwd")
     fi
