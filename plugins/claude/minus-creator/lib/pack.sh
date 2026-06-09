@@ -14,17 +14,17 @@ OUT_DIR="${1:-$HOME/Desktop}"
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-# 0. 解析一个 >=18 的 node（build.mjs 是 ESM，老 node 跑不了）。
+# 0. 解析一个 >=20 的 node（build.mjs 是 ESM，老 node 跑不了）。
 # 终端 PATH 上可能是被遮挡的老 node（实测 /usr/local/bin/node v13），优先用它，
 # 不够新则回退 Volta shim。
 node_major_of() { "$1" -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0; }
 NODE_BIN="node"
-if [ "$(node_major_of node)" -lt 18 ] 2>/dev/null; then
+if [ "$(node_major_of node)" -lt 20 ] 2>/dev/null; then
   VOLTA_NODE="${VOLTA_HOME:-$HOME/.volta}/bin/node"
-  if [ -x "$VOLTA_NODE" ] && [ "$(node_major_of "$VOLTA_NODE")" -ge 18 ] 2>/dev/null; then
+  if [ -x "$VOLTA_NODE" ] && [ "$(node_major_of "$VOLTA_NODE")" -ge 20 ] 2>/dev/null; then
     NODE_BIN="$VOLTA_NODE"
   else
-    echo "❌ 未找到 Node >=18（build.mjs 需要）。当前 node $(node -v 2>/dev/null || echo 缺失)。请安装 Node 24（推荐 https://volta.sh）。"
+    echo "❌ 未找到 Node >=20（build.mjs 需要）。当前 node $(node -v 2>/dev/null || echo 缺失)。请安装 Node 24（推荐 https://volta.sh）。"
     exit 1
   fi
 fi

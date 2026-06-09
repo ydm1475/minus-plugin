@@ -18,6 +18,7 @@ Creator 回答后，先确认输入类型（ASIN/关键词/文件等）和数量
 
 **③ 输出确认：**
 提示语确认后才输出"✓ 输入定义确认"，然后立即写入进度文件：
+
 ```bash
 printf '{"currentStep":0,"steps":{},"phase":"designing","designStage":"input_done","updatedAt":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .minus/progress.json
 ```
@@ -152,6 +153,7 @@ bash "$PLUGIN_ROOT/lib/generate-steps.sh" --append "新步骤名称"
 此模式只在已有代码后面追加新步骤骨架，不会覆盖已实现的步骤代码。同时更新 `.minus/total-steps` 和 `main.tsx` 的 `buildSteps`。
 
 **结构设计完成后，保存进度到 `.minus/progress.json`：**
+
 ```json
 {
   "currentStep": 1,
@@ -166,3 +168,9 @@ bash "$PLUGIN_ROOT/lib/generate-steps.sh" --append "新步骤名称"
 
 ⛔ 禁止：对已有步骤的项目使用不带 `--append` 的 `generate-steps.sh`，这会覆盖所有已实现的代码。
 ⛔ 禁止：手写 pipeline.py 和 main.tsx 的步骤结构。必须用 generate-steps.sh 生成骨架，只在骨架基础上填充逻辑。
+
+## 结构设计完成后
+
+保存进度后，**立即** Read [node-dev.md](node-dev.md)，从步骤 1 开始逐节点开发。
+
+⛔ **硬性规则：禁止不加载 node-dev.md 就直接编辑 pipeline.py 或 main.tsx 的步骤代码。** node-dev.md 包含数据接口发现（通过 MCP 查找 API）、处理逻辑选型、输出设计等关键流程，跳过它会导致 Agent 自己猜接口而非用正确的数据源。

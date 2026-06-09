@@ -1,7 +1,7 @@
 {
   "name": "minus-creator",
   "description": "Minus Skill 开发平台 — 帮助 Creator 构建、测试和发布 Skill",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "author": {
     "name": "Minus Team",
     "url": "https://minusai.com"

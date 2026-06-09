@@ -1,7 +1,7 @@
 #!/bin/sh
 # resolve-node.sh
 #
-# 打印一个主版本 >=18 的 node 可执行文件绝对路径（找到 → stdout + exit 0；
+# 打印一个主版本 >= NODE_RUNTIME_FLOOR（默认 20）的 node 可执行文件绝对路径（找到 → stdout + exit 0；
 # 找不到 → 无输出 + exit 1）。
 #
 # 为什么需要：客户端/终端 PATH 上常有老 node 排在前面（实测 /usr/local/bin/node
@@ -17,7 +17,7 @@
 # 兜底是为这个「客户端 spawn 时跑、环境未知」的脚本兜底，不靠它常态生效。
 RN_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ -f "$RN_DIR/toolchain.sh" ] && . "$RN_DIR/toolchain.sh"
-MIN_MAJOR="${NODE_RUNTIME_FLOOR:-18}"
+MIN_MAJOR="${NODE_RUNTIME_FLOOR:-20}"
 
 node_major() {
   "$1" -p "process.versions.node.split('.')[0]" 2>/dev/null

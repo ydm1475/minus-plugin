@@ -28,7 +28,9 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/step-tra
 **不要问 Creator "数据从哪来"或"用什么接口"。** 自己查 MCP 找到相关接口，直接列给 Creator 确认。
 
 **数据接口发现流程（进入维度①时立即执行，不要先问 Creator）：**
-1. 读取 `.mcp.json`，找到数据服务商 MCP 服务（排除 `minus-platform`）
+
+0. 先确认当前步骤的**用户输入是什么**。读 `frontend/src/main.tsx` 和 `frontend/src/locales/zh-CN.json`，找到 Home 组件的输入表单（placeholder、字段名、onStart 传参），确认用户实际输入的是什么（关键词？ASIN？类目 ID？）。后续搜索接口时以此为依据，**不要从 Skill 名称或步骤名自行推断输入类型**。
+1. 调用 `ToolSearch("mcp__")` 发现当前会话中可用的 MCP 工具（这些工具来自插件 `.mcp.json` 中配置的 MCP 服务，会话启动时已自动注册）。排除 `mcp__plugin_minus-creator_minus-platform__` 开头的（那是平台管理工具），剩下的就是数据服务商的工具。⛔ 不要直接读 `.mcp.json`——里面只有启动配置，没有工具列表和参数 schema，必须通过 ToolSearch 获取
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
 3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**。不要只看第一个结果就决定
 4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），Creator 确认后标记完成

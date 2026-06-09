@@ -45,7 +45,7 @@ echo -e "${GREEN}✓${NC} 检测到 Claude Code: $(claude --version 2>/dev/null 
 #    若装了新 node 但 skill_update 仍连不上，需把客户端 PATH 上的旧 node（如
 #    /usr/local/bin/node）也替换/升级掉——那是系统层操作，不在本脚本范围。
 source "$SCRIPT_DIR/lib/bootstrap-env.sh"
-NODE_MIN=18  # 技术硬下限：MCP server 用到 global fetch，需 Node 18；但对外一律建议 24
+NODE_MIN=20  # 技术硬下限：mcp-remote 依赖 undici File API，需 Node 20+；对外建议 24
 
 node_major() {
   command -v node >/dev/null 2>&1 || { echo ""; return; }
@@ -140,7 +140,7 @@ if [ -z "$INSTALL_PATH" ] || [ ! -f "$MCP_DIR/dist/minus-platform.cjs" ]; then
   echo "❌ 未找到 MCP Server 产物 dist/minus-platform.cjs（installPath=[$INSTALL_PATH]）。MCP 是必需项，安装中止。"
   exit 1
 fi
-# launcher：.mcp.json 的 command:"node" 实际跑它（按已知位置探测 >=18 node 再跑 bundle，
+# launcher：.mcp.json 的 command:"node" 实际跑它（按已知位置探测 >=20 node 再跑 bundle，
 # 绕开「客户端 spawn 的 node 被老 node 遮挡」问题，跨平台）。缺它 MCP 起不来。
 if [ ! -f "$MCP_DIR/launch.cjs" ]; then
   echo "❌ 未找到 MCP launcher（$MCP_DIR/launch.cjs）。MCP 是必需项，安装中止。"

@@ -9,7 +9,7 @@
 // 按已知位置主动探测一个 >=floor 的 node 来跑 bundle，不依赖 PATH 顺序。node 是 Win/Mac
 // 唯一都保证有的运行时（Claude Code 本身是 node 应用）。
 //
-// 文案口径与 build.mjs banner 一致：以「建议 Node 24」为主，18 仅技术兜底（global fetch 需 18）。
+// 文案口径与 build.mjs banner 一致：以「建议 Node 24」为主，20 为技术下限（mcp-remote 需 File API）。
 
 const { spawnSync } = require("child_process");
 const fs = require("fs");
@@ -23,7 +23,7 @@ const BUNDLE = path.join(DIR, "dist", "minus-platform.cjs");
 // 用正则读 KEY=value（toolchain.sh 是可 source 的 shell，node 侧一行正则消费，与 build.mjs 同法）。
 // 找不到则兜底——本脚本在客户端 spawn 时跑、环境未知，兜底保证不致崩。
 function readToolchain() {
-  const out = { MIN_MAJOR: 18, NODE_RECO: 24 };
+  const out = { MIN_MAJOR: 20, NODE_RECO: 24 };
   try {
     const txt = fs.readFileSync(path.join(DIR, "..", "..", "lib", "toolchain.sh"), "utf8");
     const floor = txt.match(/^\s*NODE_RUNTIME_FLOOR\s*=\s*(\d+)/m);

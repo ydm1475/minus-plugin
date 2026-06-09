@@ -43,7 +43,7 @@ find "$CLAUDE_DIR/plugins/cache" -path "*/mcp-servers/minus-platform/index.js" -
     mkdir -p "$CACHE_DIR/dist"
     cp "$MCP_SRC/dist/minus-platform.cjs" "$CACHE_DIR/dist/minus-platform.cjs"
   fi
-  # launcher —— .mcp.json 的 command:"node" 实际跑的是它（跨平台，探测 >=18 node 再跑 bundle）
+  # launcher —— .mcp.json 的 command:"node" 实际跑的是它（跨平台，探测 >=20 node 再跑 bundle）
   if [ -f "$MCP_SRC/launch.cjs" ]; then
     cp "$MCP_SRC/launch.cjs" "$CACHE_DIR/launch.cjs"
   fi
@@ -77,6 +77,15 @@ find "$CLAUDE_DIR/plugins/cache" -path "*/minus-creator/*/lib" -type d -not -pat
   cp "$PLUGIN_SRC"/lib/*.sh "$LIB_CACHE/"
   echo "  ✓ plugin cache: $PLUGIN_CACHE"
 done
+
+# Marketplace 目录 — Claude Code 可能从这里加载插件而非 plugins/cache
+MARKETPLACE_DIR="$CLAUDE_DIR/minus-creator-marketplace/minus-creator"
+if [ -d "$MARKETPLACE_DIR" ]; then
+  rsync -a --delete --exclude=node_modules --exclude=.git "$PLUGIN_SRC/" "$MARKETPLACE_DIR/"
+  echo "  ✓ marketplace: $MARKETPLACE_DIR"
+else
+  echo "  ⚠ marketplace 目录不存在，跳过: $MARKETPLACE_DIR"
+fi
 
 echo ""
 echo "同步完成。重启 Claude Code 生效。"

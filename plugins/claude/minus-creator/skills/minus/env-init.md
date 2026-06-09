@@ -168,6 +168,32 @@ bash "$PLUGIN_ROOT/lib/check-dev-server.sh"
 ```
 → Read [structure-design.md](structure-design.md)，从第一步开始
 
+## 8. 逐节点开发规则
+
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先 Read [node-dev.md](node-dev.md) 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
+
+**调用方式：** 进入节点开发前，用 Read 工具读取同目录下的 [node-dev.md](node-dev.md)，然后**在当前对话中**严格按其中定义的四维度流程执行。
+
+**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，更新 `.minus/progress.json`（当前步骤标记 completed，下一步标记 in_progress，更新 currentStep 和 updatedAt），进入下一个节点。
+
+## 9. 结果呈现设计
+
+**所有 pipeline 节点开发完成后**，执行 `generate-result-design.sh` 进入结果呈现设计。
+
+```bash
+bash "$PLUGIN_ROOT/lib/generate-result-design.sh"
+```
+
+脚本会：
+1. 门禁检查——所有步骤四维度必须全部完成，否则拒绝执行
+2. 从 pipeline.py 提取各步骤的 payload 数据全景
+3. 输出两维度引导模板（结果摘要 + 下载内容）
+
+⛔ 禁止跳过脚本直接引导 Creator，门禁检查是硬性的。
+⛔ 最后一步的 `generate-node-code.sh` 会提示调用此脚本，不要忽略。
+
+---
+
 **特殊情况 — Creator 要求创建新项目：**
 ```
 当前目录已经是「{当前项目名}」的项目了。要创建新 Skill 请：
