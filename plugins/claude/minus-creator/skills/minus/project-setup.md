@@ -26,7 +26,7 @@ Plugin: 你有这些本地项目：
 **Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
 
 ⚠️ **不要裸调 `create-skill`，不要内联安装逻辑。** 创建项目的执行逻辑单源在
-`lib/run-create-skill.sh`：脚本会先经 `lib/resolve-node.sh` 解析一个 ≥18 的 node，
+`lib/run-create-skill.sh`：脚本会先经 `lib/resolve-node.sh` 解析一个 ≥20 的 node，
 把 node/npm/Volta 路径处理好，再把 `@minus-ai/create-skill@beta` 对齐到官方当前版本
 并执行 `create-skill`。测试预发布包时可通过环境变量 `MINUS_CREATE_SKILL_SPEC`
 覆盖包 spec；默认值永远是 `@minus-ai/create-skill@beta`，不要在指令里写死测试 tag。
@@ -37,7 +37,7 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/run-crea
 bash "$PLUGIN_ROOT/lib/run-create-skill.sh" "项目名称"
 ```
 
-- 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥18，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
+- 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥20，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
 - 输出 `CREATE_SKILL_INSTALL_FAILED` → 自动安装失败（通常是网络或全局目录权限），提示 Creator 手动安装 `@minus-ai/create-skill@beta`（见下方命令）后重跑 `/minus`，并终止。
 - 输出 `NODE24_PROVISION_FAILED` → 脚本自动用 Volta 准备 Node 24 失败。脚本会在该标记后**按现场打印**真实错误（`原因：…`）和可操作指引（`提示：…`，已区分「Volta 已装/未装」「Windows/mac/Linux」）。把脚本输出里的 `原因：` 和 `提示：` 两行**原样转达**给 Creator 后终止，不要自己改写或套用固定文案。⛔ **不要自己用 brew / nvm / 其它方式装 Node**——准备 Node 的唯一途径是脚本里的 Volta，绕开它只会制造版本不一致。
 - ⛔ 禁止：调用 `skill_create` MCP tool 来注册 Skill
