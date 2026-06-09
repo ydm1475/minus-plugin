@@ -73,7 +73,7 @@ verify_port() {
       return 1
     fi
   fi
-  curl -s -o /dev/null -w '' --max-time 2 "http://localhost:$port/" 2>/dev/null
+  curl -s -o /dev/null --max-time 2 "http://localhost:$port/" 2>/dev/null
 }
 
 # 方法 1：从 SDK 的 dev-ports.json 读取（带轮询等待）

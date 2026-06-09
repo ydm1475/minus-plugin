@@ -11,10 +11,14 @@ if [ ! -d "$REFERENCES_DIR" ]; then
   exit 0
 fi
 
+file_hash() {
+  md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | cut -d' ' -f1
+}
+
 # Build current state: "hash  relative_path" per file
 current_state=$(find "$REFERENCES_DIR" -type f -not -name '.DS_Store' | sort | while IFS= read -r f; do
   rel="${f#$REPO_ROOT/}"
-  hash=$(md5 -q "$f" 2>/dev/null)
+  hash=$(file_hash "$f")
   echo "$hash  $rel"
 done)
 
