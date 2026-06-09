@@ -37,11 +37,11 @@ echo "→ 重建 MCP bundle（$("$NODE_BIN" -v)）..."
 VER="$("$NODE_BIN" -e "console.log(require('$PLUGIN_DIR/.claude-plugin/plugin.json').version)")"
 OUT="$OUT_DIR/minus-creator-v${VER}.zip"
 
-# 3. 打包 marketplace 根目录（排除 node_modules / .DS_Store / .git）
+# 3. 打包插件目录（以 minus-creator/ 为根，Claude Code 要求 .claude-plugin/plugin.json 在顶层子目录下）
 echo "→ 打包 $OUT ..."
 rm -f "$OUT"
-( cd "$(dirname "$MARKETPLACE_DIR")" \
-  && zip -rq "$OUT" "$(basename "$MARKETPLACE_DIR")" \
+( cd "$(dirname "$PLUGIN_DIR")" \
+  && zip -rq "$OUT" "$(basename "$PLUGIN_DIR")" \
        -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" )
 
 # 4. 校验：bundle 进包了、node_modules 没进包

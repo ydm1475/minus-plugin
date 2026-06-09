@@ -7,7 +7,7 @@
     }
   },
   "sif-api-mcp": {
-    "command": "node",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/lib/launch-mcp-remote.cjs", "-y", "mcp-remote", "https://prism.sif.com/mcp-server/api-docs"]
+    "type": "http",
+    "url": "https://prism.sif.com/mcp-server/api-docs"
   }
 }

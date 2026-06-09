@@ -1,14 +1,14 @@
 (function () {
   var v = (process.versions && process.versions.node) || "0";
   var major = parseInt(String(v).split(".")[0], 10) || 0;
-  if (major < 18) {
+  if (major < 20) {
     console.error(
       "[minus-platform] 建议使用 Node 24，当前 v" +
         v +
         "（" +
         process.execPath +
         "）过旧。请升级到 Node 24（最低 " +
-        18 +
+        20 +
         "）后重试。"
     );
     process.exit(1);
