@@ -1,5 +1,5 @@
 .DS_Store
 node_modules/
 *.log
-.mcp.json
 TODO.md
+.minus/

@@ -7,7 +7,8 @@ COUNTER_FILE=".minus/session-counter"
 
 case "$ACTION" in
   check)
-    mkdir -p .minus 2>/dev/null
+    # 只在 Minus 项目目录（已存在 .minus/）内计数，避免在任意 cwd 创建状态目录
+    [ -d .minus ] || exit 0
 
     # 递增对话计数器
     if [ -f "$COUNTER_FILE" ]; then

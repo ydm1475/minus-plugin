@@ -12,7 +12,7 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/lib"
 AGENTS_DIR="$PLUGIN_DIR/agents"
-NODE_DEV="$AGENTS_DIR/node-dev.md"
+NODE_DEV="$PLUGIN_DIR/skills/minus/node-dev.md"
 
 # ── Test Framework ──
 
@@ -160,7 +160,7 @@ fi
 
 # TC-R06: 维度④确认"需要确认" → 验证 node-dev.md 引导查 SDK 文档
 # 具体组件行为（如弹框默认值）由 SDK 文档定义，Plugin 不复制
-if grep -q "查.*SDK.*文档\|查项目 CLAUDE.md\|查.*开发手册" "$NODE_DEV"; then
+if grep -q "SDK 开发手册\|查.*SDK.*文档\|查.*开发手册" "$NODE_DEV"; then
   pass "node-dev.md 引导查 SDK 文档获取组件用法"
 else
   fail "node-dev.md 应引导查 SDK 文档" "包含查文档引导" "未找到"
@@ -243,10 +243,11 @@ fi
 
 # TC-R14: 验证纯展示禁止手写 HTML/JSX（BUG-5）
 # 旧对话中第 2 步用了手写 HotAsinTable，新规范应禁止
-if grep -q "禁止手写 inline HTML/JSX" "$NODE_DEV"; then
-  pass "BUG-5 修复验证：node-dev.md 禁止手写 inline HTML/JSX"
+# 规则已硬编码进 generate-node-code.sh 的 display 模板约束（只渲染已确认内容）
+if grep -q "只渲染 Creator 在输出定义阶段明确确认的展示内容" "$LIB_DIR/generate-node-code.sh"; then
+  pass "BUG-5 修复验证：display 模板约束承接禁止手写 inline HTML/JSX"
 else
-  fail "BUG-5 修复验证：应禁止手写 inline HTML/JSX" "包含禁止规则" "未找到"
+  fail "BUG-5 修复验证：应禁止手写 inline HTML/JSX" "generate-node-code.sh 缺 display 模板约束" "未找到"
 fi
 
 # TC-R15: 验证代码只在所有维度确认后一次性生成（BUG-7 + BUG-8）

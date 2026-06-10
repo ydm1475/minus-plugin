@@ -26,7 +26,7 @@ PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/lib"
 AGENTS_DIR="$PLUGIN_DIR/agents"
 SKILLS_DIR="$PLUGIN_DIR/skills"
-NODE_DEV="$AGENTS_DIR/node-dev.md"
+NODE_DEV="$SKILLS_DIR/minus/node-dev.md"
 SKILL_MD="$SKILLS_DIR/minus/SKILL.md"
 
 # ── Test Framework ──
@@ -224,16 +224,19 @@ echo "═══ Phase 4: 对话问题修复验证 ═══"
 echo ""
 echo "── S1: 纯展示表格用 display widget ──"
 
-if grep -q "禁止用 interactive widget 做纯展示" "$NODE_DEV"; then
-  pass "S1: node-dev.md 禁止用 interactive widget 做纯展示"
+# 该规则已硬编码进 generate-node-code.sh：模板按 CONFIRM_MODE 分流，
+# auto（纯展示）走普通 render 模板，结构上杜绝 interactive widget 误用
+GNC="$LIB_DIR/generate-node-code.sh"
+if grep -q 'FRONTEND_TEMPLATE=interactive' "$GNC" && grep -q '"$CONFIRM_MODE" = "auto"' "$GNC"; then
+  pass "S1: generate-node-code.sh 按 CONFIRM_MODE 分流模板（auto 不会用 interactive widget）"
 else
-  fail "S1: 应禁止用 interactive widget 做纯展示" "检查 node-dev.md 前端代码章节"
+  fail "S1: 应禁止用 interactive widget 做纯展示" "generate-node-code.sh 缺 CONFIRM_MODE 模板分流"
 fi
 
-if grep -q "auto-complete 步骤会显示空" "$NODE_DEV"; then
-  pass "S1: node-dev.md 说明了 auto-complete 显示空的原因"
+if grep -q "纯展示步骤（auto-complete）" "$GNC"; then
+  pass "S1: generate-node-code.sh 标注纯展示（auto-complete）用普通 render"
 else
-  fail "S1: 应说明 auto-complete 步骤用 interactive widget 会显示空" "检查 node-dev.md"
+  fail "S1: 应说明 auto-complete 步骤用 interactive widget 会显示空" "检查 generate-node-code.sh"
 fi
 
 # --- S2: upload_file biz_type 应查文档 ---
@@ -241,7 +244,7 @@ fi
 echo ""
 echo "── S2: 代码生成应查 SDK 文档而非凭记忆 ──"
 
-if grep -q "查项目 CLAUDE.md 里列出的 SDK 开发手册" "$NODE_DEV" || grep -q "查.*SDK.*文档\|查.*开发手册" "$NODE_DEV"; then
+if grep -q "SDK 开发手册" "$NODE_DEV" || grep -q "查.*SDK.*文档\|查.*开发手册" "$NODE_DEV"; then
   pass "S2: node-dev.md 要求查 SDK 文档获取具体用法"
 else
   fail "S2: 应要求查 SDK 文档而非凭记忆写代码" "检查 node-dev.md 前端代码章节"
@@ -259,22 +262,26 @@ fi
 echo ""
 echo "── A2: 最后一步用 CompletionPanel 统一渲染 ──"
 
-if grep -q "CompletionPanel" "$NODE_DEV"; then
-  pass "A2: node-dev.md 引用 CompletionPanel"
+# 结果页（摘要+下载）流程已硬编码进 generate-result-design.sh，
+# 组件具体行为按契约原则查 SDK 文档，Plugin 不复制
+GRD="$LIB_DIR/generate-result-design.sh"
+if grep -q "CompletionPanel" "$GRD"; then
+  pass "A2: generate-result-design.sh 引用 CompletionPanel"
 else
-  fail "A2: node-dev.md 应引用 CompletionPanel" "检查前端代码章节"
+  fail "A2: 应引用 CompletionPanel" "检查 generate-result-design.sh"
 fi
 
-if grep -q "不需要前端代码.*后端 payload" "$NODE_DEV" || grep -q "后端 payload 返回对应字段" "$NODE_DEV"; then
-  pass "A2: CompletionPanel 通过后端 payload 驱动，无需前端代码"
+if grep -q "查 SDK 文档了解 CompletionPanel 用法" "$GRD"; then
+  pass "A2: CompletionPanel 用法引导查 SDK 文档（不复制组件行为）"
 else
-  fail "A2: 应说明 CompletionPanel 通过后端 payload 驱动" "检查 node-dev.md"
+  fail "A2: 应引导查 SDK 文档获取 CompletionPanel 用法" "检查 generate-result-design.sh"
 fi
 
-if grep -q "禁止手写 inline HTML/JSX" "$NODE_DEV"; then
-  pass "A2: 禁止手写 inline HTML/JSX 实现摘要或下载"
+# 旧断言「禁止手写 inline HTML/JSX」→ 现由 display 模板约束承接
+if grep -q "只渲染 Creator 在输出定义阶段明确确认的展示内容" "$GNC"; then
+  pass "A2: display 模板约束只渲染已确认内容（承接禁止手写 inline HTML/JSX）"
 else
-  fail "A2: 应禁止手写 inline HTML/JSX" "检查 node-dev.md"
+  fail "A2: 应禁止手写 inline HTML/JSX" "generate-node-code.sh 缺 display 模板约束"
 fi
 
 # --- SDK 文档验证：CompletionPanel 文档存在 ---

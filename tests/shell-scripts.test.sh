@@ -348,12 +348,12 @@ PS_SCRIPT="$LIB_DIR/progress-saver.sh"
   mkdir -p .minus .claude/memory
   echo '{"skillId":"sk_test123"}' > .minus/skill.json
   OUTPUT=$(bash "$PS_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "已保存" && [ -f ".claude/memory/minus-progress.md" ]; then
-    CONTENT=$(cat .claude/memory/minus-progress.md)
-    if assert_contains "$CONTENT" "sk_test123"; then
-      pass "progress-saver: saves progress with skill ID"
+  if assert_contains "$OUTPUT" "已保存" && [ -f ".minus/progress.json" ]; then
+    CONTENT=$(cat .minus/progress.json)
+    if assert_contains "$CONTENT" '"phase"' && assert_contains "$CONTENT" '"updatedAt"'; then
+      pass "progress-saver: saves progress json"
     else
-      fail "progress-saver: saves progress with skill ID" "content: $CONTENT"
+      fail "progress-saver: saves progress json" "content: $CONTENT"
     fi
   else
     fail "progress-saver: saves progress" "got: $OUTPUT"
@@ -1131,26 +1131,26 @@ PY
 
 # ══════════════════════════════════════════════════════
 echo ""
-echo "═══ agent files ═══"
+echo "═══ skill reference files (原 agent files，已迁入 skills/minus) ═══"
 # ══════════════════════════════════════════════════════
 
-AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
+SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
-# Test: skill-guide.md has required frontmatter
+# Test: structure-design.md mentions skill_update
 (
-  CONTENT=$(cat "$AGENTS_DIR/skill-guide.md")
-  if assert_contains "$CONTENT" "name: skill-guide" && assert_contains "$CONTENT" "skill_update" && assert_contains "$CONTENT" "skill_update"; then
-    pass "skill-guide.md: has name, mentions skill_update"
+  CONTENT=$(cat "$SKILL_REF_DIR/structure-design.md")
+  if assert_contains "$CONTENT" "skill_update"; then
+    pass "structure-design.md: mentions skill_update"
   else
-    fail "skill-guide.md: missing required content" ""
+    fail "structure-design.md: missing required content" ""
   fi
 )
 
-# Test: node-dev.md has required frontmatter and MCP mention
+# Test: node-dev.md mentions MCP and skill_update
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
-  if assert_contains "$CONTENT" "name: node-dev" && assert_contains "$CONTENT" "MCP" && assert_contains "$CONTENT" "skill_update"; then
-    pass "node-dev.md: has name, mentions MCP and skill_update"
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  if assert_contains "$CONTENT" "MCP" && assert_contains "$CONTENT" "skill_update"; then
+    pass "node-dev.md: mentions MCP and skill_update"
   else
     fail "node-dev.md: missing required content" ""
   fi
@@ -1158,7 +1158,7 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 
 # Test: node-dev.md references pipeline.py
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
   if assert_contains "$CONTENT" "pipeline.py"; then
     pass "node-dev.md: references pipeline.py"
   else
@@ -1168,7 +1168,7 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 
 # Test: node-dev.md keeps frontend SDK usage on documented stable APIs
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
   if assert_contains "$CONTENT" "extendConfirmed" \
      && assert_contains "$CONTENT" "禁止通过遍历用户目录" \
      && assert_contains "$CONTENT" "禁止在尚未接入真实数据来源时"; then
@@ -1180,7 +1180,7 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 
 # Test: node-dev.md prohibits unrequested overview/summary cards
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
   if assert_contains "$CONTENT" "禁止自动补展示内容" \
      && assert_contains "$CONTENT" "Creator 只说\"表格\"就只生成表格" \
      && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容"; then
@@ -1192,7 +1192,7 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 
 # Test: node-dev.md reminds Creator how to test after step implementation
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
   if assert_contains "$CONTENT" "重新输入测试数据开始一次新的流程" \
      && assert_contains "$CONTENT" "点击【重新执行】按钮" \
      && assert_contains "$CONTENT" "用同一份输入重新跑一遍流程" \
@@ -1206,7 +1206,7 @@ AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 
 # Test: node-dev.md makes Agent responsible for dependency fixes
 (
-  CONTENT=$(cat "$AGENTS_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
   if assert_contains "$CONTENT" "Agent 必须自己更新 \`pyproject.toml\`" \
      && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
      && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
@@ -1705,7 +1705,10 @@ echo "═══ bootstrap-env.sh ═══"
 # ══════════════════════════════════════════════════════
 
 BS="$LIB_DIR/bootstrap-env.sh"
-SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
+# SKILL.md 已精简为纯路由 hub，流程内容拆分在 skills/minus/*.md；
+# 内容断言（存在性与禁止性）对全部 skill 指令文件的拼接生效。
+SKILL_MD=$(mktemp)
+cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
 
 # Helper: write an executable stub into a dir
 write_stub() {
@@ -2184,8 +2187,8 @@ write_stub() {
 (
   RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
   TMP=$(make_tmp); SB="$TMP/sb"; VB="$TMP/.volta/bin"; mkdir -p "$SB" "$VB"
-  # node 桩固定 18：≥18 过 resolve-node，但 < NODE_FLOOR(24) → provision 后 node_major_ok 失败
-  write_stub "$SB" node 'case "$1" in -v) echo v18.0.0;; *) echo 18;; esac'
+  # node 桩固定 20：≥20 过 resolve-node（否则回退探测到机器真实 node 24，场景失效），但 < NODE_FLOOR(24) → provision 后 node_major_ok 失败
+  write_stub "$SB" node 'case "$1" in -v) echo v20.0.0;; *) echo 20;; esac'
   write_stub "$SB" npm 'exit 0'
   # volta 已装（桩）：install node@24 不真正升级 node → provision 失败，但 Volta 在场
   write_stub "$VB" volta 'exit 0'
@@ -2407,7 +2410,10 @@ echo "═══ preview flow (vite template + SKILL.md) ═══"
 
 PLATFORM_DIR="$(dirname "$REPO_DIR")/minus-platform"
 VITE_TPL="$PLATFORM_DIR/packages/create-skill/templates/vite.config.ts.tpl"
-SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
+# SKILL.md 已精简为纯路由 hub，流程内容拆分在 skills/minus/*.md；
+# 内容断言（存在性与禁止性）对全部 skill 指令文件的拼接生效。
+SKILL_MD=$(mktemp)
+cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
 
 # Test: vite template must have server.open = false
 (
@@ -2451,12 +2457,15 @@ SKILL_MD="$REPO_DIR/plugins/claude/minus-creator/skills/minus/SKILL.md"
 
 # Test: launch.json 用 pnpm 绝对路径（Volta shim 优先），不写裸 "pnpm"
 # 客户端 spawn Preview 拿 launchd PATH（不含 ~/.volta/bin），裸 pnpm 会落到系统老 Node 崩
+# 该逻辑已硬编码进 generate-launch-json.sh（设计原则①），skill 只调脚本
 (
-  if grep -q '/bin/pnpm' "$SKILL_MD" && grep -q 'PNPM_BIN' "$SKILL_MD" \
-     && ! grep -qE '"runtimeExecutable": *"pnpm"' "$SKILL_MD"; then
-    pass "SKILL.md: launch.json runtimeExecutable 用绝对路径（Volta 优先），无裸 pnpm"
+  GLJ="$LIB_DIR/generate-launch-json.sh"
+  if grep -q 'generate-launch-json.sh' "$SKILL_MD" \
+     && grep -q '/bin/pnpm' "$GLJ" && grep -q 'PNPM_BIN' "$GLJ" \
+     && ! grep -qE '"runtimeExecutable": *"pnpm"' "$GLJ"; then
+    pass "launch.json: skill 调 generate-launch-json.sh，脚本内 runtimeExecutable 绝对路径无裸 pnpm"
   else
-    fail "SKILL.md: launch.json runtimeExecutable 绝对路径" "still bare pnpm or missing volta path resolution"
+    fail "launch.json runtimeExecutable 绝对路径" "skill 未引用脚本，或脚本仍裸 pnpm / 缺 Volta 路径解析"
   fi
 )
 
@@ -2962,10 +2971,10 @@ PACK_SH="$LIB_DIR/pack.sh"
 (
   if grep -q 'build.mjs' "$PACK_SH" \
      && grep -q 'VOLTA_HOME' "$PACK_SH" \
-     && grep -q '\-lt 18' "$PACK_SH"; then
-    pass "pack.sh: 重建 bundle 并解析 >=18 node"
+     && grep -q '\-lt 20' "$PACK_SH"; then
+    pass "pack.sh: 重建 bundle 并解析 >=20 node"
   else
-    fail "pack.sh: 重建 bundle + node>=18" "missing build.mjs / Volta 回退 / node 版本判断"
+    fail "pack.sh: 重建 bundle + node>=20" "missing build.mjs / Volta 回退 / node 版本判断"
   fi
 )
 

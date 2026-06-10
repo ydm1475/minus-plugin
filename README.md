@@ -26,7 +26,7 @@ claude plugin update minus-creator@minus-plugin
 # 卸载
 claude plugin uninstall minus-creator
 # 或用脚本卸载（交互式，可选清理凭证和项目）
-bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/lib/uninstall.sh
+bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/uninstall.sh
 ```
 
 ## 测试

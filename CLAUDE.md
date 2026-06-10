@@ -84,8 +84,7 @@ bash tests/shell-scripts.test.sh                 # Shell 脚本测试
   - `mcp-servers/minus-platform/index.js` — MCP Server（auth、skill、session、file tools）
   - `skills/minus/SKILL.md` — /minus 入口 skill（开发流程指令）
   - `skills/minus-publish/SKILL.md` — /minus publish skill
-  - `agents/node-dev.md` — 逐节点开发 agent
-  - `agents/skill-guide.md` — 结构设计 agent
+  - `skills/minus/node-dev.md` / `structure-design.md` 等 — 各阶段流程指令（SKILL.md 按需 Read，已取代旧 agents/）
   - `lib/` — Shell 工具脚本
   - `bin/minus.sh` — 启动器
 - `tests/` — 测试用例
