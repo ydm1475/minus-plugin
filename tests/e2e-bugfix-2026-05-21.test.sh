@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/lib"
+LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
 AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 SKILLS_DIR="$REPO_DIR/plugins/claude/minus-creator/skills"
 
@@ -152,10 +152,10 @@ else
 fi
 
 # 检查使用 step-tracker.sh is-last 做判断
-if assert_file_contains "$NODE_DEV" "step-tracker.sh.*is-last"; then
-  pass "使用 step-tracker.sh is-last 做硬编码判断"
+if assert_file_contains "$NODE_DEV" "step-tracker.*is-last"; then
+  pass "使用 step-tracker is-last 做硬编码判断"
 else
-  fail "应使用 step-tracker.sh is-last 做判断" "不应靠 agent 自行判断"
+  fail "应使用 step-tracker is-last 做判断" "不应靠 agent 自行判断"
 fi
 
 # ── TC-05: 刷新数据丢失（SDK 层问题，标记 SKIP）──

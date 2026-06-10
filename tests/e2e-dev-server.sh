@@ -224,7 +224,7 @@ echo ""
 echo -e "${CYAN}── Phase 6：Plugin 脚本兼容性 ──${NC}"
 
 # detect-preview-port.sh 能读到端口
-DETECTED_PORT=$(bash "$PLUGIN_DIR/lib/detect-preview-port.sh" 2>/dev/null)
+DETECTED_PORT=$(bash "$PLUGIN_DIR/skills/minus/scripts/detect-preview-port.sh" 2>/dev/null)
 if [ -n "$DETECTED_PORT" ] && [ "$DETECTED_PORT" != "5173" ] || [ -f "$DEV_PORTS_FILE" ]; then
   if [ -n "${FRONTEND_PORT:-}" ] && [ "$DETECTED_PORT" = "$FRONTEND_PORT" ]; then
     pass "detect-preview-port.sh 返回正确端口: $DETECTED_PORT"

@@ -135,8 +135,7 @@ Plugin: ✓ 步骤结构确认。
 然后执行 Bash 命令生成步骤骨架代码（**必须执行，不要自己手写**）：
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-steps.sh" --input-type keyword "步骤1名称" "步骤2名称" "步骤3名称"
+minus-lib generate-steps --input-type keyword "步骤1名称" "步骤2名称" "步骤3名称"
 ```
 
 `--input-type` 的值对应第一步确认的输入类型（keyword/asin/file/default）。脚本会自动更新 `pipeline.py`（生成 step_N 方法）、`frontend/src/main.tsx`（更新 buildSteps 渲染配置和 renderHistoryItem 字段名），保证前后端代码和后端步骤定义数量一致。
@@ -146,8 +145,7 @@ bash "$PLUGIN_ROOT/lib/generate-steps.sh" --input-type keyword "步骤1名称" "
 如果 Creator 在节点开发过程中要求新增步骤，使用 `--append` 模式：
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-steps.sh" --append "新步骤名称"
+minus-lib generate-steps --append "新步骤名称"
 ```
 
 此模式只在已有代码后面追加新步骤骨架，不会覆盖已实现的步骤代码。同时更新 `.minus/total-steps` 和 `main.tsx` 的 `buildSteps`。

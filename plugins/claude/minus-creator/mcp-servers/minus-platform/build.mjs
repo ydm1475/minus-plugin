@@ -13,10 +13,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// 版本号单源于 lib/toolchain.sh：构建时用一行正则读出，烘进 banner，不再内联字面量。
+// 版本号单源于 scripts/toolchain.sh：构建时用一行正则读出，烘进 banner，不再内联字面量。
 // NODE_RUNTIME_FLOOR=跑 bundle 的硬下限（global fetch 需 18）；NODE_TARGET=推荐口径。
 const here = dirname(fileURLToPath(import.meta.url));
-const toolchain = readFileSync(join(here, "..", "..", "lib", "toolchain.sh"), "utf8");
+const toolchain = readFileSync(join(here, "..", "..", "scripts", "toolchain.sh"), "utf8");
 const readVar = (k, fb) => (toolchain.match(new RegExp(`^${k}=(\\d+)`, "m"))?.[1] ?? fb);
 const MIN_MAJOR = readVar("NODE_RUNTIME_FLOOR", "18");
 const NODE_RECO = readVar("NODE_TARGET", "24");

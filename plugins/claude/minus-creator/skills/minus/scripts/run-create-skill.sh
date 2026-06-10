@@ -11,8 +11,12 @@ if [ -z "$PROJECT_NAME" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVE_NODE="$SCRIPT_DIR/resolve-node.sh"
-BOOTSTRAP_ENV="$SCRIPT_DIR/bootstrap-env.sh"
+# 真实布局下依赖在插件根级 scripts/；扁平布局（测试桩/手工拷贝）回退同目录
+ROOT_SCRIPTS="$(cd "$SCRIPT_DIR/../../../scripts" 2>/dev/null && pwd || echo "$SCRIPT_DIR")"
+RESOLVE_NODE="$ROOT_SCRIPTS/resolve-node.sh"
+[ -f "$RESOLVE_NODE" ] || RESOLVE_NODE="$SCRIPT_DIR/resolve-node.sh"
+BOOTSTRAP_ENV="$ROOT_SCRIPTS/bootstrap-env.sh"
+[ -f "$BOOTSTRAP_ENV" ] || BOOTSTRAP_ENV="$SCRIPT_DIR/bootstrap-env.sh"
 CREATE_SKILL_SPEC="${MINUS_CREATE_SKILL_SPEC:-@minus-ai/create-skill@beta}"
 
 NODE_BIN="$(sh "$RESOLVE_NODE" 2>/dev/null || true)"

@@ -1,11 +1,11 @@
 #!/bin/bash
 # pack.sh
 # 打一个可分发的插件 zip：先重建自包含 MCP bundle，再把 marketplace 根目录 claude/ 打包。
-# 用法: bash lib/pack.sh [输出目录]   （默认输出到 ~/Desktop）
+# 用法: minus-lib pack [输出目录]   （默认输出到 ~/Desktop）
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"          # .../claude/minus-creator/lib
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"          # .../claude/minus-creator/scripts
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"                # .../claude/minus-creator
 MARKETPLACE_DIR="$(dirname "$PLUGIN_DIR")"           # .../claude （含 .claude-plugin/marketplace.json）
 MCP_DIR="$PLUGIN_DIR/mcp-servers/minus-platform"

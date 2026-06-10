@@ -21,7 +21,7 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 同一条指令/规则/模板只能有一个权威定义位置，其他文件引用它，不能复制粘贴。否则修改时必然遗漏，多个 agent 各自持有的"副本"逐渐分裂。
 
 - 流程规则 → 定义在一个地方（如 SKILL.md），agent 文件只写"按 SKILL.md 的 XX 章节执行"
-- 代码模板 → 定义在 lib/ 的脚本或模板文件中，agent 调用脚本而非自己拼代码
+- 代码模板 → 定义在 scripts/（或 skill 私有的 skills/*/scripts/）脚本或模板文件中，agent 调用脚本而非自己拼代码
 - 提问话术 → 定义在统一的话术表中，agent 引用 key 而非内联文本
 
 ### 4. Plugin 不补偿 Platform（SDK）的职责
@@ -48,7 +48,7 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 
 遇到环境、兼容性、运行时等问题时，**用代码解决，不用文档提醒**。写一个脚本自动探测和适配，比写一段"请确保你的 XX 版本 >= YY"强一百倍。
 
-- 环境差异（Node 版本、PATH 顺序）→ 写脚本自动探测可用版本（如 `lib/resolve-node.sh`、`launch.cjs`）
+- 环境差异（Node 版本、PATH 顺序）→ 写脚本自动探测可用版本（如 `scripts/resolve-node.sh`、`launch.cjs`）
 - 配置不一致 → 启动时检测并修正，不靠用户手动改 `~/.zshrc`
 - 运行时依赖 → 缺什么报明确错误和安装命令，不是静默失败
 
@@ -85,7 +85,9 @@ bash tests/shell-scripts.test.sh                 # Shell 脚本测试
   - `skills/minus/SKILL.md` — /minus 入口 skill（开发流程指令）
   - `skills/minus-publish/SKILL.md` — /minus publish skill
   - `skills/minus/node-dev.md` / `structure-design.md` 等 — 各阶段流程指令（SKILL.md 按需 Read，已取代旧 agents/）
-  - `lib/` — Shell 工具脚本
+  - `scripts/` — 跨 skill 共享与 hooks/运维 Shell 脚本
+  - `skills/minus/scripts/` — minus skill 私有脚本
+  - `bin/minus-lib` — 脚本统一分发器（bin/ 在 Bash PATH 上）
   - `bin/minus.sh` — 启动器
 - `tests/` — 测试用例
 - `References/` — 设计文档

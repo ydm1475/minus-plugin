@@ -26,5 +26,5 @@ effort: high
 | 已登录 + 有项目 | [env-init.md](env-init.md) |
 
 auth_status 不可用时，运行诊断脚本并原样输出 stdout，然后终止：
-!`PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/diagnose-mcp.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname); bash "$PLUGIN_ROOT/lib/diagnose-mcp.sh" 2>/dev/null || echo "Minus 服务未就绪，请完全退出并重启 Claude Code 会话后再用 /minus。"`
+!`minus-lib diagnose-mcp 2>/dev/null || echo "Minus 服务未就绪，请完全退出并重启 Claude Code 会话后再用 /minus。"`
 

@@ -19,13 +19,13 @@ const path = require("path");
 const DIR = __dirname;
 const BUNDLE = path.join(DIR, "dist", "minus-platform.cjs");
 
-// 版本下限/推荐口径单源于 lib/toolchain.sh（相对本脚本固定为 ../../lib，源码与缓存布局一致）。
+// 版本下限/推荐口径单源于 scripts/toolchain.sh（相对本脚本固定为 ../../scripts，源码与缓存布局一致）。
 // 用正则读 KEY=value（toolchain.sh 是可 source 的 shell，node 侧一行正则消费，与 build.mjs 同法）。
 // 找不到则兜底——本脚本在客户端 spawn 时跑、环境未知，兜底保证不致崩。
 function readToolchain() {
   const out = { MIN_MAJOR: 20, NODE_RECO: 24 };
   try {
-    const txt = fs.readFileSync(path.join(DIR, "..", "..", "lib", "toolchain.sh"), "utf8");
+    const txt = fs.readFileSync(path.join(DIR, "..", "..", "scripts", "toolchain.sh"), "utf8");
     const floor = txt.match(/^\s*NODE_RUNTIME_FLOOR\s*=\s*(\d+)/m);
     const reco = txt.match(/^\s*NODE_TARGET\s*=\s*(\d+)/m);
     if (floor) out.MIN_MAJOR = parseInt(floor[1], 10);

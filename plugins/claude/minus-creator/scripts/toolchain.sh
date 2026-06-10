@@ -10,7 +10,7 @@
 # 此刻没有任何 JSON 解析器可用。纯 shell 可 source 的格式零依赖、零解析器。
 # node 侧消费者（create-skill）可用一行正则读同一文件。
 #
-# 命名为 .sh 是为了被 sync-plugin.sh 的 `cp lib/*.sh` 和打包流程自动带上。
+# 命名为 .sh 是为了被 sync-plugin.sh 的 rsync 和打包流程自动带上。
 
 # ── Node ───────────────────────────────────────────────
 # NODE_TARGET：要安装/pin 的推荐版本（Volta 装这个）。

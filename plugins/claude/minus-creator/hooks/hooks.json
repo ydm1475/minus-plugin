@@ -6,12 +6,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/project-detector.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/project-detector.sh\"",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-references.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-references.sh\"",
             "timeout": 5000
           }
         ]
@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/context-manager.sh\" check",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/context-manager.sh\" check",
             "timeout": 3000
           }
         ]

@@ -26,15 +26,14 @@ Plugin: 你有这些本地项目：
 **Step 2：拿到名称后立刻用 Bash 执行 create-skill（禁止使用 skill_create MCP tool）：**
 
 ⚠️ **不要裸调 `create-skill`，不要内联安装逻辑。** 创建项目的执行逻辑单源在
-`lib/run-create-skill.sh`：脚本会先经 `lib/resolve-node.sh` 解析一个 ≥20 的 node，
+`run-create-skill.sh`（经 minus-lib 调用）：脚本会先经根级 `scripts/resolve-node.sh` 解析一个 ≥20 的 node，
 把 node/npm/Volta 路径处理好，再把 `@minus-ai/create-skill@beta` 对齐到官方当前版本
 并执行 `create-skill`。测试预发布包时可通过环境变量 `MINUS_CREATE_SKILL_SPEC`
 覆盖包 spec；默认值永远是 `@minus-ai/create-skill@beta`，不要在指令里写死测试 tag。
 它同时复用 `bootstrap-env.sh` 的镜像源策略，避免在指令里复制安装细节。
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/run-create-skill.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/run-create-skill.sh" "项目名称"
+minus-lib run-create-skill "项目名称"
 ```
 
 - 输出 `NO_GOOD_NODE` → 原样提示 Creator："未找到可用的 Node（需 ≥20，建议 24），请安装 Node 24（推荐 https://volta.sh）后重跑 /minus"，并终止。
@@ -87,8 +86,7 @@ Plugin: 请按以下步骤打开项目：
 ⛔ 禁止：在引导前后输出任何过渡/旁白文字（如"现在生成接下来的引导""下面是后续步骤"之类）。引导内容已自带开头语"项目已创建！接下来请："，直接原样转达，不加任何前言后语。
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-next-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-next-steps.sh" "{__CREATE_RESULT__.folder}" "{__CREATE_RESULT__.targetDir}"
+minus-lib generate-next-steps "{__CREATE_RESULT__.folder}" "{__CREATE_RESULT__.targetDir}"
 ```
 
 脚本内部按客户端类型分支：desktop 输出引导文案 + 两张操作截图外链（markdown 图片），cli 输出 `cd` 启动命令。Agent 不需要自己判定客户端，直接转达脚本输出即可。

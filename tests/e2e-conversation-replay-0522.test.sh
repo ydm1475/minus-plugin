@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
-LIB_DIR="$PLUGIN_DIR/lib"
+LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
 AGENTS_DIR="$PLUGIN_DIR/agents"
 SKILLS_DIR="$PLUGIN_DIR/skills"
 NODE_DEV="$SKILLS_DIR/minus/node-dev.md"

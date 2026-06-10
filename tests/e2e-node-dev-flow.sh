@@ -11,7 +11,7 @@ fail() { echo "  ✗ $1 — $2"; FAIL=$((FAIL+1)); }
 echo "═══ 四维度流程完整性验证 ═══"
 
 # --- 准备 ---
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-steps.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)/plugins/claude/minus-creator"
 if [ -z "$PLUGIN_ROOT" ]; then
   echo "FATAL: 插件未安装"; exit 1
 fi
@@ -84,7 +84,7 @@ class TestPipeline(Pipeline):
         return StepOutcome.complete(payload={})
 PY
 
-TRACKER="$PLUGIN_ROOT/lib/step-tracker.sh"
+TRACKER="$PLUGIN_ROOT/skills/minus/scripts/step-tracker.sh"
 
 echo ""
 echo "--- 模拟步骤 1（非最后一步）四维度流程 ---"

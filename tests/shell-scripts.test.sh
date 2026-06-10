@@ -6,7 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/lib"
+LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/scripts"
+SKILL_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
 
 # ── Test Framework ──
 
@@ -288,41 +289,6 @@ CM="$LIB_DIR/context-manager.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
-echo "═══ env-manager.sh ═══"
-# ══════════════════════════════════════════════════════
-
-EM="$LIB_DIR/env-manager.sh"
-
-# Test: config file triggers restart signal
-(
-  OUTPUT=$(bash "$EM" "vite.config.js" 2>&1)
-  # Will only produce output if a dev server is running on 9100/3000/5173
-  # We test the function logic, not the lsof detection
-  pass "env-manager: handles config file without error"
-)
-
-# Test: no file arg exits cleanly
-(
-  bash "$EM" "" >/dev/null 2>&1
-  if [ $? -eq 0 ]; then
-    pass "env-manager: empty arg exits 0"
-  else
-    fail "env-manager: empty arg exits 0" "non-zero exit"
-  fi
-)
-
-# Test: irrelevant file produces no output
-(
-  OUTPUT=$(bash "$EM" "src/components/Button.tsx" 2>&1)
-  if [ -z "$OUTPUT" ]; then
-    pass "env-manager: irrelevant file produces no output"
-  else
-    fail "env-manager: irrelevant file produces no output" "got: $OUTPUT"
-  fi
-)
-
-# ══════════════════════════════════════════════════════
-echo ""
 echo "═══ progress-saver.sh ═══"
 # ══════════════════════════════════════════════════════
 
@@ -519,7 +485,7 @@ echo ""
 echo "═══ step-tracker.sh ═══"
 # ══════════════════════════════════════════════════════
 
-ST="$LIB_DIR/step-tracker.sh"
+ST="$SKILL_LIB/step-tracker.sh"
 
 # Test: fails without arguments
 (
@@ -692,7 +658,7 @@ ST="$LIB_DIR/step-tracker.sh"
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
      && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
      && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
@@ -712,7 +678,7 @@ ST="$LIB_DIR/step-tracker.sh"
   bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
-  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
      && assert_contains "$OUTPUT" "隐藏 finalize 摘要" \
      && assert_contains "$OUTPUT" "不在这里重复定义 UI 契约"; then
@@ -733,7 +699,7 @@ ST="$LIB_DIR/step-tracker.sh"
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
-  OUTPUT=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "真实接口或计算来源" \
      && assert_contains "$OUTPUT" "尚未接入真实数据来源" \
      && assert_contains "$OUTPUT" "重新核对全部展示字段"; then
@@ -748,7 +714,7 @@ echo ""
 echo "═══ generate-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GS="$LIB_DIR/generate-steps.sh"
+GS="$SKILL_LIB/generate-steps.sh"
 
 # Test: fails without arguments
 (
@@ -946,7 +912,7 @@ echo ""
 echo "═══ generate-result-design.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GRD="$LIB_DIR/generate-result-design.sh"
+GRD="$SKILL_LIB/generate-result-design.sh"
 
 # Test: fails without total-steps
 (
@@ -1015,7 +981,7 @@ echo ""
 echo "═══ check-python-deps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CPD="$LIB_DIR/check-python-deps.sh"
+CPD="$SKILL_LIB/check-python-deps.sh"
 
 write_pyproject() {
   local file="$1"
@@ -1218,7 +1184,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: generate-result-design.sh makes Agent responsible for dependency fixes
 (
-  CONTENT=$(cat "$LIB_DIR/generate-result-design.sh")
+  CONTENT=$(cat "$SKILL_LIB/generate-result-design.sh")
   if assert_contains "$CONTENT" "Agent 必须自己更新 pyproject.toml" \
      && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
      && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
@@ -1230,7 +1196,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: generate-node-code.sh display template prohibits unrequested overview cards
 (
-  CONTENT=$(cat "$LIB_DIR/generate-node-code.sh")
+  CONTENT=$(cat "$SKILL_LIB/generate-node-code.sh")
   if assert_contains "$CONTENT" "只渲染 Creator 在输出定义阶段明确确认的展示内容" \
      && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容" \
      && assert_contains "$CONTENT" "Creator 未明确要求概览、摘要、统计卡片或顶部汇总时"; then
@@ -1264,7 +1230,7 @@ echo ""
 echo "═══ detect-client.sh ═══"
 # ══════════════════════════════════════════════════════
 
-DC="$LIB_DIR/detect-client.sh"
+DC="$SKILL_LIB/detect-client.sh"
 
 # Test: returns a value
 (
@@ -1310,7 +1276,7 @@ DC="$LIB_DIR/detect-client.sh"
 echo "═══ generate-next-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GNS="$LIB_DIR/generate-next-steps.sh"
+GNS="$SKILL_LIB/generate-next-steps.sh"
 
 # Test: fails without project name argument
 (
@@ -1389,7 +1355,7 @@ echo ""
 echo "═══ open-preview.sh ═══"
 # ══════════════════════════════════════════════════════
 
-OP="$LIB_DIR/open-preview.sh"
+OP="$SKILL_LIB/open-preview.sh"
 
 # Test: fails without port argument
 (
@@ -1453,7 +1419,7 @@ echo ""
 echo "═══ check-project-state.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CPS="$LIB_DIR/check-project-state.sh"
+CPS="$SKILL_LIB/check-project-state.sh"
 
 (
   TMP=$(make_tmp)
@@ -1486,7 +1452,7 @@ echo ""
 echo "═══ detect-preview-port.sh ═══"
 # ══════════════════════════════════════════════════════
 
-DPP="$LIB_DIR/detect-preview-port.sh"
+DPP="$SKILL_LIB/detect-preview-port.sh"
 
 # Test: returns DETECT_FAILED when no Vite process running
 (
@@ -1596,7 +1562,7 @@ echo ""
 echo "═══ start-dev.sh ═══"
 # ══════════════════════════════════════════════════════
 
-SD="$LIB_DIR/start-dev.sh"
+SD="$SKILL_LIB/start-dev.sh"
 
 # Test: mac/Linux full → pnpm dev；并导出 VOLTA_FEATURE_PNPM
 (
@@ -1670,7 +1636,7 @@ echo ""
 echo "═══ check-dev-server.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CDS="$LIB_DIR/check-dev-server.sh"
+CDS="$SKILL_LIB/check-dev-server.sh"
 
 # Test: 无 dev server → GATE_FAILED + 退出码 1（门禁拦截）
 (
@@ -2154,7 +2120,7 @@ write_stub() {
 
 # Test: SKILL.md drives bootstrap via the script, not inline install commands
 (
-  if grep -q "bootstrap-env.sh" "$SKILL_MD" 2>/dev/null \
+  if grep -q "minus-lib bootstrap-env" "$SKILL_MD" 2>/dev/null \
      && ! grep -qE '`Bash\(pnpm install\)`' "$SKILL_MD" 2>/dev/null; then
     pass "SKILL.md: env init calls bootstrap-env.sh, no inline 'Bash(pnpm install)'"
   else
@@ -2163,17 +2129,17 @@ write_stub() {
 )
 
 (
-  if grep -q "check-project-state.sh" "$SKILL_MD" 2>/dev/null; then
-    pass "SKILL.md: env init uses check-project-state.sh for local state"
+  if grep -q "minus-lib check-project-state" "$SKILL_MD" 2>/dev/null; then
+    pass "SKILL.md: env init uses check-project-state for local state"
   else
-    fail "SKILL.md: env init state check" "missing check-project-state.sh"
+    fail "SKILL.md: env init state check" "missing minus-lib check-project-state"
   fi
 )
 
 # Test: run-create-skill.sh 的 create-skill 自动安装块复用镜像源（setup_cn_mirror），不另起炉灶
 # create-skill 包自身的 volta/npm 全局安装在 bootstrap 之前跑，必须自己接上同一套镜像逻辑。
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   if grep -q "@minus-ai/create-skill" "$RCS" 2>/dev/null \
      && grep -q "setup_cn_mirror" "$RCS" 2>/dev/null; then
     pass "run-create-skill.sh: create-skill 自动安装复用 setup_cn_mirror 镜像源"
@@ -2185,7 +2151,7 @@ write_stub() {
 # Test【现场化文案】: NODE24_PROVISION_FAILED 时 Volta 已装 → 引导「网络/重试」而非重装 Volta。
 # 复现用户质疑：旧文案无脑喊「curl 装 Volta」，但 Volta 可能早装好，失败的是拉 node@24。
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   TMP=$(make_tmp); SB="$TMP/sb"; VB="$TMP/.volta/bin"; mkdir -p "$SB" "$VB"
   # node 桩固定 20：≥20 过 resolve-node（否则回退探测到机器真实 node 24，场景失效），但 < NODE_FLOOR(24) → provision 后 node_major_ok 失败
   write_stub "$SB" node 'case "$1" in -v) echo v20.0.0;; *) echo 20;; esac'
@@ -2204,7 +2170,7 @@ write_stub() {
 
 # Test【现场化文案】: NODE24_PROVISION_FAILED 时 Volta 未装 + mac → 引导 curl 装 Volta，并透出真实原因。
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
   write_stub "$SB" node 'case "$1" in -v) echo v18.0.0;; *) echo 18;; esac'
   write_stub "$SB" npm 'exit 0'
@@ -2459,8 +2425,8 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
 # 客户端 spawn Preview 拿 launchd PATH（不含 ~/.volta/bin），裸 pnpm 会落到系统老 Node 崩
 # 该逻辑已硬编码进 generate-launch-json.sh（设计原则①），skill 只调脚本
 (
-  GLJ="$LIB_DIR/generate-launch-json.sh"
-  if grep -q 'generate-launch-json.sh' "$SKILL_MD" \
+  GLJ="$SKILL_LIB/generate-launch-json.sh"
+  if grep -q 'minus-lib generate-launch-json' "$SKILL_MD" \
      && grep -q '/bin/pnpm' "$GLJ" && grep -q 'PNPM_BIN' "$GLJ" \
      && ! grep -qE '"runtimeExecutable": *"pnpm"' "$GLJ"; then
     pass "launch.json: skill 调 generate-launch-json.sh，脚本内 runtimeExecutable 绝对路径无裸 pnpm"
@@ -2519,7 +2485,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
 
 # SKILL.md 不再内联启动逻辑，只引用 start-dev.sh（单源化）
 (
-  if grep -q 'lib/start-dev.sh' "$SKILL_MD" \
+  if grep -q 'minus-lib start-dev' "$SKILL_MD" \
      && ! grep -q '"$PNPM_CMD" run dev:win' "$SKILL_MD"; then
     pass "SKILL.md: 启动逻辑引用 start-dev.sh，不内联"
   else
@@ -2529,7 +2495,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
 
 # SKILL.md 必须在进入结构设计前调 dev server 门禁
 (
-  if grep -q 'lib/check-dev-server.sh' "$SKILL_MD" \
+  if grep -q 'minus-lib check-dev-server' "$SKILL_MD" \
      && grep -q 'GATE_FAILED' "$SKILL_MD"; then
     pass "SKILL.md: 结构设计前有 check-dev-server.sh 硬门禁"
   else
@@ -2570,7 +2536,7 @@ echo "═══ auth fallback prohibition ═══"
 
 # Test: create-skill 经 run-create-skill.sh → resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   if grep -q 'run-create-skill.sh' "$SKILL_MD" \
      && grep -q 'resolve-node.sh' "$RCS" \
      && grep -q 'node_dir="$(dirname "$NODE_BIN")' "$RCS"; then
@@ -2583,7 +2549,7 @@ echo "═══ auth fallback prohibition ═══"
 # Test: create-skill 每次无条件对齐 @beta（Volta 优先 / 不碰 /usr/local），失败才提示手动。
 # 不能再有 `if ! command -v create-skill` 的"缺了才装"门禁，否则装过一次就永远停在旧版。
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   if grep -q 'CREATE_SKILL_SPEC="${MINUS_CREATE_SKILL_SPEC:-@minus-ai/create-skill@beta}"' "$RCS" \
      && grep -q 'install "$CREATE_SKILL_SPEC"' "$RCS" \
      && grep -q 'CREATE_SKILL_EXPECTED=' "$RCS" \
@@ -2599,7 +2565,7 @@ echo "═══ auth fallback prohibition ═══"
 )
 
 (
-  RCS="$REPO_DIR/plugins/claude/minus-creator/lib/run-create-skill.sh"
+  RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
   if grep -q 'MINUS_CREATE_SKILL_SPEC' "$RCS" \
      && ! grep -q 'MINUS_CREATE_SKILL_BIN' "$RCS" \
      && ! grep -q 'windows-canary' "$RCS" \
@@ -2648,7 +2614,7 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 
 # Test: install.sh source 了 bootstrap-env.sh 并做 node 版本 gate（复用 Volta 装 24）
 (
-  if grep -q 'source .*lib/bootstrap-env.sh' "$INSTALL_SH" \
+  if grep -q 'source .*scripts/bootstrap-env.sh' "$INSTALL_SH" \
      && grep -q 'provision_node_via_volta' "$INSTALL_SH" \
      && grep -q 'NODE_MIN=' "$INSTALL_SH"; then
     pass "install.sh: source bootstrap-env.sh + node 版本 gate（复用 Volta 装 24）"
@@ -2729,12 +2695,12 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 # Test: 没有任何达标 node 时，launch.cjs 给人话报错（口径：建议 Node 24），而非神秘失败。
 # launch.cjs 由 node 跑，process.execPath 恒为候选——无法靠限 PATH 模拟「无 node」。
 # 改用 stub toolchain.sh 把 NODE_RUNTIME_FLOOR 抬到 999：任何真实 node 都 < 999 → 必走报错分支。
-# 临时树两级目录，让 launch.cjs 的 ../../lib/toolchain.sh 落到 stub 上。
+# 临时树两级目录，让 launch.cjs 的 ../../scripts/toolchain.sh 落到 stub 上。
 (
   T="$(mktemp -d)"
-  mkdir -p "$T/a/b" "$T/lib"
+  mkdir -p "$T/a/b" "$T/scripts"
   cp "$LAUNCH_CJS" "$T/a/b/launch.cjs"
-  printf 'NODE_RUNTIME_FLOOR=999\nNODE_TARGET=24\n' > "$T/lib/toolchain.sh"
+  printf 'NODE_RUNTIME_FLOOR=999\nNODE_TARGET=24\n' > "$T/scripts/toolchain.sh"
   if OUT=$(node "$T/a/b/launch.cjs" </dev/null 2>&1); then RC=0; else RC=$?; fi
   rm -rf "$T"
   if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q '建议使用 Node 24'; then
@@ -2746,7 +2712,7 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 
 echo "═══ resolve-node.sh ═══"
 
-RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/lib/resolve-node.sh"
+RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/scripts/resolve-node.sh"
 
 # Test: resolve-node.sh 存在、下限单源 toolchain.sh、与 launch.cjs 同序探测（含 Volta image）
 (
@@ -3071,7 +3037,7 @@ echo ""
 echo "═══ run-create-skill.sh ═══"
 # ══════════════════════════════════════════════════════
 
-RCS="$LIB_DIR/run-create-skill.sh"
+RCS="$SKILL_LIB/run-create-skill.sh"
 
 # 隔离：run-create-skill.sh 按自身 SCRIPT_DIR 解析 resolve-node.sh / bootstrap-env.sh 兄弟文件，
 # 故复制真脚本到临时 lib、桩化两个兄弟，再桩化 node/npm/volta，整条创建流程可在本机离线跑。
@@ -3225,7 +3191,7 @@ provision_node_via_volta() { return 1; }'
 
 echo "═══ diagnose-mcp.sh ═══"
 
-DIAG="$REPO_DIR/plugins/claude/minus-creator/lib/diagnose-mcp.sh"
+DIAG="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/diagnose-mcp.sh"
 
 # Test: 脚本存在、单源 toolchain.sh、始终 exit 0（SKILL.md 原样展示其 stdout）
 (

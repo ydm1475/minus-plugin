@@ -2,13 +2,9 @@
 
 帮 Creator 完成一个 pipeline 步骤的具体开发。
 
-## 插件路径
+## 插件脚本调用方式
 
-所有 Bash 命令中使用 lib/ 下脚本时，必须先定义 PLUGIN_ROOT：
-```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/step-tracker.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-```
-然后用 `$PLUGIN_ROOT/lib/xxx.sh` 调用。禁止使用未定义的 `$PLUGIN_ROOT`。
+插件脚本通过 `minus-lib <脚本名> [参数]` 裸命令调用（bin/ 已在 PATH 上），如 `minus-lib step-tracker check 1`。
 
 ## 任务
 
@@ -43,7 +39,7 @@ PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/step-tra
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} data
+minus-lib step-tracker complete {step_number} data
 ```
 然后进入维度②。如果 Creator 之前的回复已覆盖维度②意图，跳过提问直接标记。否则原样输出（每行独立，不合并）：
 
@@ -77,15 +73,15 @@ Creator 回答后：
 Creator 确认后，根据处理方式执行其中一个命令：
 ```bash
 # 排序、筛选、聚合、格式化等确定性处理
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic deterministic
+minus-lib step-tracker complete {step_number} logic deterministic
 
 # 大模型生成、AI 总结、自动分析等 LLM 处理
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} logic llm
+minus-lib step-tracker complete {step_number} logic llm
 ```
 
 然后**先判断是否为最后一步**：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
+minus-lib step-tracker is-last {step_number}
 ```
 
 **如果是最后一步（返回 YES）**，原样输出：
@@ -113,17 +109,17 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} output
+minus-lib step-tracker complete {step_number} output
 ```
 
 然后**判断是否为最后一步**：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" is-last {step_number}
+minus-lib step-tracker is-last {step_number}
 ```
 
 **如果是最后一步（返回 YES）→ 跳过维度④**，直接执行：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
+minus-lib step-tracker complete {step_number} confirm auto
 ```
 然后进入「阶段二：一次性生成代码」。
 
@@ -163,7 +159,7 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm auto
 
 Creator 确认后，执行：
 ```bash
-bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm <auto|interactive>
+minus-lib step-tracker complete {step_number} confirm <auto|interactive>
 ```
 然后执行门禁检查进入阶段二。
 
@@ -171,7 +167,7 @@ bash "$PLUGIN_ROOT/lib/step-tracker.sh" complete {step_number} confirm <auto|int
 
 ⛔ **进入阶段二前必须执行门禁检查**，门禁不通过则不能写任何代码：
 ```bash
-bash "$PLUGIN_ROOT/lib/generate-node-code.sh" {step_number}
+minus-lib generate-node-code {step_number}
 ```
 此脚本会检查四维度是否全部 COMPLETE，并输出 `LOGIC_MODE`（deterministic/llm）、`LLM_REQUIRED`（YES/NO）、`CONFIRM_MODE`（auto/interactive）和前端代码模板。
 - 如果输出 `GATE_PASSED` → 可以开始写代码
@@ -244,7 +240,7 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 2. 执行 Python 依赖一致性检查：
 
 ```bash
-bash "$PLUGIN_ROOT/lib/check-python-deps.sh"
+minus-lib check-python-deps
 ```
 
 - 如果输出 `DEPENDENCIES_OK` → 继续

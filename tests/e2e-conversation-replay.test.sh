@@ -10,7 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
-LIB_DIR="$PLUGIN_DIR/lib"
+LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
 AGENTS_DIR="$PLUGIN_DIR/agents"
 NODE_DEV="$PLUGIN_DIR/skills/minus/node-dev.md"
 
@@ -204,8 +204,8 @@ bash "$LIB_DIR/step-tracker.sh" complete 2 output > /dev/null 2>&1
 # TC-R11: 最后一步 → 维度④应自动跳过
 # 新流程：is-last=YES → 维度③完成后直接标记 confirm，不问 Creator
 # 验证 node-dev.md 指令：维度③结束时最后一步跳过维度④
-SKIP_BLOCK=$(sed -n '/如果是最后一步.*跳过维度④/,/step-tracker.sh.*confirm/p' "$NODE_DEV")
-if echo "$SKIP_BLOCK" | grep -q "step-tracker.sh.*complete.*confirm"; then
+SKIP_BLOCK=$(sed -n '/如果是最后一步.*跳过维度④/,/step-tracker.*confirm/p' "$NODE_DEV")
+if echo "$SKIP_BLOCK" | grep -q "step-tracker.*complete.*confirm"; then
   pass "最后一步：维度③后直接 complete confirm（跳过维度④）"
 else
   fail "最后一步：应在维度③后直接 complete confirm" "包含自动 complete confirm" "未找到"

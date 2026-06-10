@@ -16,7 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
-LIB_DIR="$PLUGIN_DIR/lib"
+LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
 SKILL_MD="$PLUGIN_DIR/skills/minus/SKILL.md"
 
 # ── Test Framework ──

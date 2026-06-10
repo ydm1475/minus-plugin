@@ -5,8 +5,7 @@
 **调用方式：**
 
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-result-design.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/generate-result-design.sh"
+minus-lib generate-result-design
 ```
 
 脚本会：

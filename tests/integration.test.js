@@ -779,7 +779,7 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
     await fs.mkdir(path.join(tmpHome, ".minus"), { recursive: true });
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, tmpHome);
     assert.ok(stdout.includes("当前目录不是 Minus 项目"));
@@ -807,7 +807,7 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
 
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, tmpHome);
     assert.ok(stdout.includes("登录状态：true"), `Expected 登录状态：true in: ${stdout}`);
@@ -822,7 +822,7 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
 
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, tmpProject);
     assert.ok(
@@ -840,7 +840,7 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
 
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, wsDir);
     assert.ok(stdout.includes("Workspace") || stdout.includes("test-skill"));
@@ -994,7 +994,7 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
 
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
     assert.ok(
@@ -1010,7 +1010,7 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
 
     const PD = path.resolve(
       import.meta.dirname,
-      "../plugins/claude/minus-creator/lib/project-detector.sh"
+      "../plugins/claude/minus-creator/scripts/project-detector.sh"
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
     assert.ok(stdout.includes("登录状态：true"), `Expected 登录状态：true in: ${stdout}`);

@@ -10,17 +10,18 @@
 #
 # 契约：始终 exit 0，向 stdout 打印一段给人看的指引（SKILL.md 原样展示）。
 # 文案单源于本脚本——SKILL.md 不再内联任何修复话术。
-# 版本下限/推荐口径单源于同目录 toolchain.sh（与 launch.cjs/bootstrap-env.sh 一致）。
+# 版本下限/推荐口径单源于根级 scripts/toolchain.sh（与 launch.cjs/bootstrap-env.sh 一致）。
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 # ── 版本常量：单源 toolchain.sh，读不到则兜底（本脚本在 node 坏的环境也要能跑）──
 NODE_FLOOR=24
 NODE_TARGET=24
-if [ -f "$DIR/toolchain.sh" ]; then
+TOOLCHAIN_SH="$DIR/../../../scripts/toolchain.sh"
+if [ -f "$TOOLCHAIN_SH" ]; then
   # toolchain.sh 是纯 KEY=value 的可 source shell；source 失败也不致命（已有兜底）
   # shellcheck disable=SC1091
-  . "$DIR/toolchain.sh" 2>/dev/null || true
+  . "$TOOLCHAIN_SH" 2>/dev/null || true
 fi
 
 # ── 平台粗分（仅用于 install 脚本文案；Windows 不会有 homebrew/simdjson 坏法）──

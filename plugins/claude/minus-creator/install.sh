@@ -44,7 +44,7 @@ echo -e "${GREEN}✓${NC} 检测到 Claude Code: $(claude --version 2>/dev/null 
 # ⚠️ 局限：此检查走的是终端 PATH；客户端 spawn MCP 用的是 launchd PATH，二者可能不一致。
 #    若装了新 node 但 skill_update 仍连不上，需把客户端 PATH 上的旧 node（如
 #    /usr/local/bin/node）也替换/升级掉——那是系统层操作，不在本脚本范围。
-source "$SCRIPT_DIR/lib/bootstrap-env.sh"
+source "$SCRIPT_DIR/scripts/bootstrap-env.sh"
 NODE_MIN=20  # 技术硬下限：mcp-remote 依赖 undici File API，需 Node 20+；对外建议 24
 
 node_major() {

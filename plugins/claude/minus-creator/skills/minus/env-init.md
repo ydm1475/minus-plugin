@@ -6,15 +6,13 @@
 
 先用脚本读取本地状态，禁止自己写 `Test-Path` / `test -f` 等内联检查：
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/check-project-state.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/check-project-state.sh"
+minus-lib check-project-state
 ```
 输出固定为 `INITIALIZED=0|1`、`NODE_MODULES=0|1`、`VENV=0|1`。
 
 若 `node_modules` 或 `.venv` 任一缺失（需要安装）：**先原样告诉 Creator**「正在准备开发环境，首次安装依赖可能需要几分钟，请稍候」，**再**执行 bootstrap 脚本（前台、单条命令、给足超时）：
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/bootstrap-env.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
+minus-lib bootstrap-env
 ```
 调用时给 `Bash` 传 `timeout: 600000`。
 
@@ -37,19 +35,16 @@ bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
 
 1. 后台启动后端（用 `Bash` 的 `run_in_background`）。启动逻辑已下沉到 `start-dev.sh`：
    ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   bash "$PLUGIN_ROOT/lib/start-dev.sh" backend
+   minus-lib start-dev backend
    ```
 2. 生成 `.claude/launch.json`（幂等，已存在则跳过）：
    ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/generate-launch-json.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   bash "$PLUGIN_ROOT/lib/generate-launch-json.sh"
+   minus-lib generate-launch-json
    ```
 3. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
 4. 从 `preview_start` 的返回结果中提取实际端口（`port` 字段）。`autoPort: true` 时实际端口可能与 launch.json 配置的 5173 不同，**必须以返回值为准**。如果返回结果中没有端口，才用 `detect-preview-port.sh` 兜底：
    ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   PREVIEW_PORT=$(AUTO_OPEN=0 bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null | head -1)
+   PREVIEW_PORT=$(AUTO_OPEN=0 minus-lib detect-preview-port 2>/dev/null | head -1)
    echo "PREVIEW_PORT=${PREVIEW_PORT}"
    ```
 5. 按端口输出（不改写）：
@@ -60,13 +55,11 @@ bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
 
 1. 后台启动前后端（用 `Bash` 的 `run_in_background`）。启动逻辑已下沉到 `start-dev.sh`：
    ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   bash "$PLUGIN_ROOT/lib/start-dev.sh" full
+   minus-lib start-dev full
    ```
 2. 检测前端预览端口：
    ```bash
-   PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/detect-preview-port.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-   DETECT_OUT=$(bash "$PLUGIN_ROOT/lib/detect-preview-port.sh" 2>/dev/null)
+   DETECT_OUT=$(minus-lib detect-preview-port 2>/dev/null)
    PREVIEW_PORT=$(printf '%s\n' "$DETECT_OUT" | head -1)
    CLIENT=$(printf '%s\n' "$DETECT_OUT" | grep '^CLIENT=' | head -1 | cut -d= -f2)
    if [ -n "$PREVIEW_PORT" ] && [ "$PREVIEW_PORT" != "DETECT_FAILED" ]; then
@@ -89,8 +82,7 @@ bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
 - 执行下面的固定重启脚本（先清掉旧端口文件，再用 `Bash` 的 `run_in_background` 后台重启）：
   ```bash
   rm -f .minus/dev-ports.json
-  PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/start-dev.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-  bash "$PLUGIN_ROOT/lib/start-dev.sh" full
+  minus-lib start-dev full
   ```
 - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
 
@@ -105,8 +97,7 @@ bash "$PLUGIN_ROOT/lib/bootstrap-env.sh"
 
 在进入「首次进入」或「非首次进入」之前，必须执行门禁脚本确认 dev server 已在运行且属于本项目：
 ```bash
-PLUGIN_ROOT=$(find ~/.claude/plugins/cache -path "*/minus-creator/*/lib/check-dev-server.sh" -exec dirname {} \; 2>/dev/null | head -1 | xargs dirname)
-bash "$PLUGIN_ROOT/lib/check-dev-server.sh"
+minus-lib check-dev-server
 ```
 - 输出 `GATE_PASSED` → 继续进入下面的「状态路由」。
 - 输出 `GATE_FAILED`（退出码 1）→ 说明步骤 3 的启动被跳过或失败。⛔ 禁止进入结构设计/继续开发。必须回到步骤 2、3 重新探测并启动 dev server，启动后重跑本门禁，通过后才能继续。
