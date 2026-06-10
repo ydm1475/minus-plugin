@@ -2885,10 +2885,56 @@ EOF
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ sync-plugin.sh ═══"
+# ══════════════════════════════════════════════════════
+
+SYNC_SH="$LIB_DIR/sync-plugin.sh"
+
+# Test: 安装位置从注册表读，不硬编码 cache 布局；不复制到 ~/.claude/skills（双注册）
+(
+  if grep -q 'installed_plugins.json' "$SYNC_SH" \
+     && grep -q 'installPath' "$SYNC_SH" \
+     && ! grep -q 'CLAUDE_DIR/skills' "$SYNC_SH" \
+     && ! grep -q 'CLAUDE_DIR/agents' "$SYNC_SH"; then
+    pass "sync-plugin: 从 installed_plugins.json 读 installPath，不写 ~/.claude/skills|agents"
+  else
+    fail "sync-plugin: 安装位置来源" "应读注册表 installPath，且不得复制到全局 skills/agents"
+  fi
+)
+
+# Test: 注册表缺失/无安装记录时明确报错（行为测试，伪 HOME）
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(CLAUDE_CONFIG_DIR="$TMP" bash "$SYNC_SH" 2>&1 || true)
+  if assert_contains "$OUTPUT" "未找到插件注册表"; then
+    pass "sync-plugin: 注册表缺失时明确报错"
+  else
+    fail "sync-plugin: 注册表缺失报错" "got: $OUTPUT"
+  fi
+)
+
+# Test: 有注册记录时同步到 installPath（行为测试，伪注册表 + 伪安装目录）
+(
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/plugins" "$TMP/install-here"
+  cat > "$TMP/plugins/installed_plugins.json" << EOF
+{"version":2,"plugins":{"minus-creator@fake":[{"installPath":"$TMP/install-here"}]}}
+EOF
+  OUTPUT=$(CLAUDE_CONFIG_DIR="$TMP" bash "$SYNC_SH" 2>&1 || true)
+  if assert_contains "$OUTPUT" "同步完成" && [ -f "$TMP/install-here/skills/minus/SKILL.md" ] \
+     && [ ! -d "$TMP/install-here/.git" ]; then
+    pass "sync-plugin: 同步到注册表 installPath 并排除 .git"
+  else
+    fail "sync-plugin: 同步到 installPath" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ uninstall.sh ═══"
 # ══════════════════════════════════════════════════════
 
-UNINSTALL_SH="$LIB_DIR/uninstall.sh"
+UNINSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/uninstall.sh"
 
 # Test: uninstall.sh exists
 (
@@ -2986,6 +3032,37 @@ PACK_SH="$LIB_DIR/pack.sh"
     pass "pack.sh: 排除 node_modules 并校验产物"
   else
     fail "pack.sh: 排除 node_modules + 校验" "missing node_modules 排除或打包后校验"
+  fi
+)
+
+# Test: 排除 .minus 运行时状态（曾随 zip 分发出去污染安装目录）
+(
+  if grep -q '"\*/\.minus/\*"' "$PACK_SH"; then
+    pass "pack.sh: 排除 .minus 运行时状态"
+  else
+    fail "pack.sh: 应排除 .minus" "zip 会把 session-counter 等运行时状态带给安装者"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ marketplace.json ═══"
+# ══════════════════════════════════════════════════════
+
+# Test: 仓库根 marketplace.json 存在、合法，source 指向真实插件目录且 name 与 plugin.json 一致
+(
+  MP_JSON="$REPO_DIR/.claude-plugin/marketplace.json"
+  if [ -f "$MP_JSON" ] && node -e "
+    const mp = require('$MP_JSON');
+    const p = mp.plugins.find(x => x.name === 'minus-creator');
+    if (!p) process.exit(1);
+    const path = require('path').join('$REPO_DIR', p.source);
+    const pj = require(path + '/.claude-plugin/plugin.json');
+    process.exit(pj.name === p.name ? 0 : 1);
+  " 2>/dev/null; then
+    pass "marketplace.json: 合法且 source/name 与插件一致（claude plugin marketplace add 可用）"
+  else
+    fail "marketplace.json: 校验失败" "缺失、JSON 非法、source 目录不存在或 name 不一致"
   fi
 )
 

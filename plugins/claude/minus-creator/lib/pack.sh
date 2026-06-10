@@ -42,7 +42,7 @@ echo "→ 打包 $OUT ..."
 rm -f "$OUT"
 ( cd "$(dirname "$PLUGIN_DIR")" \
   && zip -rq "$OUT" "$(basename "$PLUGIN_DIR")" \
-       -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" )
+       -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" -x "*/.minus/*" )
 
 # 4. 校验：bundle 进包了、node_modules 没进包
 if ! unzip -l "$OUT" | grep -q "dist/minus-platform.cjs"; then
