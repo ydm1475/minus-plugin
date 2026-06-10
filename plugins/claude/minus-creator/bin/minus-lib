@@ -11,10 +11,8 @@ export MINUS_PLUGIN_ROOT="$PLUGIN_ROOT"
 NAME="${1:?用法: minus-lib <脚本名> [参数...]}"
 shift || true
 
-for dir in \
-  "$PLUGIN_ROOT/scripts" \
-  "$PLUGIN_ROOT/skills/minus/scripts" \
-  "$PLUGIN_ROOT/skills/minus-publish/scripts"; do
+for dir in "$PLUGIN_ROOT/scripts" "$PLUGIN_ROOT"/skills/*/scripts; do
+  [ -d "$dir" ] || continue
   for cand in "$dir/$NAME" "$dir/$NAME.sh"; do
     if [ -f "$cand" ]; then
       exec bash "$cand" "$@"

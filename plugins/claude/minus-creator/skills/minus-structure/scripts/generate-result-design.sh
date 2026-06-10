@@ -9,6 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+STEP_TRACKER="$SCRIPT_DIR/../../minus-step/scripts/step-tracker.sh"
 TRACKER_DIR=".minus/dev-progress"
 
 # ── 门禁：所有步骤必须完成 ──
@@ -28,7 +29,7 @@ fi
 ALL_COMPLETE=true
 INCOMPLETE_STEPS=""
 for i in $(seq 1 "$TOTAL_STEPS"); do
-  CHECK_RESULT=$(bash "$SCRIPT_DIR/step-tracker.sh" check "$i" 2>&1) || true
+  CHECK_RESULT=$(bash "$STEP_TRACKER" check "$i" 2>&1) || true
   if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
     ALL_COMPLETE=false
     INCOMPLETE_STEPS="${INCOMPLETE_STEPS} 步骤$i"
@@ -112,7 +113,7 @@ cat << 'GUIDE'
 
 两项确认完成后：
   1. 生成结果页面代码（查 SDK 文档了解 CompletionPanel 用法）
-  2. 执行 Python 依赖一致性检查：bash "$SCRIPT_DIR/check-python-deps.sh"
+  2. 执行 Python 依赖一致性检查：minus-lib check-python-deps
      - 如果输出 DEPENDENCIES_OK → 继续
      - 如果报缺失依赖 → Agent 必须自己更新 pyproject.toml，执行 uv pip install -e .，然后重新检查；通过前不要让 Creator 测试
      - 禁止把依赖修复交给 Creator 手动处理

@@ -17,7 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
+STEP_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-step/scripts"
+STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
 SKILL_MD="$PLUGIN_DIR/skills/minus/SKILL.md"
+STRUCT_MD="$PLUGIN_DIR/skills/minus-structure/structure-design.md"
 
 # ── Test Framework ──
 
@@ -108,7 +111,7 @@ else
 fi
 
 # 确认 "确认后做两件事" 已改为 "确认后更新前端代码"
-if grep -q '确认后更新前端代码' "$SKILL_MD"; then
+if grep -q '确认后更新前端代码' "$STRUCT_MD"; then
   pass "SKILL.md 已改为「确认后更新前端代码」"
 else
   fail "SKILL.md 应包含「确认后更新前端代码」" "包含" "未找到"
@@ -129,14 +132,14 @@ echo "═══ 问题 9a: is-last 优先读 .minus/total-steps ═══"
 # 场景：pipeline.py 有 1 个 step，但 .minus/total-steps 说有 3 个
 echo "3" > .minus/total-steps
 
-IS_LAST_3=$(bash "$LIB_DIR/step-tracker.sh" is-last 3 2>&1)
+IS_LAST_3=$(bash "$STEP_LIB/step-tracker.sh" is-last 3 2>&1)
 if [ "$IS_LAST_3" = "YES" ]; then
   pass "is-last 3：从 .minus/total-steps 读取 → YES"
 else
   fail "is-last 3 应返回 YES（.minus/total-steps=3）" "YES" "$IS_LAST_3"
 fi
 
-IS_LAST_1=$(bash "$LIB_DIR/step-tracker.sh" is-last 1 2>&1)
+IS_LAST_1=$(bash "$STEP_LIB/step-tracker.sh" is-last 1 2>&1)
 if [ "$IS_LAST_1" = "NO" ]; then
   pass "is-last 1：3 步中的第 1 步 → NO"
 else
@@ -145,7 +148,7 @@ fi
 
 # 场景：没有 .minus/total-steps → fallback 到 grep pipeline.py
 rm -f .minus/total-steps
-IS_LAST_FALLBACK=$(bash "$LIB_DIR/step-tracker.sh" is-last 1 2>&1)
+IS_LAST_FALLBACK=$(bash "$STEP_LIB/step-tracker.sh" is-last 1 2>&1)
 if [ "$IS_LAST_FALLBACK" = "YES" ]; then
   pass "is-last fallback：pipeline.py 只有 1 个 step → step 1 = YES"
 else
@@ -158,7 +161,7 @@ mkdir -p .minus/dev-progress
 touch .minus/dev-progress/step_1_data
 touch .minus/dev-progress/step_1_logic
 touch .minus/dev-progress/step_1_output
-AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+AUTO_RESULT=$(bash "$STEP_LIB/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
 if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
   pass "confirm auto 校验：非最后一步也允许 auto"
 else
@@ -178,7 +181,7 @@ function buildSteps(t: (k: string, fb?: string) => string): StepConfig[] {
 }
 TSXEOF
 
-RESULT_GEN=$(bash "$LIB_DIR/generate-steps.sh" "热销 ASIN 采集" "ASIN 销量查询" 2>&1)
+RESULT_GEN=$(bash "$STRUCT_LIB/generate-steps.sh" "热销 ASIN 采集" "ASIN 销量查询" 2>&1)
 if echo "$RESULT_GEN" | grep -q "pipeline.py 已生成 2 个步骤"; then
   pass "generate-steps.sh 全量生成 2 步"
 else
@@ -211,7 +214,7 @@ PYEOF
 STEP1_BEFORE=$(grep -A2 'async def step_1' pipeline.py)
 
 # 对话还原：用户说"我现在再添加一个步骤"→"找相似词"→"最后面"
-RESULT_APPEND=$(bash "$LIB_DIR/generate-steps.sh" --append "相似词拓展" 2>&1)
+RESULT_APPEND=$(bash "$STRUCT_LIB/generate-steps.sh" --append "相似词拓展" 2>&1)
 
 if echo "$RESULT_APPEND" | grep -q "追加了 1 个步骤"; then
   pass "--append 输出确认追加 1 个步骤"
@@ -272,7 +275,7 @@ echo "═══ 问题 9 组合: 添加第 3 步后 is-last + 最后一步跳过
 # 根因是 is-last 从 pipeline.py grep（当时只有 2 个 step），返回 NO
 # 修复后 is-last 从 .minus/total-steps 读取（值为 3），step 3 = YES
 
-IS_LAST_STEP3=$(bash "$LIB_DIR/step-tracker.sh" is-last 3 2>&1)
+IS_LAST_STEP3=$(bash "$STEP_LIB/step-tracker.sh" is-last 3 2>&1)
 if [ "$IS_LAST_STEP3" = "YES" ]; then
   pass "添加第 3 步后：is-last 3 → YES"
 else
@@ -281,19 +284,19 @@ fi
 
 # 模拟第 3 步的四维度流程
 mkdir -p .minus/dev-progress
-bash "$LIB_DIR/step-tracker.sh" complete 3 data > /dev/null 2>&1
-bash "$LIB_DIR/step-tracker.sh" complete 3 logic > /dev/null 2>&1
-bash "$LIB_DIR/step-tracker.sh" complete 3 output > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 3 data > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 3 logic > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 3 output > /dev/null 2>&1
 
 # 最后一步：维度③完成后应直接 auto-complete confirm（不问 Creator）
-AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 3 confirm auto 2>&1)
+AUTO_RESULT=$(bash "$STEP_LIB/step-tracker.sh" complete 3 confirm auto 2>&1)
 if echo "$AUTO_RESULT" | grep -q "✓ 步骤 3 — confirm 已确认"; then
   pass "最后一步（步骤 3）confirm auto 成功——不再问 Creator「确认/继续」"
 else
   fail "最后一步 confirm auto 应成功" "步骤 3 confirm 已确认" "$AUTO_RESULT"
 fi
 
-CHECK_STEP3=$(bash "$LIB_DIR/step-tracker.sh" check 3 2>&1)
+CHECK_STEP3=$(bash "$STEP_LIB/step-tracker.sh" check 3 2>&1)
 if echo "$CHECK_STEP3" | grep -q "COMPLETE"; then
   pass "步骤 3 四维度全部完成 → COMPLETE"
 else
@@ -301,11 +304,11 @@ else
 fi
 
 # 对比：非最后一步（步骤 1）也可以用 auto
-bash "$LIB_DIR/step-tracker.sh" reset 1 > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" reset 1 > /dev/null 2>&1
 touch .minus/dev-progress/step_1_data
 touch .minus/dev-progress/step_1_logic
 touch .minus/dev-progress/step_1_output
-AUTO_STEP1=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+AUTO_STEP1=$(bash "$STEP_LIB/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
 if echo "$AUTO_STEP1" | grep -q "✓ 步骤 1 — confirm 已确认"; then
   pass "非最后一步（步骤 1）confirm auto 成功——最终用户不用确认"
 else
@@ -317,13 +320,13 @@ echo ""
 echo "═══ SKILL.md --append 指引验证 ═══"
 # ══════════════════════════════════════════════════════════════
 
-if grep -q '\-\-append' "$SKILL_MD"; then
+if grep -q '\-\-append' "$STRUCT_MD"; then
   pass "SKILL.md 包含 --append 使用说明"
 else
   fail "SKILL.md 应包含 --append 说明" "包含 --append" "未找到"
 fi
 
-if grep -q '禁止.*不带.*--append.*generate-steps' "$SKILL_MD"; then
+if grep -q '禁止.*不带.*--append.*generate-steps' "$STRUCT_MD"; then
   pass "SKILL.md 禁止对已有步骤项目使用不带 --append 的 generate-steps.sh"
 else
   fail "SKILL.md 应禁止无 --append 全量覆盖" "包含禁止规则" "未找到"

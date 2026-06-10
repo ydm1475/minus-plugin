@@ -169,6 +169,6 @@ minus-lib generate-steps --append "新步骤名称"
 
 ## 结构设计完成后
 
-保存进度后，**立即** Read [node-dev.md](node-dev.md)，从步骤 1 开始逐节点开发。
+保存进度后，**立即** Read [node-dev.md](../minus-step/node-dev.md)，从步骤 1 开始逐节点开发。
 
 ⛔ **硬性规则：禁止不加载 node-dev.md 就直接编辑 pipeline.py 或 main.tsx 的步骤代码。** node-dev.md 包含数据接口发现（通过 MCP 查找 API）、处理逻辑选型、输出设计等关键流程，跳过它会导致 Agent 自己猜接口而非用正确的数据源。

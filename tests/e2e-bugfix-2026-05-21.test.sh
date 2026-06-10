@@ -8,6 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
+STEP_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-step/scripts"
+STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
 AGENTS_DIR="$REPO_DIR/plugins/claude/minus-creator/agents"
 SKILLS_DIR="$REPO_DIR/plugins/claude/minus-creator/skills"
 
@@ -71,14 +73,14 @@ PYEOF
 
 pushd "$TMPDIR_01" > /dev/null
 
-RESULT_1=$(bash "$LIB_DIR/step-tracker.sh" is-last 1)
+RESULT_1=$(bash "$STEP_LIB/step-tracker.sh" is-last 1)
 if assert_contains "$RESULT_1" "NO"; then
   pass "step 1 of 2 → is-last returns NO"
 else
   fail "step 1 of 2 → is-last should return NO" "got: $RESULT_1"
 fi
 
-RESULT_2=$(bash "$LIB_DIR/step-tracker.sh" is-last 2)
+RESULT_2=$(bash "$STEP_LIB/step-tracker.sh" is-last 2)
 if assert_contains "$RESULT_2" "YES"; then
   pass "step 2 of 2 → is-last returns YES"
 else
@@ -93,7 +95,7 @@ rm -rf "$TMPDIR_01"
 echo ""
 echo "TC-02: 维度提问模板换行分隔（BUG-2）"
 
-NODE_DEV="$AGENTS_DIR/node-dev.md"
+NODE_DEV="$SKILLS_DIR/minus-step/node-dev.md"
 
 # 检查维度②→③的提问是多行独立的（每个问题前后有空行）
 if grep -A1 '下一个问题：这一步要展示什么给用户看？' "$NODE_DEV" | grep -q '^$'; then

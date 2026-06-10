@@ -1,13 +1,14 @@
 ---
 name: minus
 description: >
-  Minus Skill 开发环境入口。当用户说"打开 Minus"、"进入开发"、
-  "继续开发 Skill"、"我要开发"、"minus"等意图时自动触发。
-  当检测到当前目录包含 .minus/skill.json（即处于 Minus Skill 项目目录）时，
-  用户说"开始"、"继续"、"接着做"等表示开工的意图也应触发。
+  Minus Skill 开发环境的总入口与状态路由。用户说"打开 Minus"、"进入 Minus"、
+  "我要开发一个 Skill"、"minus"时触发；在 Minus 项目目录（存在 .minus/skill.json）中，
+  用户说"开始"、"继续"、"接着做"等开工意图而未指明具体对象时也由本 skill
+  接管——读取进度状态后路由到对应阶段。也适用于用户想了解项目当前进度的场景。
+  指定步骤的实现修改由 minus-step 处理；结构调整由 minus-structure 处理。
 when_to_use: >
-  用户提到 Minus、Skill 开发；或当前目录是 Minus Skill 项目
-  且用户表达"开始/继续"开发的意图时
+  用户提到 Minus、想开发 Skill；或当前目录是 Minus Skill 项目
+  且用户表达未指明具体对象的"开始/继续"意图时
 allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
@@ -21,7 +22,7 @@ effort: high
 
 | 状态 | Read |
 |------|------|
-| 未登录 | [auth-flow.md](auth-flow.md) |
+| 未登录 | 用 Skill tool 调用 `minus-auth` 完成登录，成功后按下两行继续分发 |
 | 已登录 + 无项目（.minus/skill.json 不存在） | [project-setup.md](project-setup.md) |
 | 已登录 + 有项目 | [env-init.md](env-init.md) |
 

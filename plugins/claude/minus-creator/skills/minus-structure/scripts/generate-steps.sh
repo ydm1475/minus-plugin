@@ -196,7 +196,7 @@ echo "$STEP_COUNT" > .minus/total-steps
 
 # ── 输出 node-dev.md 指令（硬编码注入，不依赖 agent 自觉去 Read）──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-NODE_DEV="$SCRIPT_DIR/../node-dev.md"
+NODE_DEV="$SCRIPT_DIR/../../minus-step/node-dev.md"
 if [ -f "$NODE_DEV" ]; then
   echo "═══════════════════════════════════════════════════════"
   echo "  步骤骨架已生成。逐节点开发必须严格按以下流程执行："

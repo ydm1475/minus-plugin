@@ -8,6 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/scripts"
 SKILL_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
+STEP_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-step/scripts"
+STRUCT_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-structure/scripts"
 
 # ── Test Framework ──
 
@@ -485,7 +487,7 @@ echo ""
 echo "═══ step-tracker.sh ═══"
 # ══════════════════════════════════════════════════════
 
-ST="$SKILL_LIB/step-tracker.sh"
+ST="$STEP_LIB/step-tracker.sh"
 
 # Test: fails without arguments
 (
@@ -658,7 +660,7 @@ ST="$SKILL_LIB/step-tracker.sh"
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
      && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
      && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
@@ -678,7 +680,7 @@ ST="$SKILL_LIB/step-tracker.sh"
   bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
-  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
      && assert_contains "$OUTPUT" "隐藏 finalize 摘要" \
      && assert_contains "$OUTPUT" "不在这里重复定义 UI 契约"; then
@@ -699,7 +701,7 @@ ST="$SKILL_LIB/step-tracker.sh"
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
-  OUTPUT=$(bash "$SKILL_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
   if assert_contains "$OUTPUT" "真实接口或计算来源" \
      && assert_contains "$OUTPUT" "尚未接入真实数据来源" \
      && assert_contains "$OUTPUT" "重新核对全部展示字段"; then
@@ -714,7 +716,7 @@ echo ""
 echo "═══ generate-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GS="$SKILL_LIB/generate-steps.sh"
+GS="$STRUCT_LIB/generate-steps.sh"
 
 # Test: fails without arguments
 (
@@ -912,7 +914,7 @@ echo ""
 echo "═══ generate-result-design.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GRD="$SKILL_LIB/generate-result-design.sh"
+GRD="$STRUCT_LIB/generate-result-design.sh"
 
 # Test: fails without total-steps
 (
@@ -1104,7 +1106,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: structure-design.md mentions skill_update
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/structure-design.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-structure/structure-design.md")
   if assert_contains "$CONTENT" "skill_update"; then
     pass "structure-design.md: mentions skill_update"
   else
@@ -1114,7 +1116,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md mentions MCP and skill_update
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "MCP" && assert_contains "$CONTENT" "skill_update"; then
     pass "node-dev.md: mentions MCP and skill_update"
   else
@@ -1124,7 +1126,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md references pipeline.py
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "pipeline.py"; then
     pass "node-dev.md: references pipeline.py"
   else
@@ -1134,7 +1136,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md keeps frontend SDK usage on documented stable APIs
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "extendConfirmed" \
      && assert_contains "$CONTENT" "禁止通过遍历用户目录" \
      && assert_contains "$CONTENT" "禁止在尚未接入真实数据来源时"; then
@@ -1146,7 +1148,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md prohibits unrequested overview/summary cards
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "禁止自动补展示内容" \
      && assert_contains "$CONTENT" "Creator 只说\"表格\"就只生成表格" \
      && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容"; then
@@ -1158,7 +1160,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md reminds Creator how to test after step implementation
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "重新输入测试数据开始一次新的流程" \
      && assert_contains "$CONTENT" "点击【重新执行】按钮" \
      && assert_contains "$CONTENT" "用同一份输入重新跑一遍流程" \
@@ -1172,7 +1174,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: node-dev.md makes Agent responsible for dependency fixes
 (
-  CONTENT=$(cat "$SKILL_REF_DIR/node-dev.md")
+  CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "Agent 必须自己更新 \`pyproject.toml\`" \
      && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
      && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
@@ -1184,7 +1186,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: generate-result-design.sh makes Agent responsible for dependency fixes
 (
-  CONTENT=$(cat "$SKILL_LIB/generate-result-design.sh")
+  CONTENT=$(cat "$STRUCT_LIB/generate-result-design.sh")
   if assert_contains "$CONTENT" "Agent 必须自己更新 pyproject.toml" \
      && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
      && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
@@ -1196,7 +1198,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 
 # Test: generate-node-code.sh display template prohibits unrequested overview cards
 (
-  CONTENT=$(cat "$SKILL_LIB/generate-node-code.sh")
+  CONTENT=$(cat "$STEP_LIB/generate-node-code.sh")
   if assert_contains "$CONTENT" "只渲染 Creator 在输出定义阶段明确确认的展示内容" \
      && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容" \
      && assert_contains "$CONTENT" "Creator 未明确要求概览、摘要、统计卡片或顶部汇总时"; then
@@ -1674,7 +1676,7 @@ BS="$LIB_DIR/bootstrap-env.sh"
 # SKILL.md 已精简为纯路由 hub，流程内容拆分在 skills/minus/*.md；
 # 内容断言（存在性与禁止性）对全部 skill 指令文件的拼接生效。
 SKILL_MD=$(mktemp)
-cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
+cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-auth/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-step/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-structure/*.md > "$SKILL_MD"
 
 # Helper: write an executable stub into a dir
 write_stub() {
@@ -2379,7 +2381,7 @@ VITE_TPL="$PLATFORM_DIR/packages/create-skill/templates/vite.config.ts.tpl"
 # SKILL.md 已精简为纯路由 hub，流程内容拆分在 skills/minus/*.md；
 # 内容断言（存在性与禁止性）对全部 skill 指令文件的拼接生效。
 SKILL_MD=$(mktemp)
-cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md > "$SKILL_MD"
+cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-auth/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-step/*.md "$REPO_DIR"/plugins/claude/minus-creator/skills/minus-structure/*.md > "$SKILL_MD"
 
 # Test: vite template must have server.open = false
 (
@@ -3284,6 +3286,95 @@ DIAG="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/diagnose-mcp.s
     pass "diagnose-mcp.sh: 正常 v24 → 重启/launchd 分支，不误报损坏"
   else
     fail "diagnose-mcp.sh: 正常分支" "rc=$RC out: $OUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ gate.sh（子 skill 前置门禁） ═══"
+# ══════════════════════════════════════════════════════
+
+GATE="$REPO_DIR/plugins/claude/minus-creator/scripts/gate.sh"
+
+(
+  TMP=$(make_tmp)
+  OUTPUT=$(cd "$TMP" && HOME="$TMP" sh "$GATE")
+  if assert_contains "$OUTPUT" "GATE=fail reason=NOT_LOGGED_IN" \
+     && assert_contains "$OUTPUT" "minus-auth"; then
+    pass "gate.sh: 未登录 → NOT_LOGGED_IN + minus-auth 补救提示"
+  else
+    fail "gate.sh: 未登录分支" "out: $OUTPUT"
+  fi
+)
+
+(
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/.minus"
+  echo '{"session_id":"s1","user_id":"u1"}' > "$TMP/.minus/credentials.json"
+  OUTPUT=$(cd "$TMP" && HOME="$TMP" sh "$GATE")
+  if assert_contains "$OUTPUT" "GATE=fail reason=NO_PROJECT" \
+     && assert_contains "$OUTPUT" "project-setup.md"; then
+    pass "gate.sh: 已登录无项目 → NO_PROJECT + project-setup 补救提示"
+  else
+    fail "gate.sh: 无项目分支" "out: $OUTPUT"
+  fi
+)
+
+(
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/.minus" "$TMP/proj/.minus"
+  echo '{"session_id":"s1","user_id":"u1"}' > "$TMP/.minus/credentials.json"
+  echo '{"skillId":"t"}' > "$TMP/proj/.minus/skill.json"
+  OUTPUT=$(cd "$TMP/proj" && HOME="$TMP" sh "$GATE")
+  if assert_contains "$OUTPUT" "GATE=fail reason=ENV_NOT_READY" \
+     && assert_contains "$OUTPUT" "env-init.md"; then
+    pass "gate.sh: 环境未就绪 → ENV_NOT_READY + env-init 补救提示"
+  else
+    fail "gate.sh: 环境未就绪分支" "out: $OUTPUT"
+  fi
+)
+
+(
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/.minus" "$TMP/proj/.minus" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  echo '{"session_id":"s1","user_id":"u1"}' > "$TMP/.minus/credentials.json"
+  echo '{"skillId":"t"}' > "$TMP/proj/.minus/skill.json"
+  OUTPUT=$(cd "$TMP/proj" && HOME="$TMP" sh "$GATE")
+  if [ "$OUTPUT" = "GATE=ok" ]; then
+    pass "gate.sh: 全部就绪 → GATE=ok"
+  else
+    fail "gate.sh: 就绪分支" "out: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ minus-lib（glob 查找新 skill 目录） ═══"
+# ══════════════════════════════════════════════════════
+
+MINUS_LIB="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
+
+(
+  # 各新 skill 私有目录的脚本均可被裸名分发
+  OK=1
+  for name in step-tracker generate-node-code generate-steps generate-result-design gate; do
+    OUT=$(bash "$MINUS_LIB" "$name" --__probe__ 2>&1) || true
+    if echo "$OUT" | grep -q "未找到脚本"; then
+      OK=0
+      fail "minus-lib: 找不到 $name" "out: $OUT"
+    fi
+  done
+  if [ "$OK" = "1" ]; then
+    pass "minus-lib: glob 可定位 minus-step/minus-structure/共享 scripts 下的脚本"
+  fi
+)
+
+(
+  OUT=$(bash "$MINUS_LIB" no-such-script 2>&1) || true
+  if assert_contains "$OUT" "未找到脚本"; then
+    pass "minus-lib: 未知脚本名报错"
+  else
+    fail "minus-lib: 未知脚本名" "out: $OUT"
   fi
 )
 

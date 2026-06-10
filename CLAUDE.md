@@ -82,11 +82,14 @@ bash tests/shell-scripts.test.sh                 # Shell 脚本测试
 
 - `plugins/claude/minus-creator/` — 插件主目录
   - `mcp-servers/minus-platform/index.js` — MCP Server（auth、skill、session、file tools）
-  - `skills/minus/SKILL.md` — /minus 入口 skill（开发流程指令）
+  - `skills/minus/` — 总入口 + 状态路由（auth_status 分发、project-setup/env-init/dev-phase 等阶段 .md）
+  - `skills/minus-structure/` — 结构设计 skill（structure-design.md、result-design.md）
+  - `skills/minus-step/` — 单步骤四维度开发 skill（node-dev.md）
+  - `skills/minus-auth/` — 账号会话 skill（auth-flow.md；登录/登出/切号/查状态）
   - `skills/minus-publish/SKILL.md` — /minus publish skill
-  - `skills/minus/node-dev.md` / `structure-design.md` 等 — 各阶段流程指令（SKILL.md 按需 Read，已取代旧 agents/）
-  - `scripts/` — 跨 skill 共享与 hooks/运维 Shell 脚本
-  - `skills/minus/scripts/` — minus skill 私有脚本
+  - 阶段 .md 单源归属各自 skill，跨 skill 衔接用跨目录 Read 或 Skill tool 调用（不复制内容）
+  - `scripts/` — 跨 skill 共享与 hooks/运维 Shell 脚本（含 gate.sh 子 skill 前置门禁）
+  - `skills/*/scripts/` — 各 skill 私有脚本（minus-lib 按 glob 统一分发）
   - `bin/minus-lib` — 脚本统一分发器（bin/ 在 Bash PATH 上）
   - `bin/minus.sh` — 启动器
 - `tests/` — 测试用例

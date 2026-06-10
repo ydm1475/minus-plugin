@@ -187,7 +187,7 @@ if [ "$IS_LAST" = "YES" ]; then
   不要直接告诉 Creator "开发完成"，还有最后一个环节。
 
   代码写完后立即执行：
-  bash "$SCRIPT_DIR/generate-result-design.sh"
+  bash "$SCRIPT_DIR/../../minus-structure/scripts/generate-result-design.sh"
 ═══════════════════════════════════════════════════════
 
 RESULT_DESIGN

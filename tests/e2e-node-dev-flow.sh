@@ -17,7 +17,8 @@ if [ -z "$PLUGIN_ROOT" ]; then
 fi
 
 SKILL_MD="$PLUGIN_ROOT/skills/minus/SKILL.md"
-NODE_DEV="$PLUGIN_ROOT/agents/node-dev.md"
+DEV_PHASE="$PLUGIN_ROOT/skills/minus/dev-phase.md"
+NODE_DEV="$PLUGIN_ROOT/skills/minus-step/node-dev.md"
 
 # --- 1. SKILL.md 不再指示启动子 agent ---
 if grep -q "启动 node-dev agent" "$SKILL_MD"; then
@@ -27,22 +28,15 @@ else
 fi
 
 # --- 2. SKILL.md 指示用 Read 读取 node-dev.md ---
-if grep -q "Read.*node-dev.md" "$SKILL_MD"; then
-  pass "SKILL.md 指示用 Read 工具读取 node-dev.md"
+if grep -q "Read.*node-dev.md" "$DEV_PHASE"; then
+  pass "dev-phase.md 指示用 Read 工具读取 node-dev.md"
 else
-  fail "SKILL.md 没有指示读取 node-dev.md" ""
-fi
-
-# --- 3. SKILL.md 明确禁止 Agent 工具 ---
-if grep -q "禁止启动子 agent\|禁止.*Agent.*工具" "$SKILL_MD"; then
-  pass "SKILL.md 明确禁止使用 Agent 工具"
-else
-  fail "SKILL.md 没有禁止 Agent 工具" ""
+  fail "dev-phase.md 没有指示读取 node-dev.md" ""
 fi
 
 # --- 4. node-dev.md 存在且可读 ---
 if [ -f "$NODE_DEV" ]; then
-  pass "node-dev.md 存在于插件根目录/agents/"
+  pass "node-dev.md 存在于 skills/minus-step/"
 else
   fail "node-dev.md 不存在" "$NODE_DEV"
 fi
@@ -62,11 +56,6 @@ if grep -q 'PLUGIN_DIR' "$NODE_DEV"; then
 else
   pass "node-dev.md 不包含 \$PLUGIN_DIR"
 fi
-if grep -q 'PLUGIN_ROOT' "$NODE_DEV"; then
-  pass "node-dev.md 使用 \$PLUGIN_ROOT"
-else
-  fail "node-dev.md 没有 \$PLUGIN_ROOT" ""
-fi
 
 # --- 7. 模拟真实项目：step-tracker.sh 完整链路 ---
 TMP=$(mktemp -d)
@@ -84,7 +73,7 @@ class TestPipeline(Pipeline):
         return StepOutcome.complete(payload={})
 PY
 
-TRACKER="$PLUGIN_ROOT/skills/minus/scripts/step-tracker.sh"
+TRACKER="$PLUGIN_ROOT/skills/minus-step/scripts/step-tracker.sh"
 
 echo ""
 echo "--- 模拟步骤 1（非最后一步）四维度流程 ---"

@@ -24,9 +24,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
+STEP_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-step/scripts"
+STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
 AGENTS_DIR="$PLUGIN_DIR/agents"
 SKILLS_DIR="$PLUGIN_DIR/skills"
-NODE_DEV="$SKILLS_DIR/minus/node-dev.md"
+NODE_DEV="$SKILLS_DIR/minus-step/node-dev.md"
 SKILL_MD="$SKILLS_DIR/minus/SKILL.md"
 
 # ── Test Framework ──
@@ -88,7 +90,7 @@ cd "$TEST_DIR"
 
 echo "═══ Phase 1: 步骤骨架生成 ═══"
 
-RESULT=$(bash "$LIB_DIR/generate-steps.sh" "关键词拓词" "热销ASIN查询" 2>&1)
+RESULT=$(bash "$STRUCT_LIB/generate-steps.sh" "关键词拓词" "热销ASIN查询" 2>&1)
 
 if echo "$RESULT" | grep -q "2 个步骤"; then
   pass "generate-steps.sh 生成 2 步骨架"
@@ -132,12 +134,12 @@ echo ""
 echo "── 步骤 1 四维度状态管理 ──"
 
 # 维度① data: 对话 line 246 用户确认拓词接口
-bash "$LIB_DIR/step-tracker.sh" complete 1 data > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 1 data > /dev/null 2>&1
 # 维度② logic: 对话 line 260 "按搜索量排序,只展示前200个"
-bash "$LIB_DIR/step-tracker.sh" complete 1 logic > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 1 logic > /dev/null 2>&1
 
 # is-last 检查
-IS_LAST_1=$(bash "$LIB_DIR/step-tracker.sh" is-last 1)
+IS_LAST_1=$(bash "$STEP_LIB/step-tracker.sh" is-last 1)
 if [ "$IS_LAST_1" = "NO" ]; then
   pass "步骤 1 is-last → NO"
 else
@@ -145,17 +147,17 @@ else
 fi
 
 # 维度③ output: 对话 line 278 "表格列出关键词和搜索量"
-bash "$LIB_DIR/step-tracker.sh" complete 1 output > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 1 output > /dev/null 2>&1
 
 # 维度④ confirm: 非最后一步也允许 auto（最终用户不用确认）
-AUTO_RESULT=$(bash "$LIB_DIR/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+AUTO_RESULT=$(bash "$STEP_LIB/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
 if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
   pass "非最后一步 confirm auto 被允许"
 else
   fail "非最后一步 confirm auto 应允许" "实际: $AUTO_RESULT"
 fi
 
-CHECK_1=$(bash "$LIB_DIR/step-tracker.sh" check 1 2>&1)
+CHECK_1=$(bash "$STEP_LIB/step-tracker.sh" check 1 2>&1)
 if echo "$CHECK_1" | grep -q "COMPLETE"; then
   pass "步骤 1 四维度全部完成"
 else
@@ -166,7 +168,7 @@ fi
 echo ""
 echo "── 步骤 1 代码生成门禁 ──"
 
-GATE_1=$(bash "$LIB_DIR/generate-node-code.sh" 1 2>&1)
+GATE_1=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
 if echo "$GATE_1" | grep -q "GATE_PASSED" && echo "$GATE_1" | grep -q "CONFIRM_MODE=auto"; then
   pass "步骤 1 门禁通过，CONFIRM_MODE=auto"
 else
@@ -182,11 +184,11 @@ echo ""
 echo "═══ Phase 3: 步骤 2 四维度收集（最后一步）═══"
 
 # 维度① data
-bash "$LIB_DIR/step-tracker.sh" complete 2 data > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 2 data > /dev/null 2>&1
 # 维度② logic: 对话 line 524 "Top 3, 所有 ASIN 汇总一张表，去重，按销量排名"
-bash "$LIB_DIR/step-tracker.sh" complete 2 logic > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 2 logic > /dev/null 2>&1
 
-IS_LAST_2=$(bash "$LIB_DIR/step-tracker.sh" is-last 2)
+IS_LAST_2=$(bash "$STEP_LIB/step-tracker.sh" is-last 2)
 if [ "$IS_LAST_2" = "YES" ]; then
   pass "步骤 2 is-last → YES"
 else
@@ -194,18 +196,18 @@ else
 fi
 
 # 维度③ output: 对话 line 524 "展示销量，价格，按照销量排名"
-bash "$LIB_DIR/step-tracker.sh" complete 2 output > /dev/null 2>&1
+bash "$STEP_LIB/step-tracker.sh" complete 2 output > /dev/null 2>&1
 
 # 最后一步 → 维度④自动跳过，用 auto 模式
-bash "$LIB_DIR/step-tracker.sh" complete 2 confirm auto > /dev/null 2>&1
-CHECK_2=$(bash "$LIB_DIR/step-tracker.sh" check 2 2>&1)
+bash "$STEP_LIB/step-tracker.sh" complete 2 confirm auto > /dev/null 2>&1
+CHECK_2=$(bash "$STEP_LIB/step-tracker.sh" check 2 2>&1)
 if echo "$CHECK_2" | grep -q "COMPLETE"; then
   pass "步骤 2 四维度全部完成（维度④自动跳过）"
 else
   fail "步骤 2 四维度应全部完成" "实际: $CHECK_2"
 fi
 
-GATE_2=$(bash "$LIB_DIR/generate-node-code.sh" 2 2>&1)
+GATE_2=$(bash "$STEP_LIB/generate-node-code.sh" 2 2>&1)
 if echo "$GATE_2" | grep -q "GATE_PASSED" && echo "$GATE_2" | grep -q "CONFIRM_MODE=auto"; then
   pass "步骤 2 门禁通过，CONFIRM_MODE=auto"
 else
@@ -226,7 +228,7 @@ echo "── S1: 纯展示表格用 display widget ──"
 
 # 该规则已硬编码进 generate-node-code.sh：模板按 CONFIRM_MODE 分流，
 # auto（纯展示）走普通 render 模板，结构上杜绝 interactive widget 误用
-GNC="$LIB_DIR/generate-node-code.sh"
+GNC="$STEP_LIB/generate-node-code.sh"
 if grep -q 'FRONTEND_TEMPLATE=interactive' "$GNC" && grep -q '"$CONFIRM_MODE" = "auto"' "$GNC"; then
   pass "S1: generate-node-code.sh 按 CONFIRM_MODE 分流模板（auto 不会用 interactive widget）"
 else
@@ -264,7 +266,7 @@ echo "── A2: 最后一步用 CompletionPanel 统一渲染 ──"
 
 # 结果页（摘要+下载）流程已硬编码进 generate-result-design.sh，
 # 组件具体行为按契约原则查 SDK 文档，Plugin 不复制
-GRD="$LIB_DIR/generate-result-design.sh"
+GRD="$STRUCT_LIB/generate-result-design.sh"
 if grep -q "CompletionPanel" "$GRD"; then
   pass "A2: generate-result-design.sh 引用 CompletionPanel"
 else
