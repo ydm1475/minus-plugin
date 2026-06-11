@@ -27,4 +27,5 @@ fi
 echo "GATE_FAILED"
 echo "未检测到属于当前项目的 dev server，禁止进入结构设计。" >&2
 echo "请先按 SKILL.md「3. 已登录 + 有项目」的步骤 2（探测预览能力）和步骤 3（启动 dev server + 打开预览）启动 dev server，再重试。" >&2
+echo "Desktop 分支 A 场景：若预览已在右侧面板打开，先执行 minus-lib record-preview-port <实际端口> 记录端口，再重跑本门禁。" >&2
 exit 1

@@ -42,7 +42,11 @@ minus-lib bootstrap-env
    minus-lib generate-launch-json
    ```
 3. 调用 `mcp__Claude_Preview__preview_start({"name": "frontend"})` — 右侧面板启动前端并预览
-4. 从 `preview_start` 的返回结果中提取实际端口（`port` 字段）。`autoPort: true` 时实际端口可能与 launch.json 配置的 5173 不同，**必须以返回值为准**。如果返回结果中没有端口，才用 `detect-preview-port.sh` 兜底：
+4. 从 `preview_start` 的返回结果中提取实际端口（`port` 字段）。`autoPort: true` 时实际端口可能与 launch.json 配置的 5173 不同，**必须以返回值为准**。拿到端口后**立即执行**（Preview 托管的进程对端口检测不可见，不记录则后续门禁必失败）：
+   ```bash
+   minus-lib record-preview-port <port>
+   ```
+   如果返回结果中没有端口，才用 `detect-preview-port.sh` 兜底：
    ```bash
    PREVIEW_PORT=$(AUTO_OPEN=0 minus-lib detect-preview-port 2>/dev/null | head -1)
    echo "PREVIEW_PORT=${PREVIEW_PORT}"

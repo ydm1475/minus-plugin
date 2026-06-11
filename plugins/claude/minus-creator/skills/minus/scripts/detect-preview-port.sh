@@ -49,11 +49,21 @@ port_pid() {
   fi
 }
 
+# verify_port <port> [trusted]
+# trusted=1 表示端口来自本项目 .minus/dev-ports.json（方法 1）：归属已由文件位置保证。
+# Claude Preview（Desktop 分支 A）托管的 vite 进程对 lsof 不可见，此时 trusted 来源
+# 跳过 PID/cwd 校验，仅验 curl 可达性——与下方 Windows 跳过 cwd 校验是同一理由。
+# 非 trusted 来源（方法 2/3 扫描所得）维持严格校验：找不到 PID 即判失败。
 verify_port() {
   local port=$1
+  local trusted=${2:-}
   local pid
   pid=$(port_pid "$port")
   if [ -z "$pid" ]; then
+    if [ "$trusted" = "1" ]; then
+      curl -s -o /dev/null --max-time 2 "http://localhost:$port/" 2>/dev/null
+      return $?
+    fi
     return 1
   fi
   # 归属校验（CLAUDE.md #5：存在≠属于我）。Windows Git Bash 拿不到进程 cwd（需 wmic/PowerShell，
@@ -86,7 +96,7 @@ WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
   if [ -f "$DEV_PORTS_FILE" ]; then
     PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).frontend||'')" 2>/dev/null)
-    if [ -n "$PORT" ] && verify_port "$PORT"; then
+    if [ -n "$PORT" ] && verify_port "$PORT" 1; then
       found_port "$PORT"
     fi
   fi

@@ -4,13 +4,13 @@
 
 ## Skill 一览
 
-| Skill | 职责 | 典型触发语 |
-|-------|------|-----------|
-| `minus` | 总入口 + 状态路由（登录/建项目/环境/进度调度） | "打开 Minus"、"继续" |
-| `minus-structure` | 结构设计：输入定义、步骤拆/增/删/重排、结果呈现页 | "重新拆步骤"、"改结果页" |
-| `minus-step` | 单个 pipeline 步骤的四维度开发/修改 | "开发步骤 2"、"改第三步的界面" |
-| `minus-auth` | 账号会话：登录、登出、切换账号、查状态 | "退出登录"、"我登录了吗" |
-| `minus-publish` | 发布到 Minus 平台 | "发布"、"上线" |
+| Skill             | 职责                                              | 典型触发语                     |
+| ----------------- | ------------------------------------------------- | ------------------------------ |
+| `minus`           | 总入口 + 状态路由（登录/建项目/环境/进度调度）    | "打开 Minus"、"继续"           |
+| `minus-structure` | 结构设计：输入定义、步骤拆/增/删/重排、结果呈现页 | "重新拆步骤"、"改结果页"       |
+| `minus-step`      | 单个 pipeline 步骤的四维度开发/修改               | "开发步骤 2"、"改第三步的界面" |
+| `minus-auth`      | 账号会话：登录、登出、切换账号、查状态            | "退出登录"、"我登录了吗"       |
+| `minus-publish`   | 发布到 Minus 平台                                 | "发布"、"上线"                 |
 
 子 skill 直达时由 `scripts/gate.sh` 门禁兜底（未登录/无项目/环境未就绪会当场衔接补救流程）。
 
@@ -76,7 +76,7 @@ node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.m
 
 环境矩阵测试：在真实 Windows/macOS runner（`.github/workflows/env-matrix.yml`）上验证插件在各种 Node 环境（无 node / 老 node / Volta / nvm / PATH 错序 / 真实 Volta 自动安装 / `install.sh` 插件识别）下的安装与运行，零 API key。Node 状态用受控 PATH + 假 HOME 在 job 内构造（见 `tests/env-matrix/lib.sh` 头注释），本机跑 local scope 时破坏性场景自动 skip。
 
-E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度④等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
+E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度 ④ 等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
 
 ## 项目注册表
 
@@ -102,12 +102,10 @@ bash $LIB/context-manager.sh reset         # 重置计数器
 bash $LIB/update-progress.sh <init-design|design-done|append-steps|step-done|set-phase|touch|show>
                                            # progress.json 唯一写入入口（Skill 项目目录下）
 bash $LIB/progress-check.sh                # 进度自愈：按硬产物收敛 progress.json（SessionStart/Stop hook 自动跑）
-```
 
-## 启动器
-
-```bash
-bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/bin/minus.sh   # 启动 Claude Code 并自动触发 /minus
+SKL=~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/skills/minus/scripts
+bash $SKL/record-preview-port.sh <port>    # 记录 Claude Preview 返回的前端端口到 .minus/dev-ports.json
+                                           # （Desktop 分支 A：Preview 托管进程对 lsof 不可见，门禁靠此识别）
 ```
 
 ## 同步

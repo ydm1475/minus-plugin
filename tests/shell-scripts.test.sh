@@ -1792,6 +1792,59 @@ EOF
   fi
 )
 
+# Test【Preview 托管回归】: 端口来自 dev-ports.json（trusted）但 lsof 找不到 PID
+# （Claude Preview 托管的 vite 进程对 Bash 环境不可见）→ 降级为 curl 可达性校验，应通过。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"
+  cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":50559,"backend":4007}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'   # 任何调用都返回空 → PID 不可见
+  write_stub "$SB" curl 'exit 0'   # 端口可达
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$DPP" 2>&1 | head -1 || true)
+  if [ "$OUTPUT" = "50559" ]; then
+    pass "detect-preview-port: trusted 端口 PID 不可见时降级为可达性校验（Preview 回归）"
+  else
+    fail "detect-preview-port: Preview trusted 降级" "got: $OUTPUT (expected 50559)"
+  fi
+)
+
+# Test【Preview 残留】: trusted 端口 PID 不可见且 curl 不可达（Preview 已死、文件残留）→ DETECT_FAILED
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"
+  cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":50559}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'
+  write_stub "$SB" curl 'exit 1'   # 不可达
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=1 PATH="$SB:$PATH" bash "$DPP" 2>&1 || true)
+  if [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: trusted 端口不可达（残留文件）→ DETECT_FAILED"
+  else
+    fail "detect-preview-port: trusted 残留文件" "got: $OUTPUT"
+  fi
+)
+
+# Test【降级范围】: 非 trusted 来源（方法 3 扫描）PID 不可见时仍严格判失败——即使 curl 可达。
+# 确认降级只对 dev-ports.json 来源生效，不放宽扫描路径的归属校验。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  cd "$TMP"   # 无 dev-ports.json → 只走方法 2/3
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'   # PID 不可见
+  write_stub "$SB" curl 'exit 0'   # 端口可达（若误放宽，方法 3 会认领 5173）
+  write_stub "$SB" pgrep 'exit 1'  # 无 vite 进程
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=0 PATH="$SB:$PATH" bash "$DPP" 2>&1 || true)
+  if [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: 非 trusted 来源 PID 不可见仍判失败（降级范围受限）"
+  else
+    fail "detect-preview-port: 降级范围受限" "got: $OUTPUT"
+  fi
+)
+
 # Test: DETECT_PORT_MAX_WAIT env controls polling duration
 (
   TMP=$(make_tmp)
@@ -1804,6 +1857,66 @@ EOF
     pass "detect-preview-port: MAX_WAIT=0 skips polling"
   else
     fail "detect-preview-port: MAX_WAIT=0 skips polling" "took ${ELAPSED}s"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ record-preview-port.sh ═══"
+# ══════════════════════════════════════════════════════
+
+RPP="$SKILL_LIB/record-preview-port.sh"
+
+# Test: 空目录正常写入 frontend 字段
+(
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$RPP" 50559 2>&1); RC=$?
+  WRITTEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend)" 2>/dev/null)
+  if [ "$RC" = "0" ] && [ "$OUTPUT" = "RECORDED frontend=50559" ] && [ "$WRITTEN" = "50559" ]; then
+    pass "record-preview-port: 空目录写入 frontend"
+  else
+    fail "record-preview-port: 空目录写入" "rc=$RC out=$OUTPUT written=$WRITTEN"
+  fi
+)
+
+# Test: 更新 frontend 时保留已有字段（如 backend）
+(
+  TMP=$(make_tmp); cd "$TMP"; mkdir -p .minus
+  echo '{"frontend":5177,"backend":4007}' > .minus/dev-ports.json
+  bash "$RPP" 50559 >/dev/null 2>&1
+  FE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend)" 2>/dev/null)
+  BE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).backend)" 2>/dev/null)
+  if [ "$FE" = "50559" ] && [ "$BE" = "4007" ]; then
+    pass "record-preview-port: 更新 frontend 保留 backend"
+  else
+    fail "record-preview-port: 保留已有字段" "frontend=$FE backend=$BE"
+  fi
+)
+
+# Test: 损坏的 JSON 文件不致命，重建为合法 JSON
+(
+  TMP=$(make_tmp); cd "$TMP"; mkdir -p .minus
+  echo 'not-json{{{' > .minus/dev-ports.json
+  bash "$RPP" 5173 >/dev/null 2>&1; RC=$?
+  FE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend)" 2>/dev/null)
+  if [ "$RC" = "0" ] && [ "$FE" = "5173" ]; then
+    pass "record-preview-port: 损坏 JSON 重建"
+  else
+    fail "record-preview-port: 损坏 JSON 重建" "rc=$RC frontend=$FE"
+  fi
+)
+
+# Test: 非法参数（空/非数字/超范围）→ 退出码 2
+(
+  ALL_OK=1
+  for BAD in "" "abc" "0" "70000" "51 59"; do
+    if bash "$RPP" "$BAD" >/dev/null 2>&1; then RC=0; else RC=$?; fi
+    [ "$RC" = "2" ] || ALL_OK=0
+  done
+  if [ "$ALL_OK" = "1" ]; then
+    pass "record-preview-port: 非法参数退出码 2"
+  else
+    fail "record-preview-port: 非法参数" "某个非法输入未返回 2"
   fi
 )
 
@@ -1912,6 +2025,23 @@ CDS="$SKILL_LIB/check-dev-server.sh"
     pass "check-dev-server: server 在跑且归属 → GATE_PASSED"
   else
     fail "check-dev-server: GATE_PASSED" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test【Preview 托管回归】: record-preview-port 记录端口 + PID 不可见 + 端口可达 → GATE_PASSED
+# 复现 Desktop 分支 A 全链路：preview_start 拿到端口 → record → 门禁认 trusted 来源。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  bash "$SKILL_LIB/record-preview-port.sh" 50559 >/dev/null 2>&1
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'   # Preview 托管进程对 lsof 不可见
+  write_stub "$SB" curl 'exit 0'   # 端口可达
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=50559" && [ "$RC" = "0" ]; then
+    pass "check-dev-server: Preview 托管端口 record 后 → GATE_PASSED"
+  else
+    fail "check-dev-server: Preview 托管回归" "rc=$RC out=$OUTPUT"
   fi
 )
 
