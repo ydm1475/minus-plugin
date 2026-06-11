@@ -46,4 +46,30 @@ else
   fail "MCP 产物" "固化目录中找不到 launch.cjs"
 fi
 
+# ── 幂等二次安装：从稳定目录自身重跑（src == stable，应跳过迁移而非 rm -rf 自己）──
+# 这是破坏性风险最高的分支：万一判等逻辑出错，install.sh 会先删掉稳定目录再从
+# （已被删的）源目录拷贝，用户的 marketplace 当场蒸发。必须真跑验证。
+STABLE_INSTALL="$HOME/.claude/minus-creator-marketplace/minus-creator/install.sh"
+if [ -f "$STABLE_INSTALL" ]; then
+  RERUN_OUT="$(bash "$STABLE_INSTALL" </dev/null 2>&1)"; RERUN_RC=$?
+  if [ $RERUN_RC -eq 0 ]; then
+    pass "幂等二次安装（src==stable）：退出码 0"
+  else
+    fail "幂等二次安装" "rc=$RERUN_RC; 输出尾部：$(echo "$RERUN_OUT" | tail -10)"
+  fi
+  if echo "$RERUN_OUT" | grep -q "固化 marketplace"; then
+    fail "幂等二次安装" "src==stable 仍走了迁移分支（有 rm -rf 自身风险）"
+  else
+    pass "幂等二次安装：src==stable 跳过迁移分支"
+  fi
+  # 稳定目录未被自毁：MCP 产物仍在
+  if [ -f "$HOME/.claude/minus-creator-marketplace/minus-creator/mcp-servers/minus-platform/launch.cjs" ]; then
+    pass "幂等二次安装：稳定目录完好（launch.cjs 仍在）"
+  else
+    fail "幂等二次安装" "稳定目录被破坏，launch.cjs 丢失"
+  fi
+else
+  fail "幂等二次安装前置" "稳定目录中找不到 install.sh"
+fi
+
 scenario_summary

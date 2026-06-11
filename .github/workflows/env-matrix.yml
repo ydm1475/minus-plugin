@@ -49,3 +49,12 @@ jobs:
 
       - name: Run env matrix (ci scope)
         run: bash tests/env-matrix/run.sh --scope ci
+
+      # install.ps1 引导薄壳的运行时验证（仅 Windows）：场景 09 已用 bash 装过插件，
+      # 这里验证 ps1 的 Git Bash 探测 + 委托 install.sh 的幂等重入路径真实可跑。
+      - name: Run install.ps1 (Windows bootstrap shell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & powershell -ExecutionPolicy Bypass -File plugins/claude/minus-creator/install.ps1
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 failed with exit code $LASTEXITCODE" }
