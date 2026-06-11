@@ -33,7 +33,7 @@ fi
 # 装完后 resolve-node.sh 应能在假 HOME / 假 LOCALAPPDATA 命中
 OUT="$(env HOME="$FAKE_HOME" LOCALAPPDATA="$FAKE_LOCALAPPDATA" ProgramFiles="$FAKE_PROGRAMFILES" PROGRAMFILES="$FAKE_PROGRAMFILES" PATH="$CLEAN_PATH" sh "$RESOLVE_NODE")"; RC2=$?
 if [ $RC2 -eq 0 ] && [ -n "$OUT" ]; then
-  pass "resolve-node.sh：命中 Volta 新装的 node（$OUT）"
+  pass "resolve-node.sh：命中 Volta 新装的 node（${OUT}）"
 else
   fail "resolve-node.sh：装后探测" "rc=$RC2 out=[$OUT]"
 fi

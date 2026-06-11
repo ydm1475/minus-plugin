@@ -43,12 +43,20 @@ for sc in "$EM_DIR"/scenarios/*.sh; do
   echo "— $name"
   OUT="$(bash "$sc" 2>&1)"; RC=$?
   echo "$OUT"
-  # 汇总各场景小结行（— pass=N fail=N skip=N）
+  # 汇总各场景小结行（— pass=N fail=N skip=N）。
+  # 场景中途崩掉时没有小结行——提取值必须兜底 0（空值会让算术展开语法错误，
+  # bash 会把整个 for 循环打断，后续场景被静默跳过且退出码仍为 0，实测翻过车），
+  # 且「无小结行」本身就视为场景失败。
   s="$(echo "$OUT" | grep -o 'pass=[0-9]* fail=[0-9]* skip=[0-9]*' | tail -1)"
-  TOTAL_PASS=$((TOTAL_PASS + $(echo "$s" | sed -n 's/.*pass=\([0-9]*\).*/\1/p' | head -1)))
-  TOTAL_FAIL=$((TOTAL_FAIL + $(echo "$s" | sed -n 's/.*fail=\([0-9]*\).*/\1/p' | head -1)))
-  TOTAL_SKIP=$((TOTAL_SKIP + $(echo "$s" | sed -n 's/.*skip=\([0-9]*\).*/\1/p' | head -1)))
-  [ $RC -ne 0 ] && FAILED_SCENARIOS="$FAILED_SCENARIOS $name"
+  p="$(echo "$s" | sed -n 's/.*pass=\([0-9]*\).*/\1/p')"
+  f="$(echo "$s" | sed -n 's/.*fail=\([0-9]*\).*/\1/p')"
+  k="$(echo "$s" | sed -n 's/.*skip=\([0-9]*\).*/\1/p')"
+  TOTAL_PASS=$((TOTAL_PASS + ${p:-0}))
+  TOTAL_FAIL=$((TOTAL_FAIL + ${f:-0}))
+  TOTAL_SKIP=$((TOTAL_SKIP + ${k:-0}))
+  if [ $RC -ne 0 ] || [ -z "$s" ]; then
+    FAILED_SCENARIOS="$FAILED_SCENARIOS $name"
+  fi
 done
 
 echo ""
