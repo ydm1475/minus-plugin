@@ -18,7 +18,7 @@ effort: high
 
 ## 路由
 
-调用 `mcp__minus-platform__auth_status` 检查登录态，然后分发：
+登录态优先复用 SessionStart hook 注入的上下文（形如「登录状态：true」）——会话开头已有就**不要再调 auth_status**（省一次网络往返）。上下文里没有（如 hook 被禁用或长会话已截断）才调用 `mcp__minus-platform__auth_status`。拿到登录态后分发：
 
 | 状态 | Read |
 |------|------|

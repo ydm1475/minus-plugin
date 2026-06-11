@@ -111,6 +111,9 @@ bash $LIB/progress-check.sh                # 进度自愈：按硬产物收敛 p
 SKL=~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/skills/minus/scripts
 bash $SKL/record-preview-port.sh <port>    # 记录 Claude Preview 返回的前端端口到 .minus/dev-ports.json
                                            # （Desktop 分支 A：Preview 托管进程对 lsof 不可见，门禁靠此识别）
+bash $SKL/resume-env.sh <desktop|cli>      # 开发环境一键恢复：状态检查 + 后台起 dev server + 门禁 +
+                                           # 进度摘要一次跑完，输出 KEY=VALUE 状态块供 agent 直接路由
+                                           # （替代 env-init.md 旧版散步执行，开机链 20+ 次往返 → 1 次）
 ```
 
 ## 同步

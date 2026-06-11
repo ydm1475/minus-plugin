@@ -4,17 +4,17 @@
 
 ## 状态路由
 
-通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② `.minus/progress.json` 中的开发进度。
+路由输入直接用 `resume-env` 输出的字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=`），**不要重复 Read progress.json**。`.minus/skill.json` 只在需要 skillId/version 传给 MCP tool 时读。（没有 resume-env 输出的场景——如中途被用户打断后重入——才退回自己读 progress.json。）
 
 | 状态 | 条件 | Read |
 |------|------|------|
-| A — 开发中 | 有未完成进度 | [node-dev.md](../minus-step/node-dev.md)，继续对应步骤 |
-| B — 待测试 | 所有步骤完成但未测试 | （提示跑端到端测试） |
+| A — 开发中 | `PHASE=developing` 且 `STEPS_DONE` < `STEPS_TOTAL` | [node-dev.md](../minus-step/node-dev.md)，继续 `CURRENT_STEP` |
+| B — 待测试 | `PHASE=developing` 且步骤全完成，或 `PHASE=testing` | （提示跑端到端测试） |
 | C — 可发布 | 测试已通过 | （提示 /minus publish） |
-| D — 结构设计中 | progress.json phase 为 designing | [structure-design.md](../minus-structure/structure-design.md) |
-| E — 无进度 | 刚创建的项目 | [structure-design.md](../minus-structure/structure-design.md) |
+| D — 结构设计中 | `PHASE=designing` | [structure-design.md](../minus-structure/structure-design.md) |
+| E — 无进度 | `PHASE=`（空，progress.json 不存在） | [structure-design.md](../minus-structure/structure-design.md) |
 
-### 首次进入（.minus/initialized 不存在）
+### 首次进入（`INITIALIZED=0`）
 
 1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
 2. 创建 .minus/initialized 标记文件
