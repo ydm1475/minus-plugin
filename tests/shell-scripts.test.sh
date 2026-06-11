@@ -3761,6 +3761,30 @@ MINUS_LIB="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
   fi
 )
 
+(
+  # 脚本名全局唯一：分发器按 scripts/ → skills/*/scripts 顺序取第一个命中，
+  # 重名会静默遮蔽后者。在此拦下，而不是等运行时"新脚本不生效"。
+  PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
+  DUPS=$(
+    for d in "$PLUGIN_DIR/scripts" "$PLUGIN_DIR"/skills/*/scripts; do
+      [ -d "$d" ] || continue
+      for f in "$d"/*; do
+        [ -f "$f" ] || continue
+        basename "$f" .sh
+      done
+    done | sort | uniq -d
+  )
+  if [ -z "$DUPS" ]; then
+    pass "minus-lib: 脚本名全局唯一（无跨目录遮蔽）"
+  else
+    PATHS=$(for n in $DUPS; do
+      find "$PLUGIN_DIR/scripts" "$PLUGIN_DIR"/skills/*/scripts \
+        -maxdepth 1 \( -name "$n" -o -name "$n.sh" \) 2>/dev/null
+    done)
+    fail "minus-lib: 脚本名全局唯一" "重名脚本会被静默遮蔽: $(echo $PATHS)"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 # Summary
 # ══════════════════════════════════════════════════════

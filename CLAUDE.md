@@ -21,7 +21,7 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 同一条指令/规则/模板只能有一个权威定义位置，其他文件引用它，不能复制粘贴。否则修改时必然遗漏，多个 agent 各自持有的"副本"逐渐分裂。
 
 - 流程规则 → 定义在一个地方（如 SKILL.md），agent 文件只写"按 SKILL.md 的 XX 章节执行"
-- 代码模板 → 定义在 scripts/（或 skill 私有的 skills/*/scripts/）脚本或模板文件中，agent 调用脚本而非自己拼代码
+- 代码模板 → 定义在 scripts/（或 skill 私有的 skills/\*/scripts/）脚本或模板文件中，agent 调用脚本而非自己拼代码
 - 提问话术 → 定义在统一的话术表中，agent 引用 key 而非内联文本
 
 ### 4. Plugin 不补偿 Platform（SDK）的职责
@@ -91,6 +91,5 @@ bash tests/shell-scripts.test.sh                 # Shell 脚本测试
   - `scripts/` — 跨 skill 共享与 hooks/运维 Shell 脚本（含 gate.sh 子 skill 前置门禁）
   - `skills/*/scripts/` — 各 skill 私有脚本（minus-lib 按 glob 统一分发）
   - `bin/minus-lib` — 脚本统一分发器（bin/ 在 Bash PATH 上）
-  - `bin/minus.sh` — 启动器
 - `tests/` — 测试用例
 - `References/` — 设计文档
