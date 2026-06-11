@@ -1,4 +1,4 @@
-# uninstall.ps1
+﻿# uninstall.ps1
 # 卸载 Minus Creator Plugin 并清理所有缓存（Windows 版，对应 uninstall.sh）
 # 用法: powershell -ExecutionPolicy Bypass -File uninstall.ps1
 

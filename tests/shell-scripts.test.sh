@@ -3261,6 +3261,23 @@ EOF
   fi
 )
 
+# Test: 所有 .ps1 必须带 UTF-8 BOM——Windows PowerShell 5.1 把无 BOM 的 UTF-8 当
+# ANSI 解析，中文注释会破坏字符串终结符，整个脚本 ParserError（CI run 27335254314 实锤）
+(
+  BAD=""
+  for f in "$REPO_DIR"/plugins/claude/minus-creator/*.ps1; do
+    [ -f "$f" ] || continue
+    if [ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
+      BAD="$BAD $(basename "$f")"
+    fi
+  done
+  if [ -z "$BAD" ]; then
+    pass "ps1: 全部带 UTF-8 BOM（PowerShell 5.1 兼容）"
+  else
+    fail "ps1: UTF-8 BOM" "缺 BOM:$BAD（PS 5.1 会按 ANSI 解析中文导致 ParserError）"
+  fi
+)
+
 # Test: install.ps1 确保 Git Bash 存在（插件 hooks 与 install.sh 的运行前置）
 (
   INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"

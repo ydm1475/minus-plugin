@@ -1,4 +1,4 @@
-# Minus Creator Plugin 安装引导 (Windows / PowerShell)
+﻿# Minus Creator Plugin 安装引导 (Windows / PowerShell)
 # 用法: powershell -ExecutionPolicy Bypass -File install.ps1
 #   （从网上下载的 .ps1 默认被 ExecutionPolicy / MoTW 拦截，必须加 -ExecutionPolicy Bypass，
 #     或先对文件 Unblock-File 再运行。）
