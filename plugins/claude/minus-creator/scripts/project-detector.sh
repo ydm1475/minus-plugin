@@ -111,7 +111,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "项目根目录：$(pwd)"
   echo "登录状态：$LOGGED_IN"
   echo "$NODE_INFO"
-  echo "默认入口：检测到 Minus Skill 项目后，必须立即调用 Skill 工具执行 minus-creator:minus。"
+  echo "默认入口：当用户表达开发、继续、测试、发布等意图，或意图不明确但与本项目相关时，先调用 Skill 工具执行 minus-creator:minus 进入流程。"
   echo "在该项目内，凡是涉及 Skill 输入、步骤、pipeline、前端步骤渲染、测试或发布的请求，都属于 Minus Creator 开发流程；不要直接按普通代码任务修改项目文件。"
   echo "</context>"
 
