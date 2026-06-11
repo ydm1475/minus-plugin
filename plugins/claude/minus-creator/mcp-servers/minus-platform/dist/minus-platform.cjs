@@ -39149,12 +39149,13 @@ server.tool(
   "\u521B\u5EFA Skill \u8FD0\u884C Session\uFF08\u6D4B\u8BD5\u7528\uFF09",
   {
     skillId: external_exports.string().describe("Skill ID"),
+    version: external_exports.string().describe("\u7248\u672C\u53F7\uFF08\u5982 1.0-alpha.1\uFF09\uFF0C\u4ECE .minus/skill.json \u8BFB\u53D6"),
     entryParams: external_exports.record(external_exports.unknown()).describe("Skill \u5165\u53C2\uFF08JSON \u5BF9\u8C61\uFF0C\u900F\u4F20\u7ED9 Skill \u5BB9\u5668\uFF09")
   },
-  async ({ skillId, entryParams }) => {
+  async ({ skillId, version: version2, entryParams }) => {
     const result = await apiRequest(
       "POST",
-      `/api/me/skills/${skillId}/sessions`,
+      `/api/skills/${skillId}/versions/${encodeURIComponent(version2)}/sessions`,
       { body: { entryParams } }
     );
     if (result.error) {

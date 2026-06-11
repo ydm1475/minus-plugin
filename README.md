@@ -62,7 +62,15 @@ bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 1      
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 2       # 只测逐节点四维度（数据→逻辑→输出→确认）
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh --phase 3       # 只测结果呈现设计
 E2E_KEEP=1 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh     # 保留临时项目不删（调试用）
+
+# ── E2E Agent 剧本测试（真实 Agent + LLM 模拟用户，token 消耗大，手动按需触发）──
+bash ~/minus-platform-develop/minus-plugin/tests/e2e-agent/run.sh keyword-to-asin   # 跑指定剧本（scenarios/ 下的文件名）
+E2E_SKIP_RUN=1 bash tests/e2e-agent/run.sh keyword-to-asin                          # 只测对话流程，跳过真实运行验证
+E2E_KEEP=1 E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus bash tests/e2e-agent/run.sh ...   # 可覆盖的参数
+node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token）
 ```
+
+E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度④等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
 
 ## 项目注册表
 

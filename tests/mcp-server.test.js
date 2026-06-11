@@ -382,6 +382,33 @@ describe("MCP Server - Vcode & Register (network errors handled)", () => {
     );
   });
 
+  it("session_create should require version param (versioned endpoint contract)", async () => {
+    const result = await client.listTools();
+    const tool = result.tools.find((t) => t.name === "session_create");
+    assert.ok(tool, "session_create tool should exist");
+    assert.ok(
+      tool.inputSchema.properties.version,
+      "session_create should declare a version param"
+    );
+    assert.ok(
+      (tool.inputSchema.required || []).includes("version"),
+      "version should be required"
+    );
+  });
+
+  it("session_create should handle unreachable platform gracefully", async () => {
+    const result = await client.callTool("session_create", {
+      skillId: "skl_test",
+      version: "1.0-alpha.1",
+      entryParams: { keyword: "test" },
+    });
+    const text = result.content[0].text;
+    assert.ok(
+      text.includes("失败") || text.includes("未登录") || text.includes("网络连接"),
+      `Expected failure/not-logged-in message in: ${text}`
+    );
+  });
+
   it("skill_version_create should handle connection refused gracefully", async () => {
     // Need fake credentials for this tool (uses apiRequest which checks auth)
     const credDir = path.join(tmpHome, ".minus");

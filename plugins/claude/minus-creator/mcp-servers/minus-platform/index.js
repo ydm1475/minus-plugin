@@ -768,14 +768,18 @@ server.tool(
   "创建 Skill 运行 Session（测试用）",
   {
     skillId: z.string().describe("Skill ID"),
+    version: z
+      .string()
+      .describe("版本号（如 1.0-alpha.1），从 .minus/skill.json 读取"),
     entryParams: z
       .record(z.unknown())
       .describe("Skill 入参（JSON 对象，透传给 Skill 容器）"),
   },
-  async ({ skillId, entryParams }) => {
+  async ({ skillId, version, entryParams }) => {
+    // 契约：创建 Session 走版本化端点；/api/me/skills/{id}/sessions 只有 GET（历史列表）
     const result = await apiRequest(
       "POST",
-      `/api/me/skills/${skillId}/sessions`,
+      `/api/skills/${skillId}/versions/${encodeURIComponent(version)}/sessions`,
       { body: { entryParams } }
     );
 
