@@ -36,6 +36,11 @@ if [ $RC2 -eq 0 ] && [ -n "$OUT" ]; then
   pass "resolve-node.sh：命中 Volta 新装的 node（${OUT}）"
 else
   fail "resolve-node.sh：装后探测" "rc=$RC2 out=[$OUT]"
+  # 诊断：node 实际落在哪（假 HOME / 假 LOCALAPPDATA / 真 LOCALAPPDATA）
+  echo "  [diag] install 输出尾部：$(echo "$INSTALL_OUT" | tail -3)"
+  for d in "$FAKE_HOME/.volta" "$FAKE_LOCALAPPDATA/Volta" "${LOCALAPPDATA:-}/Volta"; do
+    [ -n "$d" ] && [ -d "$d" ] && echo "  [diag] $d: $(find "$d" -name 'node*' -maxdepth 4 2>/dev/null | head -5)"
+  done
 fi
 
 scenario_summary

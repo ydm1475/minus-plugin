@@ -124,10 +124,13 @@ restore_abs_nodes() {
 # Volta/nvm 的 shim 在假 HOME 下找不到工具链真身会失效。
 # 故先用 resolve-node.sh 在【正常环境】解析合规 node，再取其 execPath 拿到真二进制。
 real_node() {
-  local n
+  local n p
   n="$(sh "$RESOLVE_NODE" 2>/dev/null)" || return 1
   [ -n "$n" ] || return 1
-  "$n" -p "process.execPath" 2>/dev/null
+  p="$("$n" -p "process.execPath" 2>/dev/null)" || return 1
+  # Windows 的 execPath 是 C:\... 风格，dirname/PATH 拼接前必须转成 /c/...
+  if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -u "$p")"; fi
+  printf '%s\n' "$p"
 }
 
 # 在 $1 处铺一个「可被候选链命中的 node」。
