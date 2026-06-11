@@ -24,6 +24,18 @@ else
   echo ""
 fi
 
+# ── Env Matrix Tests（local scope：CI-only/不可屏蔽场景自动 skip，全量在 GitHub Actions 跑）──
+echo "▶ Env Matrix Tests"
+echo "────────────────────"
+if bash "$SCRIPT_DIR/env-matrix/run.sh" --scope local; then
+  echo ""
+else
+  FAILED=1
+  echo ""
+  echo "  ⚠ Some env-matrix tests failed"
+  echo ""
+fi
+
 # ── E2E Conversation Replay Tests ──
 echo "▶ E2E Conversation Replay Tests"
 echo "────────────────────"
