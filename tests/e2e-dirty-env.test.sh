@@ -80,6 +80,16 @@ run_lib() {
 HAS_PY=0; command -v python3 >/dev/null 2>&1 && HAS_PY=1
 HAS_LSOF=0; command -v lsof >/dev/null 2>&1 && HAS_LSOF=1
 
+# 等端口真正可达：CI 冷启动 python 首次 bind 可能 >1s，固定 sleep 有竞态。
+# 实测 GH macOS：归属校验在 server 未 bind 时 lsof 查不到 PID，trusted 来源
+# 回退 curl 验证——curl 时刚好 bind 上 → 跳过归属校验误放行。
+wait_port_up() {
+  local W=0
+  while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$1/" 2>/dev/null; do
+    sleep 1; W=$((W+1))
+  done
+}
+
 cd "$PROJ"
 
 # ══════════════════════════════════════════════════════
@@ -137,7 +147,7 @@ echo "═══ Phase 3: 过期 dev-ports.json 指向别人的 server ═══"
 if [ "$HAS_PY" = "1" ] && [ "$HAS_LSOF" = "1" ]; then
   # 残留 2：端口活着，但属于另一个项目（cwd=$OTHER）——存在 ≠ 属于我
   (cd "$OTHER" && python3 -m http.server 5191 >/dev/null 2>&1) & SRV_PIDS="$SRV_PIDS $!"
-  sleep 1
+  wait_port_up 5191
   echo '{"frontend":5191}' > .minus/dev-ports.json
   if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "1" ] && echo "$OUT" | grep -q "GATE_FAILED"; then
@@ -157,7 +167,7 @@ echo "═══ Phase 4: 归属本项目的旧 server 残留 ═══"
 if [ "$HAS_PY" = "1" ]; then
   # 残留 3：上个 session 的 server 还活着且归属本项目（cwd=$PROJ）
   python3 -m http.server 5192 >/dev/null 2>&1 & SRV_OWNED=$!; SRV_PIDS="$SRV_PIDS $SRV_OWNED"
-  sleep 1
+  wait_port_up 5192
   echo '{"frontend":5192}' > .minus/dev-ports.json
 
   if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi

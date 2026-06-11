@@ -95,7 +95,9 @@ DEV_PORTS_FILE="$PROJECT_DIR/.minus/dev-ports.json"
 WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
   if [ -f "$DEV_PORTS_FILE" ]; then
-    PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).frontend||'')" 2>/dev/null)
+    # 相对路径传给 node：Windows Git Bash 下 node 是原生二进制，读不了嵌在
+    # JS 字符串里的 MSYS 绝对路径（$DEV_PORTS_FILE 形如 /tmp/... 或 /c/...）。
+    PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend||'')" 2>/dev/null)
     if [ -n "$PORT" ] && verify_port "$PORT" 1; then
       found_port "$PORT"
     fi

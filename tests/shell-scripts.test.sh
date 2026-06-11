@@ -2139,7 +2139,9 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
     TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
     write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
     python3 -m http.server 5189 >/dev/null 2>&1 & OLD_SRV=$!
-    sleep 1
+    # 等端口真正可达再继续：CI 冷启动 python 首次 bind 可能 >1s，固定 sleep 有竞态
+    # （实测 GH macOS：lsof 扫描时还没 bind → 杀不到 → 误报）
+    W=0; while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5189/" 2>/dev/null; do sleep 1; W=$((W+1)); done
     echo '{"frontend":5189}' > .minus/dev-ports.json
     write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
     OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
@@ -2162,7 +2164,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
     TMP=$(make_tmp); SB="$TMP/sb"; OTHER="$TMP/other"; mkdir -p "$SB" "$TMP/proj/.minus" "$OTHER"
     write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
     (cd "$OTHER" && exec python3 -m http.server 5179 >/dev/null 2>&1) & OTHER_SRV=$!
-    sleep 1
+    W=0; while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5179/" 2>/dev/null; do sleep 1; W=$((W+1)); done
     cd "$TMP/proj"
     echo '{"frontend":5179}' > .minus/dev-ports.json
     write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
@@ -3171,6 +3173,9 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
     else
       pass "vite-template: no server.open setting (defaults to false)"
     fi
+  elif [ ! -d "$PLATFORM_DIR" ]; then
+    # CI 只 checkout 本仓库，兄弟仓库 minus-platform 不存在——跨仓库断言只在本地双仓环境生效
+    skip "vite-template: server.open is false" "兄弟仓库 minus-platform 不存在（CI 单仓 checkout）"
   else
     fail "vite-template: file exists" "not found at $VITE_TPL"
   fi

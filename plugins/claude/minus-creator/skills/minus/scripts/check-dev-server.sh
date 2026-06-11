@@ -23,10 +23,11 @@ if [ -n "$PORT" ] && [ "$PORT" != "DETECT_FAILED" ]; then
   # 后端已死——此时若放行门禁，用户要到运行步骤撞 504 才发现）。后端端口由 SDK 写入
   # dev-ports.json 的 backend 字段；字段缺失时跳过本检查（Desktop 分支 A 等场景由
   # record-preview-port 只写 frontend，不应误伤）。
-  DEV_PORTS_FILE="$(pwd)/.minus/dev-ports.json"
+  # 路径必须用相对路径传给 node：Windows Git Bash 下 node 是原生二进制，
+  # 读不了嵌在 JS 字符串里的 MSYS 绝对路径（/tmp/...、/c/...），相对路径两边通吃。
   BACKEND_PORT=""
-  if [ -f "$DEV_PORTS_FILE" ]; then
-    BACKEND_PORT=$(node -e "const p=JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend;console.log(p>0?p:'')" 2>/dev/null)
+  if [ -f .minus/dev-ports.json ]; then
+    BACKEND_PORT=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).backend;console.log(p>0?p:'')" 2>/dev/null)
   fi
   if [ -n "$BACKEND_PORT" ] && ! curl -s -o /dev/null --max-time 2 "http://localhost:$BACKEND_PORT/" 2>/dev/null; then
     echo "GATE_FAILED"
