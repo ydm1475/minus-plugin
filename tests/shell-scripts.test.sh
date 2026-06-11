@@ -3910,6 +3910,56 @@ make_plugin_root() {
   fi
 )
 
+# Test: Node 过旧（v18 桩）且无合格备选 → 指示 Agent 跑 bootstrap-env，受众是 Agent 而非用户
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" yes
+  mkdir -p "$TMP/bin"
+  printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
+  chmod +x "$TMP/bin/node"
+  OUTPUT=$(PATH="$TMP/bin:/usr/bin:/bin" MINUS_NODE_CANDIDATES="$TMP/none" bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
+  if [ "$RC" -eq 0 ] && assert_contains "$OUTPUT" "minus-lib bootstrap-env" \
+     && assert_contains "$OUTPUT" "不是程序员"; then
+    pass "post-install-check: Node 过旧 → 指示 Agent 自动跑 bootstrap-env"
+  else
+    fail "post-install-check: Node 过旧分支" "rc=$RC out: $OUTPUT"
+  fi
+)
+
+# Test: PATH 无合格 node 但备选位置（如 Volta）有 → 静默，不误报
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" yes
+  mkdir -p "$TMP/bin" "$TMP/volta"
+  printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
+  printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 24; else echo v24.0.0; fi\n' > "$TMP/volta/node"
+  chmod +x "$TMP/bin/node" "$TMP/volta/node"
+  OUTPUT=$(PATH="$TMP/bin:/usr/bin:/bin" MINUS_NODE_CANDIDATES="$TMP/volta/node" bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
+  if [ "$RC" -eq 0 ] && [ -z "$OUTPUT" ]; then
+    pass "post-install-check: 备选位置有合格 node → 静默不误报"
+  else
+    fail "post-install-check: 备选 node 探测" "rc=$RC out: $OUTPUT"
+  fi
+)
+
+# Test: --strict 模式跳过 Node 检查（install.sh 有自己的交互式 gate）
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" yes
+  mkdir -p "$TMP/bin"
+  printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
+  chmod +x "$TMP/bin/node"
+  RC=0; OUTPUT=$(PATH="$TMP/bin:/usr/bin:/bin" MINUS_NODE_CANDIDATES="$TMP/none" bash "$PIC" --strict "$TMP/plugin" 2>&1) || RC=$?
+  if [ "$RC" -eq 0 ] && [ -z "$OUTPUT" ]; then
+    pass "post-install-check: --strict 跳过 Node 检查"
+  else
+    fail "post-install-check: --strict 应跳过 Node 检查" "rc=$RC out: $OUTPUT"
+  fi
+)
+
 # Test: hooks.json 已注册 post-install-check 到 SessionStart（机制接线，不靠人记得）
 (
   HOOKS_JSON="$REPO_DIR/plugins/claude/minus-creator/hooks/hooks.json"
