@@ -2177,6 +2177,10 @@ write_stub() {
   write_stub "$SB" node 'case "$1" in -v) echo v18.0.0;; *) echo 18;; esac'
   write_stub "$SB" npm 'exit 0'
   write_stub "$SB" curl 'exit 1'   # 有 curl 但下载失败 → ensure_volta 失败、不触网
+  # 假 HOME 铺 volta image node 桩（20 = 过 resolve-node 下限，< NODE_FLOOR 24 → 走 provision）：
+  # 不能指望机器绝对路径（/usr/local 等）有现代 node 兜底 resolve（实测有机器是 v12 → 提前 NO_GOOD_NODE，场景失效）
+  IMG="$TMP/.volta/tools/image/node/20.0.0/bin"; mkdir -p "$IMG"
+  write_stub "$IMG" node 'case "$1" in -v) echo v20.0.0;; *) echo 20;; esac'
   # 不提供 volta / winget / powershell.exe → Volta 真的不在场
   OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$RCS" "测试项目" 2>&1 || true)
   if assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" \

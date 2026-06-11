@@ -6,7 +6,7 @@ name: env-matrix
 
 on:
   push:
-    branches: [master, env-matrix-ci]   # env-matrix-ci 为调试分支，并入 master 前移除
+    branches: [master]
   pull_request:
     branches: [master]
   workflow_dispatch:
