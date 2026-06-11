@@ -24,7 +24,7 @@ case "$ACTION" in
       echo "<context>"
       echo "[上下文检查] 当前 session 已进行较长时间（$COUNT 次文件操作）。"
       echo "如果即将完成一个主要任务节点，建议保存进度并提示 Creator 开启新对话。"
-      echo "保存进度命令：minus-lib progress-saver"
+      echo "保存进度命令：minus-lib update-progress touch"
       echo "</context>"
     fi
     ;;

@@ -99,7 +99,9 @@ bash $LIB/project-detector.sh              # 检测当前目录类型
 bash $LIB/detect-client.sh                 # 检测客户端类型（cli / desktop）
 bash $LIB/context-manager.sh check         # 上下文计数检查（Skill 项目目录下）
 bash $LIB/context-manager.sh reset         # 重置计数器
-bash $LIB/progress-saver.sh               # 保存开发进度到 Memory（Skill 项目目录下）
+bash $LIB/update-progress.sh <init-design|design-done|append-steps|step-done|set-phase|touch|show>
+                                           # progress.json 唯一写入入口（Skill 项目目录下）
+bash $LIB/progress-check.sh                # 进度自愈：按硬产物收敛 progress.json（SessionStart/Stop hook 自动跑）
 ```
 
 ## 启动器

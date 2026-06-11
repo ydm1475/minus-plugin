@@ -54,6 +54,9 @@ echo "STEP_NUMBER=$STEP"
 echo "LOGIC_MODE=$LOGIC_MODE"
 echo "CONFIRM_MODE=$CONFIRM_MODE"
 echo "IS_LAST=$IS_LAST"
+echo ""
+echo "⛔ 代码写完并通过依赖检查后，必须执行：minus-lib update-progress step-done $STEP"
+echo "   （自动标记本步骤完成并推进进度；最后一步会自动进入待测试阶段）"
 
 # ── LLM 处理约束 ──
 

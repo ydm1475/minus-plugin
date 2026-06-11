@@ -4,8 +4,14 @@
 # 用法: generate-steps.sh [--input-type keyword|asin|file|default] "步骤1名称" ...
 #       generate-steps.sh --append "新步骤名称" ...
 # 必须在 Skill 项目根目录下执行
+#
+# ⚠ 骨架占位标记「# TODO: 实现「」被 update-progress.sh（step-done 门禁）和
+#   progress-check.sh（自愈重建）依赖，修改此模板需同步两处。
 
 set -euo pipefail
+
+GS_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+UPDATE_PROGRESS="$GS_SCRIPT_DIR/../../../scripts/update-progress.sh"
 
 APPEND_MODE=false
 INPUT_TYPE=""
@@ -94,6 +100,9 @@ console.log('✓ ${MAIN_TSX} 追加了 ${NEW_STEP_COUNT} 个步骤渲染');
 
   echo "$NEW_TOTAL" > .minus/total-steps
   echo "✓ .minus/total-steps 更新为 ${NEW_TOTAL}"
+
+  # 进度搭载写入：追加的新步骤记入 progress.json（pending）
+  bash "$UPDATE_PROGRESS" append-steps "${NEW_STEP_NAMES[@]}"
   exit 0
 fi
 
@@ -124,6 +133,12 @@ fi
 } > pipeline.py
 
 echo "✓ pipeline.py 已生成 ${STEP_COUNT} 个步骤"
+
+# ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
+echo "$STEP_COUNT" > .minus/total-steps
+
+# ── 进度搭载写入：steps 列表 + phase=developing（Agent 不再手写 progress.json）──
+bash "$UPDATE_PROGRESS" design-done "${STEP_NAMES[@]}"
 
 # ── 生成 main.tsx 的 buildSteps 部分 ──
 MAIN_TSX="frontend/src/main.tsx"
@@ -190,9 +205,6 @@ if (pattern.test(code)) {
 }
 " 2>&1
 fi
-
-# ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
-echo "$STEP_COUNT" > .minus/total-steps
 
 # ── 输出 node-dev.md 指令（硬编码注入，不依赖 agent 自觉去 Read）──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

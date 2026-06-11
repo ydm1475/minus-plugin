@@ -291,40 +291,288 @@ CM="$LIB_DIR/context-manager.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
-echo "═══ progress-saver.sh ═══"
+echo "═══ update-progress.sh ═══"
 # ══════════════════════════════════════════════════════
 
-PS_SCRIPT="$LIB_DIR/progress-saver.sh"
+UP="$LIB_DIR/update-progress.sh"
+PC="$LIB_DIR/progress-check.sh"
 
-# Test: fails without .minus/skill.json
+# 读取 progress.json 字段（路径表达式如 .phase / .steps["1"].status）
+pj() {
+  node -e "const p=require('fs').readFileSync('.minus/progress.json','utf8');console.log(JSON.parse(p)$1)"
+}
+
+# 搭一个最小 Minus 项目：skill.json + pipeline.py（含 N 个骨架步骤）+ total-steps
+setup_project() {
+  local N="$1"
+  mkdir -p .minus
+  echo '{"skillId":"sk_test","version":"v1"}' > .minus/skill.json
+  {
+    echo "class SkillPipeline(Pipeline):"
+    for i in $(seq 1 "$N"); do
+      echo ""
+      echo "    async def step_${i}(self, ctx):"
+      echo "        # TODO: 实现「步骤${i}名」的逻辑"
+      echo "        return None"
+    done
+  } > pipeline.py
+  echo "$N" > .minus/total-steps
+}
+
+# 标记某步四维度全部完成
+mark_dims_done() {
+  mkdir -p .minus/dev-progress
+  for dim in data logic output confirm; do
+    touch ".minus/dev-progress/step_${1}_${dim}"
+  done
+}
+
+# 把某步的 TODO 骨架替换为"已实现"
+implement_step() {
+  node -e "
+    const fs=require('fs');
+    let c=fs.readFileSync('pipeline.py','utf8');
+    c=c.replace(new RegExp('        # TODO: 实现「步骤${1}名」的逻辑'),'        x = 1  # implemented');
+    fs.writeFileSync('pipeline.py',c);
+  "
+}
+
+# Test: fails without skill.json
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  OUTPUT=$(bash "$PS_SCRIPT" 2>&1 || true)
-  # Check that it actually outputs the error
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$UP" touch 2>&1 || true)
   if assert_contains "$OUTPUT" "未找到"; then
-    pass "progress-saver: fails without skill.json"
+    pass "update-progress: fails without skill.json"
   else
-    fail "progress-saver: fails without skill.json" "got: $OUTPUT"
+    fail "update-progress: fails without skill.json" "got: $OUTPUT"
   fi
 )
 
-# Test: saves progress with skill.json
+# Test: init-design writes designing + input_done
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus .claude/memory
-  echo '{"skillId":"sk_test123"}' > .minus/skill.json
-  OUTPUT=$(bash "$PS_SCRIPT" 2>&1)
-  if assert_contains "$OUTPUT" "已保存" && [ -f ".minus/progress.json" ]; then
-    CONTENT=$(cat .minus/progress.json)
-    if assert_contains "$CONTENT" '"phase"' && assert_contains "$CONTENT" '"updatedAt"'; then
-      pass "progress-saver: saves progress json"
-    else
-      fail "progress-saver: saves progress json" "content: $CONTENT"
-    fi
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo '{"skillId":"sk_t"}' > .minus/skill.json
+  bash "$UP" init-design >/dev/null 2>&1
+  if [ "$(pj .phase)" = "designing" ] && [ "$(pj .designStage)" = "input_done" ] && [ "$(pj .currentStep)" = "0" ]; then
+    pass "update-progress: init-design"
   else
-    fail "progress-saver: saves progress" "got: $OUTPUT"
+    fail "update-progress: init-design" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: design-done writes steps + developing, removes designStage
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" init-design >/dev/null 2>&1
+  bash "$UP" design-done "关键词采集" "竞争度分析" "长尾词推荐" >/dev/null 2>&1
+  if [ "$(pj .phase)" = "developing" ] && [ "$(pj .currentStep)" = "1" ] \
+     && [ "$(pj '.steps["1"].status')" = "in_progress" ] \
+     && [ "$(pj '.steps["3"].name')" = "长尾词推荐" ] \
+     && [ "$(pj '.designStage')" = "undefined" ]; then
+    pass "update-progress: design-done"
+  else
+    fail "update-progress: design-done" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: 中文/引号步骤名不破坏 JSON
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  bash "$UP" design-done '步骤"带引号"和$符号' >/dev/null 2>&1
+  if [ "$(pj '.steps["1"].name')" = '步骤"带引号"和$符号' ]; then
+    pass "update-progress: special chars in step names"
+  else
+    fail "update-progress: special chars in step names" "got: $(cat .minus/progress.json 2>&1)"
+  fi
+)
+
+# Test: append-steps 追加且不动已有状态
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  bash "$UP" append-steps "C" >/dev/null 2>&1
+  if [ "$(pj '.steps["3"].status')" = "pending" ] && [ "$(pj '.steps["1"].status')" = "in_progress" ]; then
+    pass "update-progress: append-steps"
+  else
+    fail "update-progress: append-steps" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: step-done 四维度未完成时拒写
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  OUTPUT=$(bash "$UP" step-done 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "四维度未全部完成" && [ "$(pj '.steps["1"].status')" = "in_progress" ]; then
+    pass "update-progress: step-done blocked when dims incomplete"
+  else
+    fail "update-progress: step-done blocked when dims incomplete" "got: $OUTPUT"
+  fi
+)
+
+# Test: step-done 时 step_N 仍是 TODO 骨架则拒写
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1
+  OUTPUT=$(bash "$UP" step-done 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "骨架占位" && [ "$(pj '.steps["1"].status')" = "in_progress" ]; then
+    pass "update-progress: step-done blocked when step is TODO skeleton"
+  else
+    fail "update-progress: step-done blocked when TODO" "got: $OUTPUT"
+  fi
+)
+
+# Test: step-done 门禁齐全时正常推进
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1
+  bash "$UP" step-done 1 >/dev/null 2>&1
+  if [ "$(pj '.steps["1"].status')" = "completed" ] && [ "$(pj '.steps["2"].status')" = "in_progress" ] \
+     && [ "$(pj .currentStep)" = "2" ] && [ "$(pj .phase)" = "developing" ]; then
+    pass "update-progress: step-done advances progress"
+  else
+    fail "update-progress: step-done advances progress" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: 最后一步 step-done 自动 phase=testing
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1; bash "$UP" step-done 1 >/dev/null 2>&1
+  mark_dims_done 2; implement_step 2; bash "$UP" step-done 2 >/dev/null 2>&1
+  if [ "$(pj .phase)" = "testing" ] && [ "$(pj '.steps["2"].status')" = "completed" ]; then
+    pass "update-progress: last step-done sets phase=testing"
+  else
+    fail "update-progress: last step-done sets phase=testing" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: set-phase 枚举校验
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  bash "$UP" set-phase ready >/dev/null 2>&1
+  OUTPUT=$(bash "$UP" set-phase bogus 2>&1 || true)
+  if [ "$(pj .phase)" = "ready" ] && assert_contains "$OUTPUT" "无效的 phase"; then
+    pass "update-progress: set-phase validates enum"
+  else
+    fail "update-progress: set-phase validates enum" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ progress-check.sh ═══"
+# ══════════════════════════════════════════════════════
+
+# Test: 非项目目录静默退出 0
+(
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$PC" 2>&1); CODE=$?
+  if [ "$CODE" -eq 0 ] && [ -z "$OUTPUT" ]; then
+    pass "progress-check: silent exit outside project"
+  else
+    fail "progress-check: silent exit outside project" "code=$CODE got: $OUTPUT"
+  fi
+)
+
+# Test: progress.json 缺失时从骨架重建（步骤名取自 TODO 注释）
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  OUTPUT=$(bash "$PC" 2>&1)
+  if assert_contains "$OUTPUT" "进度自愈" && [ "$(pj '.steps["2"].name')" = "步骤2名" ] \
+     && [ "$(pj .phase)" = "developing" ]; then
+    pass "progress-check: rebuilds missing progress.json"
+  else
+    fail "progress-check: rebuilds missing progress.json" "got: $OUTPUT / $(cat .minus/progress.json 2>&1)"
+  fi
+)
+
+# Test: 硬产物显示完成但 json 未标 → 补标并推进 currentStep
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1
+  # 模拟 agent 漏调 step-done
+  OUTPUT=$(bash "$PC" 2>&1)
+  if assert_contains "$OUTPUT" "补标 completed" && [ "$(pj '.steps["1"].status')" = "completed" ] \
+     && [ "$(pj .currentStep)" = "2" ]; then
+    pass "progress-check: heals missed step-done"
+  else
+    fail "progress-check: heals missed step-done" "got: $OUTPUT / $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: 全完成且 developing → testing；ready 不被降级
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  bash "$UP" design-done "A" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1
+  bash "$PC" >/dev/null 2>&1
+  PHASE_AFTER=$(pj .phase)
+  bash "$UP" set-phase ready >/dev/null 2>&1
+  bash "$PC" >/dev/null 2>&1
+  if [ "$PHASE_AFTER" = "testing" ] && [ "$(pj .phase)" = "ready" ]; then
+    pass "progress-check: all-done→testing, ready not downgraded"
+  else
+    fail "progress-check: phase convergence" "after=$PHASE_AFTER final=$(pj .phase)"
+  fi
+)
+
+# Test: 状态一致时静默
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  bash "$PC" >/dev/null 2>&1
+  OUTPUT=$(bash "$PC" 2>&1)
+  if [ -z "$OUTPUT" ]; then
+    pass "progress-check: silent when consistent"
+  else
+    fail "progress-check: silent when consistent" "got: $OUTPUT"
+  fi
+)
+
+# Test: generate-steps 全量模式自动写入 progress.json
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  echo "class SkillPipeline(Pipeline):" > pipeline.py
+  bash "$STRUCT_LIB/generate-steps.sh" "步骤A" "步骤B" >/dev/null 2>&1 || true
+  if [ -f .minus/progress.json ] && [ "$(pj .phase)" = "developing" ] \
+     && [ "$(pj '.steps["2"].name')" = "步骤B" ]; then
+    pass "generate-steps: writes progress.json (full mode)"
+  else
+    fail "generate-steps: writes progress.json (full mode)" "got: $(cat .minus/progress.json 2>&1)"
+  fi
+)
+
+# Test: generate-steps --append 同步追加 progress.json
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  echo "class SkillPipeline(Pipeline):" > pipeline.py
+  bash "$STRUCT_LIB/generate-steps.sh" "步骤A" >/dev/null 2>&1 || true
+  bash "$STRUCT_LIB/generate-steps.sh" --append "步骤B" >/dev/null 2>&1 || true
+  if [ "$(pj '.steps["2"].name')" = "步骤B" ] && [ "$(pj '.steps["2"].status')" = "pending" ]; then
+    pass "generate-steps: --append updates progress.json"
+  else
+    fail "generate-steps: --append updates progress.json" "got: $(cat .minus/progress.json 2>&1)"
   fi
 )
 

@@ -266,19 +266,7 @@ minus-lib check-python-deps
 「看完如果没问题，我们继续进入结果呈现设计。」
 
 4. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
-5. 保存进度到 `.minus/progress.json`——读取现有内容（没有则初始化 `{}`），更新当前步骤状态，写回文件。格式：
-```json
-{
-  "currentStep": 2,
-  "steps": {
-    "1": { "name": "关键词筛选", "status": "completed" },
-    "2": { "name": "竞品分析", "status": "in_progress" }
-  },
-  "phase": "developing",
-  "updatedAt": "2026-06-08T12:00:00Z"
-}
-```
-`phase` 取值：`designing`（结构设计中）、`developing`（节点开发中）、`testing`（待测试）、`ready`（可发布）。
+5. 执行 `minus-lib update-progress step-done {step_number}`（自动标记本步骤完成、推进 currentStep；最后一步会自动进入待测试阶段）。⛔ 禁止手写 `.minus/progress.json`。
 
 ## 代码生成规则
 

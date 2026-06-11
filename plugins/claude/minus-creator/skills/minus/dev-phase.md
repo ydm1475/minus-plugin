@@ -71,7 +71,7 @@
 
 **调用方式：** 进入节点开发前，用 Read 工具读取 [node-dev.md](../minus-step/node-dev.md)，然后**在当前对话中**严格按其中定义的四维度流程执行。
 
-**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，更新 `.minus/progress.json`（当前步骤标记 completed，下一步标记 in_progress，更新 currentStep 和 updatedAt），进入下一个节点。
+**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，执行 `minus-lib update-progress step-done {N}`（自动推进本地进度，禁止手写 progress.json），进入下一个节点。
 
 ## 结果呈现设计
 
