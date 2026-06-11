@@ -69,6 +69,8 @@ if [ "$1" = "-v" ]; then echo v12.18.0; exit 0; fi
 echo "SyntaxError: Unexpected token '?'" >&2; exit 1
 FAKE
 chmod +x "$OLD_SHIM/node"
+# 重启链路会走到 pnpm：给无害 stub，测试只验清理与解析，不真起 dev server
+printf '#!/bin/bash\necho "PNPM_ARGS=$*"\n' > "$OLD_SHIM/pnpm"; chmod +x "$OLD_SHIM/pnpm"
 
 # 生产路径调用：脏 PATH + 强制分发器从零解析 node
 run_lib() {
@@ -154,7 +156,7 @@ echo "═══ Phase 4: 归属本项目的旧 server 残留 ═══"
 
 if [ "$HAS_PY" = "1" ]; then
   # 残留 3：上个 session 的 server 还活着且归属本项目（cwd=$PROJ）
-  python3 -m http.server 5192 >/dev/null 2>&1 & SRV_PIDS="$SRV_PIDS $!"
+  python3 -m http.server 5192 >/dev/null 2>&1 & SRV_OWNED=$!; SRV_PIDS="$SRV_PIDS $SRV_OWNED"
   sleep 1
   echo '{"frontend":5192}' > .minus/dev-ports.json
 
@@ -183,6 +185,24 @@ if [ "$HAS_PY" = "1" ]; then
   fi
 else
   skip "归属旧 server 复用/半死拦截" "缺 python3"
+fi
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ Phase 5: 强制重启清掉归属旧进程（v12 遮挡下）═══"
+# ══════════════════════════════════════════════════════
+
+if [ "$HAS_PY" = "1" ] && [ "$HAS_LSOF" = "1" ]; then
+  echo '{"frontend":5192}' > .minus/dev-ports.json
+  if OUT=$(MINUS_DEV_RESTART=1 run_lib start-dev full 2>&1); then RC=0; else RC=$?; fi
+  if ! kill -0 "$SRV_OWNED" 2>/dev/null && [ ! -f .minus/dev-ports.json ] \
+     && ! echo "$OUT" | grep -q "SyntaxError"; then
+    pass "强制重启：杀归属旧进程 + 删端口记录 + 无 SyntaxError"
+  else
+    fail "强制重启清理链" "rc=$RC old_alive=$(kill -0 "$SRV_OWNED" 2>/dev/null && echo y || echo n) ports=$([ -f .minus/dev-ports.json ] && echo y || echo n) out=$OUT"
+  fi
+else
+  skip "强制重启清理链" "缺 python3 或 lsof"
 fi
 
 # ══════════════════════════════════════════════════════

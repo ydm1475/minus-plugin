@@ -9,7 +9,8 @@
 #
 # 注意：本脚本会前台启动 dev server（长驻进程）。调用方应以后台方式运行
 # （Bash 工具 run_in_background），不要在这里 fork/nohup。
-# restart 场景请先 rm -f .minus/dev-ports.json，再以 MINUS_DEV_RESTART=1 调用本脚本。
+# restart 场景直接以 MINUS_DEV_RESTART=1 调用本脚本即可——旧进程清理与
+# dev-ports.json 删除都在脚本内按正确顺序处理，调用方不要自己 rm/kill。
 
 MODE="${1:-full}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,14 +29,52 @@ if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" != "backend" ]; then
   fi
 fi
 
-# 重启场景（MINUS_DEV_RESTART=1）：先趁 dev-ports.json 还在时跑 Platform 的
-# minus-dev-cleanup（它按该文件解析后端端口、清掉归属本项目的孤儿监听），再删端口
+# 重启场景（MINUS_DEV_RESTART=1）：先趁 dev-ports.json 还在时清旧进程，再删端口
 # 记录。顺序硬编码在这里——此前 md 指令是「先 rm 再启动」，cleanup 读不到端口记录
 # 只能回退默认 4001，非默认端口项目会漏清（能硬编码的别靠 Agent 自觉）。
+# 清理分两层：
+#   后端 → Platform 的 minus-dev-cleanup（按 dev-ports.json 解析后端端口）
+#   前端 → 本脚本杀归属本项目的旧 vite 监听（2026-06-11 拍板：重启场景允许脚本
+#          kill 归属校验通过的旧进程；否则旧 vite 占着端口变僵尸累积。
+#          Agent 手动 kill 仍被 env-init.md 禁止——只有这段硬编码可以杀）。
 if [ "${MINUS_DEV_RESTART:-0}" = "1" ]; then
   if [ -x node_modules/.bin/minus-dev-cleanup ]; then
     node_modules/.bin/minus-dev-cleanup || true
   fi
+  # 杀归属本项目的旧前端监听。归属校验（CLAUDE.md #5 存在≠属于我）：
+  #   Unix    → lsof 验证监听进程 cwd 在本项目内才杀
+  #   Windows → 拿不到 cwd，只杀 dev-ports.json（文件在本项目，来源可信）记录的端口
+  RESTART_FE_PORTS=""
+  if [ -f .minus/dev-ports.json ]; then
+    RESTART_FE_PORTS=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend;console.log(p>0?p:'')" 2>/dev/null)
+  fi
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      for P in $RESTART_FE_PORTS; do
+        OLD_PID=$(netstat -ano 2>/dev/null | grep -i 'LISTENING' | grep -E "[:.]${P}[[:space:]]" | awk '{print $NF}' | head -1)
+        [ -n "$OLD_PID" ] && taskkill //PID "$OLD_PID" //F >/dev/null 2>&1 || true
+      done
+      ;;
+    *)
+      # Unix 可验归属，扫描兜底端口段（dev-ports.json 可能缺失/过期）
+      RESTART_PROJ="$(pwd -P)"
+      for P in $RESTART_FE_PORTS $(seq 5173 5180); do
+        OLD_PID=$(lsof -iTCP:"$P" -sTCP:LISTEN -t 2>/dev/null | head -1)
+        [ -n "$OLD_PID" ] || continue
+        OLD_CWD=$(lsof -a -p "$OLD_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+        # lsof 对非 ASCII 路径输出 \xHH 转义（中文项目名），还原后再比较
+        case "$OLD_CWD" in *'\'*) OLD_CWD=$(printf '%b' "$OLD_CWD" 2>/dev/null || echo "$OLD_CWD") ;; esac
+        case "$OLD_CWD" in
+          "$RESTART_PROJ"|"$RESTART_PROJ"/*)
+            kill "$OLD_PID" 2>/dev/null || true
+            I=0
+            while [ $I -lt 5 ] && kill -0 "$OLD_PID" 2>/dev/null; do sleep 1; I=$((I+1)); done
+            kill -0 "$OLD_PID" 2>/dev/null && kill -9 "$OLD_PID" 2>/dev/null || true
+            ;;
+        esac
+      done
+      ;;
+  esac
   rm -f .minus/dev-ports.json
 fi
 

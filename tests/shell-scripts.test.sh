@@ -2129,6 +2129,53 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   fi
 )
 
+# Test: MINUS_DEV_RESTART=1 → 杀归属本项目的旧前端监听（2026-06-11 拍板选项 A）
+# 真实 lsof + 真实监听进程：旧 vite（python 模拟，cwd=本项目）占 5189，
+# 重启后旧进程必须死掉——否则旧 vite 变僵尸累积。
+(
+  if ! command -v lsof >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    skip "start-dev: 重启杀归属旧前端" "缺 lsof 或 python3"
+  else
+    TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+    write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+    python3 -m http.server 5189 >/dev/null 2>&1 & OLD_SRV=$!
+    sleep 1
+    echo '{"frontend":5189}' > .minus/dev-ports.json
+    write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+    OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+    if ! kill -0 "$OLD_SRV" 2>/dev/null && echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+      pass "start-dev: 重启杀归属本项目的旧前端监听"
+    else
+      ALIVE=$(kill -0 "$OLD_SRV" 2>/dev/null && echo y || echo n)
+      kill -9 "$OLD_SRV" 2>/dev/null || true
+      fail "start-dev: 重启应杀归属旧前端" "old_alive=$ALIVE out=$OUTPUT"
+    fi
+    wait "$OLD_SRV" 2>/dev/null || true
+  fi
+)
+
+# Test: MINUS_DEV_RESTART=1 → 不杀归属别的项目的监听（归属校验防误杀）
+(
+  if ! command -v lsof >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    skip "start-dev: 重启不误杀别人进程" "缺 lsof 或 python3"
+  else
+    TMP=$(make_tmp); SB="$TMP/sb"; OTHER="$TMP/other"; mkdir -p "$SB" "$TMP/proj/.minus" "$OTHER"
+    write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+    (cd "$OTHER" && exec python3 -m http.server 5179 >/dev/null 2>&1) & OTHER_SRV=$!
+    sleep 1
+    cd "$TMP/proj"
+    echo '{"frontend":5179}' > .minus/dev-ports.json
+    write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+    OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+    if kill -0 "$OTHER_SRV" 2>/dev/null; then
+      pass "start-dev: 重启不误杀归属别的项目的监听"
+    else
+      fail "start-dev: 重启误杀了别人的进程" "out=$OUTPUT"
+    fi
+    kill "$OTHER_SRV" 2>/dev/null || true; wait "$OTHER_SRV" 2>/dev/null || true
+  fi
+)
+
 # Test: backend 模式——旧后端健康且归属本项目 → ALREADY_RUNNING 复用
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"

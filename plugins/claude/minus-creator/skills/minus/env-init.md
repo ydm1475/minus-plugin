@@ -60,7 +60,7 @@ resume-env 的输出已带路由所需全部字段（`INITIALIZED=` / `PHASE=` /
   ```bash
   MINUS_DEV_RESTART=1 minus-lib start-dev full
   ```
-- 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口
+- 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口。重启时的旧进程清理由 start-dev 脚本硬编码处理（带归属校验），Agent 自己永远不许 kill
 
 ## 5. 版本自动恢复后重启
 
