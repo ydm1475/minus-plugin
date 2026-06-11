@@ -18,8 +18,18 @@ fi
 # launch.cjs 的候选链第一位是 process.execPath：必须用 < floor 的老 node 跑它，
 # 才能验证「全部候选不达标 → 明确报错」的失败路径。
 if [ -n "$MATRIX_OLD_NODE" ] && hide_abs_nodes; then
-  ERR="$(printf '' | in_env "$MATRIX_OLD_NODE" "$LAUNCH_CJS" 2>&1 >/dev/null)"; RC=$?
-  if [ $RC -eq 1 ]; then pass "launch.cjs：无可用 node → exit 1"; else fail "launch.cjs：退出码" "rc=$RC"; fi
+  OUT_FILE="$SCENARIO_TMP/launch.out"
+  ERR="$(printf '' | in_env "$MATRIX_OLD_NODE" "$LAUNCH_CJS" 2>&1 >"$OUT_FILE")"; RC=$?
+  if [ $RC -eq 1 ]; then pass "launch.cjs：无可用 node → exit 1"; else
+    fail "launch.cjs：退出码" "rc=$RC stdout=[$(head -c 200 "$OUT_FILE")]"
+    echo "  [diag] MATRIX_OLD_NODE=$MATRIX_OLD_NODE → $("$MATRIX_OLD_NODE" -p 'process.version + " " + process.execPath' 2>&1)"
+    echo "  [diag] 受控环境内候选探测：$(in_env "$MATRIX_OLD_NODE" -e '
+      const fs=require("fs"),os=require("os"),path=require("path");
+      const la=process.env.LOCALAPPDATA, pf=process.env.ProgramFiles;
+      console.log(JSON.stringify({execPath:process.execPath, ver:process.version, la, pf,
+        laImage:fs.existsSync(path.join(la||"","Volta","tools","image","node")),
+        pfNode:fs.existsSync(path.join(pf||"","nodejs","node.exe"))}));' 2>&1)"
+  fi
   assert_contains "$ERR" "volta.sh" "launch.cjs：报错含安装指引（volta.sh）"
 else
   skip "launch.cjs：无可用 node 失败路径" "需要 MATRIX_OLD_NODE（CI 由 setup-node 提供）"

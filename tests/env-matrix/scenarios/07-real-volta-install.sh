@@ -12,9 +12,15 @@ if ! is_ci; then
 fi
 
 # 真安装需要 curl/winget 等网络工具；PATH 用裁剪版（无 node）。
-# 不伪造 ProgramFiles：Windows 上 winget 把 volta.exe 装进真实 Program Files，
-# install_volta_windows 要靠它找到刚装的 volta（HOME/LOCALAPPDATA 仍指向假目录隔离 shim/工具链）。
-INSTALL_OUT="$(env HOME="$FAKE_HOME" LOCALAPPDATA="$FAKE_LOCALAPPDATA" PATH="$CLEAN_PATH" bash -c '
+# Windows 用【真实】HOME/LOCALAPPDATA：winget/volta 是机器级安装，假 LOCALAPPDATA 会和
+# Windows 原生进程的路径语义打架（实测 zip 落假目录、image 散落两边、shim 不落地）。
+# runner 一次性，污染无虞，且真实目录恰是真实用户机器的形态。mac 仍用假 HOME 隔离。
+if is_windows; then
+  EHOME="$HOME"; ELA="${LOCALAPPDATA:-}"
+else
+  EHOME="$FAKE_HOME"; ELA="$FAKE_LOCALAPPDATA"
+fi
+INSTALL_OUT="$(env HOME="$EHOME" LOCALAPPDATA="$ELA" PATH="$CLEAN_PATH" bash -c '
   . "'"$BOOTSTRAP_ENV"'"
   if [ "$OS" = "windows" ]; then
     ensure_volta && volta install "node@${NODE_TARGET}" 2>&1
@@ -30,15 +36,15 @@ else
   fail "bootstrap-env.sh：Volta 真实安装" "rc=$RC; 输出尾部：$(echo "$INSTALL_OUT" | tail -5)"
 fi
 
-# 装完后 resolve-node.sh 应能在假 HOME / 假 LOCALAPPDATA 命中
-OUT="$(env HOME="$FAKE_HOME" LOCALAPPDATA="$FAKE_LOCALAPPDATA" ProgramFiles="$FAKE_PROGRAMFILES" PROGRAMFILES="$FAKE_PROGRAMFILES" PATH="$CLEAN_PATH" sh "$RESOLVE_NODE")"; RC2=$?
+# 装完后 resolve-node.sh 应能在同一套 HOME / LOCALAPPDATA 下命中（PATH 仍无 node）
+OUT="$(env HOME="$EHOME" LOCALAPPDATA="$ELA" ProgramFiles="$FAKE_PROGRAMFILES" PROGRAMFILES="$FAKE_PROGRAMFILES" PATH="$CLEAN_PATH" sh "$RESOLVE_NODE")"; RC2=$?
 if [ $RC2 -eq 0 ] && [ -n "$OUT" ]; then
   pass "resolve-node.sh：命中 Volta 新装的 node（${OUT}）"
 else
   fail "resolve-node.sh：装后探测" "rc=$RC2 out=[$OUT]"
   # 诊断：node 实际落在哪（假 HOME / 假 LOCALAPPDATA / 真 LOCALAPPDATA）
   echo "  [diag] install 输出尾部：$(echo "$INSTALL_OUT" | tail -3)"
-  for d in "$FAKE_HOME/.volta" "$FAKE_LOCALAPPDATA/Volta" "${LOCALAPPDATA:-}/Volta"; do
+  for d in "$EHOME/.volta" "$ELA/Volta" "${LOCALAPPDATA:-}/Volta"; do
     [ -n "$d" ] && [ -d "$d" ] && echo "  [diag] $d: $(find "$d" -name 'node*' -maxdepth 4 2>/dev/null | head -5)"
   done
 fi
