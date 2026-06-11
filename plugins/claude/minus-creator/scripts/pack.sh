@@ -37,14 +37,20 @@ echo "→ 重建 MCP bundle（$("$NODE_BIN" -v)）..."
 VER="$("$NODE_BIN" -e "console.log(require('$PLUGIN_DIR/.claude-plugin/plugin.json').version)")"
 OUT="$OUT_DIR/minus-creator-v${VER}.zip"
 
-# 3. 打包插件目录（以 minus-creator/ 为根，Claude Code 要求 .claude-plugin/plugin.json 在顶层子目录下）
+# 3. 打包 marketplace 布局：.claude-plugin/marketplace.json + minus-creator/。
+# install.sh 解压后以解压根为 MARKETPLACE_DIR 执行 marketplace add，
+# 缺 marketplace.json 注册必失败——所以它必须进包。
 echo "→ 打包 $OUT ..."
 rm -f "$OUT"
-( cd "$(dirname "$PLUGIN_DIR")" \
-  && zip -rq "$OUT" "$(basename "$PLUGIN_DIR")" \
+( cd "$MARKETPLACE_DIR" \
+  && zip -rq "$OUT" ".claude-plugin" "$(basename "$PLUGIN_DIR")" \
        -x "*/node_modules/*" -x "*.DS_Store" -x "*/.git/*" -x "*/.minus/*" )
 
-# 4. 校验：bundle 进包了、node_modules 没进包
+# 4. 校验：marketplace.json、bundle 进包了，node_modules 没进包
+if ! unzip -l "$OUT" | grep -q ".claude-plugin/marketplace.json"; then
+  echo "❌ 打包失败：zip 内缺 .claude-plugin/marketplace.json（install.sh 注册必需）"
+  exit 1
+fi
 if ! unzip -l "$OUT" | grep -q "dist/minus-platform.cjs"; then
   echo "❌ 打包失败：zip 内缺 dist/minus-platform.cjs"
   exit 1

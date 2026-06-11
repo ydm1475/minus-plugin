@@ -3469,6 +3469,17 @@ PACK_SH="$LIB_DIR/pack.sh"
   fi
 )
 
+# Test: 打包 marketplace 布局——.claude-plugin/marketplace.json 必须进包并校验
+# （install.sh 解压后以解压根做 marketplace add，缺它注册必失败）
+(
+  if grep -q 'zip -rq "\$OUT" "\.claude-plugin"' "$PACK_SH" \
+     && grep -q '\.claude-plugin/marketplace\.json' "$PACK_SH"; then
+    pass "pack.sh: marketplace.json 进包并有打包后校验"
+  else
+    fail "pack.sh: marketplace.json" "未打包 .claude-plugin 或缺打包后校验，install.sh 注册会失败"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ marketplace.json ═══"
