@@ -13,6 +13,9 @@
 
 set -euo pipefail
 
+# 测试不开浏览器：detect-preview-port 检测成功后会自动 open-preview，测试环境一律抑制
+export AUTO_OPEN=0
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"

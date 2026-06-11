@@ -1620,9 +1620,13 @@ OP="$SKILL_LIB/open-preview.sh"
   fi
 )
 
-# Test: CLI mode outputs URL and CLIENT=cli
+# Test: CLI mode outputs URL and CLIENT=cli（stub 掉 open/xdg-open，禁止测试真开浏览器）
 (
-  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$OP" 5173 2>&1 || true)
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" open 'exit 0'
+  write_stub "$SB" xdg-open 'exit 0'
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
   if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:5173" && assert_contains "$OUTPUT" "CLIENT=cli"; then
     pass "open-preview: CLI mode outputs URL and client type"
   else
@@ -1640,9 +1644,13 @@ OP="$SKILL_LIB/open-preview.sh"
   fi
 )
 
-# Test: custom port
+# Test: custom port（同样 stub 掉浏览器命令）
 (
-  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$OP" 9100 2>&1 || true)
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" open 'exit 0'
+  write_stub "$SB" xdg-open 'exit 0'
+  OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 9100 2>&1 || true)
   if assert_contains "$OUTPUT" "PREVIEW_URL=http://localhost:9100"; then
     pass "open-preview: respects custom port"
   else
@@ -1650,10 +1658,47 @@ OP="$SKILL_LIB/open-preview.sh"
   fi
 )
 
+# Test【去重】: 项目目录内（有 .minus/）同端口只开一次浏览器；换端口重新打开
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" open "echo \"open \$*\" >> $TMP/open.log"
+  write_stub "$SB" xdg-open "echo \"open \$*\" >> $TMP/open.log"
+  : > "$TMP/open.log"
+  OUT1=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
+  OUT2=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
+  OUT3=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5180 2>&1 || true)
+  OPENS=$(grep -c "open" "$TMP/open.log")
+  if [ "$OPENS" = "2" ] && assert_contains "$OUT2" "OPEN_SKIPPED_ALREADY" \
+     && assert_contains "$OUT2" "PREVIEW_URL=http://localhost:5173" \
+     && [ "$(cat .minus/.preview-opened)" = "5180" ]; then
+    pass "open-preview: 同端口去重，换端口重开（共开 $OPENS 次）"
+  else
+    fail "open-preview: 同端口去重" "opens=$OPENS out2=$OUT2 marker=$(cat .minus/.preview-opened 2>/dev/null)"
+  fi
+)
+
+# Test【去重边界】: 无 .minus/ 的目录（非项目）不做去重，每次都开
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" open "echo open >> $TMP/open.log"
+  write_stub "$SB" xdg-open "echo open >> $TMP/open.log"
+  : > "$TMP/open.log"
+  CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 >/dev/null 2>&1 || true
+  CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 >/dev/null 2>&1 || true
+  OPENS=$(grep -c "open" "$TMP/open.log")
+  if [ "$OPENS" = "2" ]; then
+    pass "open-preview: 非项目目录不去重"
+  else
+    fail "open-preview: 非项目目录不去重" "opens=$OPENS"
+  fi
+)
+
 # Test【Windows】: CLI 模式用 start 开浏览器（不是 mac 的 open）。
 # 复现真实 Windows 卡点：旧代码只会调 open → Windows 上打不开浏览器。
 (
-  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"   # 隔离 cwd：勿在 repo 根跑（.minus 去重标记会污染）
   write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
   write_stub "$SB" uname 'echo MINGW64_NT-10.0'
   write_stub "$SB" start "echo \"start \$*\" >> $TMP/start.log"

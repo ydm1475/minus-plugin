@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# 测试不开浏览器：detect-preview-port 检测成功后会自动 open-preview，测试环境一律抑制
+export AUTO_OPEN=0
+
 PASS=0; FAIL=0
 pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
 fail() { echo "  ✗ $1 — $2"; FAIL=$((FAIL+1)); }
