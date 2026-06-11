@@ -127,7 +127,7 @@ case "$(plugin_state)" in
     echo -e "${GREEN}✓${NC} 插件安装成功" ;;
 esac
 
-# 4. 校验 MCP Server 产物（自包含 bundle，依赖已内联，无需 npm install）
+# 4. 校验 MCP Server 产物（逻辑单源在 scripts/post-install-check.sh，SessionStart hook 同款）
 echo ""
 echo "→ 校验 MCP Server 产物..."
 INSTALL_PATH="$(claude plugin list --json 2>/dev/null | node -e '
@@ -135,15 +135,12 @@ INSTALL_PATH="$(claude plugin list --json 2>/dev/null | node -e '
     const p=JSON.parse(s||"[]").find(x=>x.id===process.argv[1]);
     process.stdout.write(p?p.installPath:"");
   });' "$PLUGIN_ID")"
-MCP_DIR="$INSTALL_PATH/mcp-servers/minus-platform"
-if [ -z "$INSTALL_PATH" ] || [ ! -f "$MCP_DIR/dist/minus-platform.cjs" ]; then
-  echo "❌ 未找到 MCP Server 产物 dist/minus-platform.cjs（installPath=[$INSTALL_PATH]）。MCP 是必需项，安装中止。"
+if [ -z "$INSTALL_PATH" ]; then
+  echo "❌ 无法解析插件 installPath。MCP 是必需项，安装中止。"
   exit 1
 fi
-# launcher：.mcp.json 的 command:"node" 实际跑它（按已知位置探测 >=20 node 再跑 bundle，
-# 绕开「客户端 spawn 的 node 被老 node 遮挡」问题，跨平台）。缺它 MCP 起不来。
-if [ ! -f "$MCP_DIR/launch.cjs" ]; then
-  echo "❌ 未找到 MCP launcher（$MCP_DIR/launch.cjs）。MCP 是必需项，安装中止。"
+if ! bash "$INSTALL_PATH/scripts/post-install-check.sh" --strict "$INSTALL_PATH"; then
+  echo "❌ MCP Server 产物校验失败（installPath=$INSTALL_PATH）。安装中止。"
   exit 1
 fi
 echo -e "${GREEN}✓${NC} MCP Server 产物就绪"

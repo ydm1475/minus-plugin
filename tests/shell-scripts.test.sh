@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# 测试不开浏览器（全局兜底，CLAUDE.md #1 能硬编码的别靠每个用例自觉加 AUTO_OPEN=0）
+export AUTO_OPEN=0
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$REPO_DIR/plugins/claude/minus-creator/scripts"
@@ -3837,7 +3840,7 @@ make_plugin_root() {
   TMP=$(make_tmp)
   export HOME="$TMP"
   make_plugin_root "$TMP/plugin" no
-  OUTPUT=$(bash "$PIC" --strict "$TMP/plugin" 2>&1); RC=$?
+  RC=0; OUTPUT=$(bash "$PIC" --strict "$TMP/plugin" 2>&1) || RC=$?
   if [ "$RC" -eq 1 ]; then
     pass "post-install-check: 缺产物 --strict → exit 1"
   else
