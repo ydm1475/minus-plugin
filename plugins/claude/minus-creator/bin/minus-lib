@@ -11,6 +11,24 @@ export MINUS_PLUGIN_ROOT="$PLUGIN_ROOT"
 NAME="${1:?用法: minus-lib <脚本名> [参数...]}"
 shift || true
 
+# 统一解析 node（单点修复，覆盖所有裸调 node 的子脚本）：
+# 终端 PATH 上常有老 node 排在前面（实测 /usr/local/bin/node v12，跑 `??` 语法
+# 直接 SyntaxError）。在分发器里解析一次 >= NODE_RUNTIME_FLOOR 的 node 并前置
+# PATH，子脚本里的裸 `node` 就都落到正确版本，无需各脚本自行处理。
+# 解析失败不阻断——bootstrap-env / diagnose-mcp 等脚本必须在「node 尚未就绪」
+# 时也能跑。MINUS_NODE_BIN_DIR 缓存结果，嵌套 minus-lib 调用不重复探测。
+if [ -z "${MINUS_NODE_BIN_DIR:-}" ]; then
+  RESOLVED_NODE="$(sh "$PLUGIN_ROOT/scripts/resolve-node.sh" 2>/dev/null || true)"
+  MINUS_NODE_BIN_DIR=""
+  [ -n "$RESOLVED_NODE" ] && MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"
+  export MINUS_NODE_BIN_DIR
+fi
+# 必须保证解析出的目录在 PATH 首位——「已在 PATH 里但排在老 node 之后」等于没解析。
+case "$PATH" in
+  "$MINUS_NODE_BIN_DIR:"*) ;;
+  *) [ -n "$MINUS_NODE_BIN_DIR" ] && export PATH="$MINUS_NODE_BIN_DIR:$PATH" ;;
+esac
+
 for dir in "$PLUGIN_ROOT/scripts" "$PLUGIN_ROOT"/skills/*/scripts; do
   [ -d "$dir" ] || continue
   for cand in "$dir/$NAME" "$dir/$NAME.sh"; do

@@ -19,8 +19,25 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=$(AUTO_OPEN=0 bash "$SCRIPT_DIR/detect-preview-port.sh" 2>/dev/null | head -1)
 
 if [ -n "$PORT" ] && [ "$PORT" != "DETECT_FAILED" ]; then
+  # 后端健康检查：前端活着不代表后端活着（典型场景：上一个 session 的 vite 还在、
+  # 后端已死——此时若放行门禁，用户要到运行步骤撞 504 才发现）。后端端口由 SDK 写入
+  # dev-ports.json 的 backend 字段；字段缺失时跳过本检查（Desktop 分支 A 等场景由
+  # record-preview-port 只写 frontend，不应误伤）。
+  DEV_PORTS_FILE="$(pwd)/.minus/dev-ports.json"
+  BACKEND_PORT=""
+  if [ -f "$DEV_PORTS_FILE" ]; then
+    BACKEND_PORT=$(node -e "const p=JSON.parse(require('fs').readFileSync('$DEV_PORTS_FILE','utf8')).backend;console.log(p>0?p:'')" 2>/dev/null)
+  fi
+  if [ -n "$BACKEND_PORT" ] && ! curl -s -o /dev/null --max-time 2 "http://localhost:$BACKEND_PORT/" 2>/dev/null; then
+    echo "GATE_FAILED"
+    echo "BACKEND_DOWN"
+    echo "前端预览（端口 $PORT）在运行，但后端（端口 $BACKEND_PORT）无响应。" >&2
+    echo "请执行 env-init.md「4. dev server 异常处理」的固定重启脚本后重试本门禁。" >&2
+    exit 1
+  fi
   echo "GATE_PASSED"
   echo "PREVIEW_PORT=$PORT"
+  [ -n "$BACKEND_PORT" ] && echo "BACKEND_PORT=$BACKEND_PORT"
   exit 0
 fi
 
