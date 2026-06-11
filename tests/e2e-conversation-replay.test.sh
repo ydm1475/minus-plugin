@@ -19,6 +19,13 @@ STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
 AGENTS_DIR="$PLUGIN_DIR/agents"
 NODE_DEV="$PLUGIN_DIR/skills/minus-step/node-dev.md"
 
+# 套件自身的 node 解析（pj 等 helper 用）；被测脚本统一经 bin/minus-lib 分发器
+# 调用（与生产路径一致），分发器自带 node 解析。
+RESOLVED_NODE="$(sh "$PLUGIN_DIR/scripts/resolve-node.sh" 2>/dev/null || true)"
+[ -n "$RESOLVED_NODE" ] && export PATH="$(dirname "$RESOLVED_NODE"):$PATH"
+[ -n "$RESOLVED_NODE" ] && export MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"  # 预填分发器缓存
+ML_BIN="$PLUGIN_DIR/bin/minus-lib"
+
 # ── Test Framework ──
 
 RESULTS_FILE=$(mktemp)
@@ -77,7 +84,7 @@ function buildSteps(t) {
 }
 TSEOF
 
-RESULT=$(bash "$STRUCT_LIB/generate-steps.sh" "关键词拓词" "热销ASIN查询" 2>&1)
+RESULT=$(bash "$ML_BIN" generate-steps "关键词拓词" "热销ASIN查询" 2>&1)
 
 if echo "$RESULT" | grep -q "pipeline.py 已生成 2 个步骤"; then
   pass "generate-steps.sh 生成 2 步骨架"
@@ -101,7 +108,7 @@ echo ""
 echo "═══ Phase 2: 开发第 1 步（非最后一步）═══"
 
 # TC-R01: is-last 判断第 1 步不是最后一步
-IS_LAST_1=$(bash "$STEP_LIB/step-tracker.sh" is-last 1)
+IS_LAST_1=$(bash "$ML_BIN" step-tracker is-last 1)
 if [ "$IS_LAST_1" = "YES" ]; then
   fail "第 1 步 is-last 应返回 NO" "NO" "$IS_LAST_1"
 else
@@ -110,8 +117,8 @@ fi
 
 # TC-R02: 维度① — Creator 确认数据接口后标记 data 完成
 # 对应 conversation 第 260 行：用户说"可以了"确认以词拓词接口
-bash "$STEP_LIB/step-tracker.sh" complete 1 data > /dev/null 2>&1
-STATUS_1=$(bash "$STEP_LIB/step-tracker.sh" status 1 2>&1)
+bash "$ML_BIN" step-tracker complete 1 data > /dev/null 2>&1
+STATUS_1=$(bash "$ML_BIN" step-tracker status 1 2>&1)
 if echo "$STATUS_1" | grep -q "✓ 数据需求"; then
   pass "维度① data 标记完成"
 else
@@ -120,7 +127,7 @@ fi
 
 # TC-R03: 维度② — Creator 说"做聚合排序按照搜索量对词进行排序"
 # 对应 conversation 第 338 行
-bash "$STEP_LIB/step-tracker.sh" complete 1 logic > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 1 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last 判断是否最后一步
 # 传递数据的问题已移到维度④之后，维度③只问展示内容
@@ -143,20 +150,20 @@ fi
 
 # TC-R04: 维度③ — Creator 说"一个数据表格"
 # 对应 conversation 第 349 行
-bash "$STEP_LIB/step-tracker.sh" complete 1 output > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 1 output > /dev/null 2>&1
 
 # TC-R05: 维度④ — Creator 说"需要暂停让用户确认数据再继续"
 # 对应 conversation 第 492 行
 # 第 1 步不是最后一步 → 维度④不应跳过
-CHECK_BEFORE_CONFIRM=$(bash "$STEP_LIB/step-tracker.sh" check 1 2>&1 || true)
+CHECK_BEFORE_CONFIRM=$(bash "$ML_BIN" step-tracker check 1 2>&1 || true)
 if echo "$CHECK_BEFORE_CONFIRM" | grep -q "INCOMPLETE"; then
   pass "维度④未完成前 check 返回 INCOMPLETE"
 else
   fail "维度④未完成前应 INCOMPLETE" "INCOMPLETE" "$CHECK_BEFORE_CONFIRM"
 fi
 
-bash "$STEP_LIB/step-tracker.sh" complete 1 confirm interactive > /dev/null 2>&1
-CHECK_AFTER_CONFIRM=$(bash "$STEP_LIB/step-tracker.sh" check 1 2>&1)
+bash "$ML_BIN" step-tracker complete 1 confirm interactive > /dev/null 2>&1
+CHECK_AFTER_CONFIRM=$(bash "$ML_BIN" step-tracker check 1 2>&1)
 if echo "$CHECK_AFTER_CONFIRM" | grep -q "COMPLETE"; then
   pass "第 1 步四维度全部完成 → COMPLETE"
 else
@@ -180,7 +187,7 @@ echo ""
 echo "═══ Phase 3: 开发第 2 步（最后一步）═══"
 
 # TC-R07: is-last 判断第 2 步是最后一步
-IS_LAST_2=$(bash "$STEP_LIB/step-tracker.sh" is-last 2)
+IS_LAST_2=$(bash "$ML_BIN" step-tracker is-last 2)
 if [ "$IS_LAST_2" = "YES" ]; then
   pass "第 2 步 is-last → YES（最后一步）"
 else
@@ -188,10 +195,10 @@ else
 fi
 
 # TC-R08: 维度① — Creator 确认接口
-bash "$STEP_LIB/step-tracker.sh" complete 2 data > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 data > /dev/null 2>&1
 
 # TC-R09: 维度② — Creator 说"做聚合排"
-bash "$STEP_LIB/step-tracker.sh" complete 2 logic > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last → YES
 # 维度③提问不应包含"需要传什么数据给下一步"
@@ -204,7 +211,7 @@ fi
 
 # TC-R10: 维度③ — Creator 说"一个表格列出热销"（最后一步展示）
 # 对应 conversation 第 782 行
-bash "$STEP_LIB/step-tracker.sh" complete 2 output > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 output > /dev/null 2>&1
 
 # TC-R11: 最后一步 → 维度④应自动跳过
 # 新流程：is-last=YES → 维度③完成后直接标记 confirm，不问 Creator
@@ -217,8 +224,8 @@ else
 fi
 
 # 模拟自动跳过：最后一步用 auto 模式
-bash "$STEP_LIB/step-tracker.sh" complete 2 confirm auto > /dev/null 2>&1
-CHECK_STEP2=$(bash "$STEP_LIB/step-tracker.sh" check 2 2>&1)
+bash "$ML_BIN" step-tracker complete 2 confirm auto > /dev/null 2>&1
+CHECK_STEP2=$(bash "$ML_BIN" step-tracker check 2 2>&1)
 if echo "$CHECK_STEP2" | grep -q "COMPLETE"; then
   pass "第 2 步四维度全部完成 → COMPLETE"
 else
@@ -270,7 +277,7 @@ else
 fi
 
 # TC-R17: step-tracker 允许非最后一步使用 auto 模式（最终用户不用确认）
-AUTO_RESULT=$(bash "$STEP_LIB/step-tracker.sh" complete 1 confirm auto 2>&1 || true)
+AUTO_RESULT=$(bash "$ML_BIN" step-tracker complete 1 confirm auto 2>&1 || true)
 if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
   pass "硬编码门禁：非最后一步 confirm auto 被允许"
 else
@@ -278,9 +285,9 @@ else
 fi
 
 # TC-R18: generate-node-code.sh 门禁 — 维度未全部完成时拒绝生成
-bash "$STEP_LIB/step-tracker.sh" reset 1 > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 1 data > /dev/null 2>&1
-GATE_RESULT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1 || true)
+bash "$ML_BIN" step-tracker reset 1 > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 1 data > /dev/null 2>&1
+GATE_RESULT=$(bash "$ML_BIN" generate-node-code 1 2>&1 || true)
 if echo "$GATE_RESULT" | grep -q "四维度未全部完成"; then
   pass "硬编码门禁：维度未完成时 generate-node-code.sh 拒绝生成"
 else
@@ -288,10 +295,10 @@ else
 fi
 
 # TC-R19: generate-node-code.sh 门禁 — 全部完成时输出 GATE_PASSED + 模板
-bash "$STEP_LIB/step-tracker.sh" complete 1 logic > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 1 output > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 1 confirm interactive > /dev/null 2>&1
-GATE_RESULT2=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
+bash "$ML_BIN" step-tracker complete 1 logic > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 1 output > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 1 confirm interactive > /dev/null 2>&1
+GATE_RESULT2=$(bash "$ML_BIN" generate-node-code 1 2>&1)
 if echo "$GATE_RESULT2" | grep -q "GATE_PASSED" \
    && echo "$GATE_RESULT2" | grep -q "LOGIC_MODE=deterministic" \
    && echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
@@ -308,12 +315,12 @@ else
 fi
 
 # TC-R21: Creator 明确要求大模型自动生成结论 → 节点状态和门禁保留 LLM 意图
-bash "$STEP_LIB/step-tracker.sh" reset 2 > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 2 data > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 2 logic llm > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 2 output > /dev/null 2>&1
-bash "$STEP_LIB/step-tracker.sh" complete 2 confirm auto > /dev/null 2>&1
-GATE_RESULT3=$(bash "$STEP_LIB/generate-node-code.sh" 2 2>&1)
+bash "$ML_BIN" step-tracker reset 2 > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 data > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 logic llm > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 output > /dev/null 2>&1
+bash "$ML_BIN" step-tracker complete 2 confirm auto > /dev/null 2>&1
+GATE_RESULT3=$(bash "$ML_BIN" generate-node-code 2 2>&1)
 if echo "$GATE_RESULT3" | grep -q "LOGIC_MODE=llm" && echo "$GATE_RESULT3" | grep -q "LLM_REQUIRED=YES"; then
   pass "LLM 意图持久化：大模型自动生成结论 → LOGIC_MODE=llm + LLM_REQUIRED=YES"
 else
@@ -330,7 +337,7 @@ fi
 echo ""
 echo "═══ Phase 5: 最终状态检查 ═══"
 
-LIST_OUTPUT=$(bash "$STEP_LIB/step-tracker.sh" list 2>&1)
+LIST_OUTPUT=$(bash "$ML_BIN" step-tracker list 2>&1)
 if echo "$LIST_OUTPUT" | grep -q "✓ 步骤 1" && echo "$LIST_OUTPUT" | grep -q "✓ 步骤 2"; then
   pass "step-tracker list：两个步骤都标记为全部完成"
 else

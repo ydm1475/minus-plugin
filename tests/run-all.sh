@@ -36,11 +36,11 @@ else
   echo ""
 fi
 
-# ── E2E Conversation Replay Tests ──
-echo "▶ E2E Conversation Replay Tests"
+# ── E2E Tests（对话回放 + 脏环境）──
+echo "▶ E2E Tests"
 echo "────────────────────"
 
-for e2e_test in "$SCRIPT_DIR"/e2e-conversation-replay*.test.sh; do
+for e2e_test in "$SCRIPT_DIR"/e2e-*.test.sh; do
   [ -f "$e2e_test" ] || continue
   echo "  Running $(basename "$e2e_test")..."
   if bash "$e2e_test"; then

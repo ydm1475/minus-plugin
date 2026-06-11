@@ -50,6 +50,24 @@ jobs:
       - name: Run env matrix (ci scope)
         run: bash tests/env-matrix/run.sh --scope ci
 
+      # 主测试套件 × 老 node 遮挡：把不达标的 node（18 < NODE_RUNTIME_FLOOR）放
+      # PATH 首位再跑全量套件，复现用户机「/usr/local/bin/node v12 遮挡新 node」的
+      # 真实形态（实测 2026-06-11）。套件含老 node 不变量（全部裸 node 脚本经
+      # minus-lib smoke）与脏环境 e2e；resolve-node 须绕过 PATH 首位污染、从
+      # runner 预装的系统绝对路径（mac /usr/local|homebrew，win ProgramFiles）找到合规 node。
+      - name: Run full test suite (old node shadowing PATH)
+        run: |
+          SHIM="$RUNNER_TEMP/oldnode-shim"
+          mkdir -p "$SHIM"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "$MATRIX_OLD_NODE" "$SHIM/node.exe"
+          else
+            ln -sf "$MATRIX_OLD_NODE" "$SHIM/node"
+          fi
+          export PATH="$SHIM:$PATH"
+          echo "PATH 首位 node: $(node -v)（应为 v18，被各脚本拒用）"
+          bash tests/run-all.sh
+
       # install.ps1 引导薄壳的运行时验证（仅 Windows）：场景 09 已用 bash 装过插件，
       # 这里验证 ps1 的 Git Bash 探测 + 委托 install.sh 的幂等重入路径真实可跑。
       - name: Run install.ps1 (Windows bootstrap shell)

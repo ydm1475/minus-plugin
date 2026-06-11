@@ -14,6 +14,16 @@ SKILL_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
 STEP_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-step/scripts"
 STRUCT_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-structure/scripts"
 
+# 套件自身的 node 解析：本机 PATH 首位可能是老 node（实测 /usr/local/bin/node v12，
+# 跑 ?? 语法直接崩）。这里只服务测试框架自己的 node 调用（pj 等 helper、内联断言）；
+# 被测脚本的 node 解析由 bin/minus-lib 分发器负责（见下方 via_lib）。
+RESOLVED_NODE="$(sh "$LIB_DIR/resolve-node.sh" 2>/dev/null || true)"
+[ -n "$RESOLVED_NODE" ] && export PATH="$(dirname "$RESOLVED_NODE"):$PATH"
+# 预填分发器缓存：免去每次 via_lib 调用重复 spawn resolve-node 探测
+# （数百用例 × 多次 node -p 会顶爆系统进程数，实测 fork: Resource unavailable）。
+# 老 node 不变量测试会显式清空此缓存，强制分发器从零解析。
+[ -n "$RESOLVED_NODE" ] && export MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"
+
 # ── Test Framework ──
 
 RESULTS_FILE=$(mktemp)
@@ -46,7 +56,9 @@ skip() {
 host_has_abs_modern_node() {
   for c in /usr/local/bin/node /opt/homebrew/bin/node \
            "$HOME"/.volta/tools/image/node/*/bin/node "$HOME"/.volta/bin/node \
-           "$HOME"/.nvm/versions/node/*/bin/node; do
+           "$HOME"/.nvm/versions/node/*/bin/node \
+           "${ProgramFiles:-/nonexistent}/nodejs/node.exe" \
+           "${LOCALAPPDATA:-/nonexistent}/Volta/tools/image/node/"*/node.exe; do
     [ -x "$c" ] || continue
     m=$("$c" -p "process.versions.node.split('.')[0]" 2>/dev/null) || continue
     [ -n "$m" ] && [ "$m" -ge 18 ] 2>/dev/null && return 0
@@ -79,6 +91,24 @@ make_tmp() {
   mktemp -d "$TMPDIR_BASE/test.XXXXXX"
 }
 
+# ── 生产路径等价：经 bin/minus-lib 分发器调用被测脚本 ──
+# skill 指令在生产中一律以 `minus-lib <名字>` 调用脚本，分发器负责 node 解析等
+# 环境适配。业务脚本的测试经此 wrapper 走同一入口——分发器的任何行为变化自动被
+# 全部用例检验，测试路径不再与生产路径分叉。
+# 环境模拟类脚本（bootstrap-env / diagnose-mcp / resolve-node / run-create-skill /
+# sync-plugin）保持直调：它们的测试要伪造"坏环境"，经分发器会把环境修好、破坏模拟。
+MINUS_LIB_BIN="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
+WRAP_DIR="$TMPDIR_BASE/libwrap"
+mkdir -p "$WRAP_DIR"
+via_lib() {
+  local w="$WRAP_DIR/$1"
+  if [ ! -f "$w" ]; then
+    printf '#!/bin/bash\nexec bash "%s" "%s" "$@"\n' "$MINUS_LIB_BIN" "$1" > "$w"
+    chmod +x "$w"
+  fi
+  printf '%s\n' "$w"
+}
+
 TEST_PYTHON="/Users/tutu/minus/CLI-create/.venv/bin/python"
 if [ ! -x "$TEST_PYTHON" ]; then
   TEST_PYTHON=$(find "$HOME/.local/share/uv/python" -path '*/bin/python3.12' -type f -perm +111 2>/dev/null | head -1 || true)
@@ -95,7 +125,7 @@ echo ""
 echo "═══ projects-manager.sh ═══"
 # ══════════════════════════════════════════════════════
 
-PM="$LIB_DIR/projects-manager.sh"
+PM="$(via_lib projects-manager)"
 
 # Test: list with no projects
 (
@@ -232,7 +262,7 @@ echo ""
 echo "═══ context-manager.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CM="$LIB_DIR/context-manager.sh"
+CM="$(via_lib context-manager)"
 
 # Test: counter increments
 (
@@ -297,8 +327,8 @@ echo ""
 echo "═══ update-progress.sh ═══"
 # ══════════════════════════════════════════════════════
 
-UP="$LIB_DIR/update-progress.sh"
-PC="$LIB_DIR/progress-check.sh"
+UP="$(via_lib update-progress)"
+PC="$(via_lib progress-check)"
 
 # 读取 progress.json 字段（路径表达式如 .phase / .steps["1"].status）
 pj() {
@@ -555,7 +585,7 @@ echo "═══ progress-check.sh ═══"
   mkdir -p .minus
   echo '{"skillId":"sk_t"}' > .minus/skill.json
   echo "class SkillPipeline(Pipeline):" > pipeline.py
-  bash "$STRUCT_LIB/generate-steps.sh" "步骤A" "步骤B" >/dev/null 2>&1 || true
+  bash "$(via_lib generate-steps)" "步骤A" "步骤B" >/dev/null 2>&1 || true
   if [ -f .minus/progress.json ] && [ "$(pj .phase)" = "developing" ] \
      && [ "$(pj '.steps["2"].name')" = "步骤B" ]; then
     pass "generate-steps: writes progress.json (full mode)"
@@ -570,8 +600,8 @@ echo "═══ progress-check.sh ═══"
   mkdir -p .minus
   echo '{"skillId":"sk_t"}' > .minus/skill.json
   echo "class SkillPipeline(Pipeline):" > pipeline.py
-  bash "$STRUCT_LIB/generate-steps.sh" "步骤A" >/dev/null 2>&1 || true
-  bash "$STRUCT_LIB/generate-steps.sh" --append "步骤B" >/dev/null 2>&1 || true
+  bash "$(via_lib generate-steps)" "步骤A" >/dev/null 2>&1 || true
+  bash "$(via_lib generate-steps)" --append "步骤B" >/dev/null 2>&1 || true
   if [ "$(pj '.steps["2"].name')" = "步骤B" ] && [ "$(pj '.steps["2"].status')" = "pending" ]; then
     pass "generate-steps: --append updates progress.json"
   else
@@ -584,7 +614,7 @@ echo ""
 echo "═══ project-detector.sh ═══"
 # ══════════════════════════════════════════════════════
 
-PD_SCRIPT="$LIB_DIR/project-detector.sh"
+PD_SCRIPT="$(via_lib project-detector)"
 
 # Test: scenario 1 - in a Skill project directory
 (
@@ -738,7 +768,7 @@ echo ""
 echo "═══ step-tracker.sh ═══"
 # ══════════════════════════════════════════════════════
 
-ST="$STEP_LIB/step-tracker.sh"
+ST="$(via_lib step-tracker)"
 
 # Test: fails without arguments
 (
@@ -911,7 +941,7 @@ ST="$STEP_LIB/step-tracker.sh"
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
      && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
      && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
@@ -931,7 +961,7 @@ ST="$STEP_LIB/step-tracker.sh"
   bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
-  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
      && assert_contains "$OUTPUT" "隐藏 finalize 摘要" \
      && assert_contains "$OUTPUT" "不在这里重复定义 UI 契约"; then
@@ -952,7 +982,7 @@ ST="$STEP_LIB/step-tracker.sh"
   bash "$ST" complete 1 output >/dev/null 2>&1
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
-  OUTPUT=$(bash "$STEP_LIB/generate-node-code.sh" 1 2>&1)
+  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "真实接口或计算来源" \
      && assert_contains "$OUTPUT" "尚未接入真实数据来源" \
      && assert_contains "$OUTPUT" "重新核对全部展示字段"; then
@@ -967,7 +997,7 @@ echo ""
 echo "═══ generate-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GS="$STRUCT_LIB/generate-steps.sh"
+GS="$(via_lib generate-steps)"
 
 # Test: fails without arguments
 (
@@ -1165,7 +1195,7 @@ echo ""
 echo "═══ generate-result-design.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GRD="$STRUCT_LIB/generate-result-design.sh"
+GRD="$(via_lib generate-result-design)"
 
 # Test: fails without total-steps
 (
@@ -1234,7 +1264,7 @@ echo ""
 echo "═══ check-python-deps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CPD="$SKILL_LIB/check-python-deps.sh"
+CPD="$(via_lib check-python-deps)"
 
 write_pyproject() {
   local file="$1"
@@ -1483,7 +1513,7 @@ echo ""
 echo "═══ detect-client.sh ═══"
 # ══════════════════════════════════════════════════════
 
-DC="$SKILL_LIB/detect-client.sh"
+DC="$(via_lib detect-client)"
 
 # Test: returns a value
 (
@@ -1529,7 +1559,7 @@ DC="$SKILL_LIB/detect-client.sh"
 echo "═══ generate-next-steps.sh ═══"
 # ══════════════════════════════════════════════════════
 
-GNS="$SKILL_LIB/generate-next-steps.sh"
+GNS="$(via_lib generate-next-steps)"
 
 # Test: fails without project name argument
 (
@@ -1608,7 +1638,7 @@ echo ""
 echo "═══ open-preview.sh ═══"
 # ══════════════════════════════════════════════════════
 
-OP="$SKILL_LIB/open-preview.sh"
+OP="$(via_lib open-preview)"
 
 # Test: fails without port argument
 (
@@ -1717,7 +1747,7 @@ echo ""
 echo "═══ check-project-state.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CPS="$SKILL_LIB/check-project-state.sh"
+CPS="$(via_lib check-project-state)"
 
 (
   TMP=$(make_tmp)
@@ -1750,7 +1780,7 @@ echo ""
 echo "═══ detect-preview-port.sh ═══"
 # ══════════════════════════════════════════════════════
 
-DPP="$SKILL_LIB/detect-preview-port.sh"
+DPP="$(via_lib detect-preview-port)"
 
 # Test: returns DETECT_FAILED when no Vite process running
 (
@@ -1913,7 +1943,7 @@ echo ""
 echo "═══ record-preview-port.sh ═══"
 # ══════════════════════════════════════════════════════
 
-RPP="$SKILL_LIB/record-preview-port.sh"
+RPP="$(via_lib record-preview-port)"
 
 # Test: 空目录正常写入 frontend 字段
 (
@@ -1973,7 +2003,8 @@ echo ""
 echo "═══ start-dev.sh ═══"
 # ══════════════════════════════════════════════════════
 
-SD="$SKILL_LIB/start-dev.sh"
+SD="$(via_lib start-dev)"
+SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
 
 # Test: mac/Linux full → pnpm dev；并导出 VOLTA_FEATURE_PNPM
 (
@@ -2042,12 +2073,118 @@ SD="$SKILL_LIB/start-dev.sh"
   fi
 )
 
+# Test【143 回归】: 已有归属本项目的 dev server → ALREADY_RUNNING，不重复启动
+# 复现人工测试 2026-06-11：旧 session server 还活着，再起一个被 SIGTERM（exit 143）。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5188}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'   # PID 不可见 → trusted 来源走 curl 验证
+  write_stub "$SB" curl 'exit 0'   # 端口可达
+  write_stub "$SB" pnpm 'echo "PNPM_SHOULD_NOT_RUN"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "ALREADY_RUNNING" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=5188" \
+     && ! echo "$OUTPUT" | grep -q "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
+    pass "start-dev: 已有归属 server → ALREADY_RUNNING 不重复启动"
+  else
+    fail "start-dev: ALREADY_RUNNING" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: MINUS_DEV_RESTART=1 跳过自检，强制走启动
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5188}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'
+  write_stub "$SB" curl 'exit 0'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+    pass "start-dev: MINUS_DEV_RESTART=1 强制重启"
+  else
+    fail "start-dev: MINUS_DEV_RESTART=1" "got: $OUTPUT"
+  fi
+)
+
+# Test: MINUS_DEV_RESTART=1 → 先跑 minus-dev-cleanup（趁 dev-ports.json 还在），再删端口记录
+# 顺序回归：cleanup 要读 dev-ports.json 解析后端端口，先删后清会漏掉非默认端口项目。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus" "$TMP/node_modules/.bin"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5188,"backend":4007}' > .minus/dev-ports.json
+  printf '#!/bin/bash\nif [ -f .minus/dev-ports.json ]; then echo SAW_PORTS > .minus/cleanup-evidence; fi\n' \
+    > node_modules/.bin/minus-dev-cleanup
+  chmod +x node_modules/.bin/minus-dev-cleanup
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if [ -f .minus/cleanup-evidence ] && [ ! -f .minus/dev-ports.json ] \
+     && echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+    pass "start-dev: 重启先 cleanup（带端口记录）后删文件"
+  else
+    fail "start-dev: 重启 cleanup 时序" "evidence=$([ -f .minus/cleanup-evidence ] && echo y || echo n) ports=$([ -f .minus/dev-ports.json ] && echo y || echo n) out=$OUTPUT"
+  fi
+)
+
+# Test: backend 模式——旧后端健康且归属本项目 → ALREADY_RUNNING 复用
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 0'   # 4001 健康
+  # lsof：-t 查询返回 PID；cwd 查询返回当前项目目录
+  write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo \"n\$(pwd)\" ;; esac"
+  write_stub "$SB" pnpm 'echo "PNPM_SHOULD_NOT_RUN"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "ALREADY_RUNNING" && echo "$OUTPUT" | grep -q "BACKEND_PORT=4001" \
+     && ! echo "$OUTPUT" | grep -q "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
+    pass "start-dev: backend 健康且归属 → ALREADY_RUNNING 复用"
+  else
+    fail "start-dev: backend ALREADY_RUNNING" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: backend 模式——端口被占但归属别的项目 → 不复用，照常启动（清理归 Platform cleanup）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 0'   # 端口可达但是别人的
+  write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo 'n/somewhere/else' ;; esac"
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+    pass "start-dev: backend 端口归属他人 → 不复用照常启动"
+  else
+    fail "start-dev: backend 归属校验" "got: $OUTPUT"
+  fi
+)
+
+# Test: backend 模式——端口无响应 → 照常启动
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 7'
+  write_stub "$SB" lsof 'exit 1'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+    pass "start-dev: backend 无旧进程 → 照常启动"
+  else
+    fail "start-dev: backend 照常启动" "got: $OUTPUT"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ check-dev-server.sh ═══"
 # ══════════════════════════════════════════════════════
 
-CDS="$SKILL_LIB/check-dev-server.sh"
+CDS="$(via_lib check-dev-server)"
 
 # Test: 无 dev server → GATE_FAILED + 退出码 1（门禁拦截）
 (
@@ -2081,7 +2218,7 @@ CDS="$SKILL_LIB/check-dev-server.sh"
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"; cd "$TMP"
   write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
-  bash "$SKILL_LIB/record-preview-port.sh" 50559 >/dev/null 2>&1
+  bash "$(via_lib record-preview-port)" 50559 >/dev/null 2>&1
   write_stub "$SB" uname 'echo Darwin'
   write_stub "$SB" lsof 'exit 0'   # Preview 托管进程对 lsof 不可见
   write_stub "$SB" curl 'exit 0'   # 端口可达
@@ -2090,6 +2227,166 @@ CDS="$SKILL_LIB/check-dev-server.sh"
     pass "check-dev-server: Preview 托管端口 record 后 → GATE_PASSED"
   else
     fail "check-dev-server: Preview 托管回归" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: 前端活、后端死 → GATE_FAILED + BACKEND_DOWN（不放行到 504 才暴露）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'   # trusted 来源走 curl
+  write_stub "$SB" curl 'case "$*" in *:4007*) exit 7 ;; *) exit 0 ;; esac'
+  if OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); then RC=0; else RC=$?; fi
+  if echo "$OUTPUT" | grep -q "GATE_FAILED" && echo "$OUTPUT" | grep -q "BACKEND_DOWN" && [ "$RC" = "1" ]; then
+    pass "check-dev-server: 后端死 → GATE_FAILED + BACKEND_DOWN"
+  else
+    fail "check-dev-server: 后端死应拦截" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: 前后端都活 → GATE_PASSED 且输出 BACKEND_PORT
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5199,"backend":4007}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'
+  write_stub "$SB" curl 'exit 0'
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "BACKEND_PORT=4007" && [ "$RC" = "0" ]; then
+    pass "check-dev-server: 前后端都活 → GATE_PASSED + BACKEND_PORT"
+  else
+    fail "check-dev-server: 前后端都活" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: dev-ports.json 无 backend 字段 → 跳过后端检查（Desktop 分支 A 不误伤）
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5199}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" lsof 'exit 0'
+  write_stub "$SB" curl 'case "$*" in *:5199*) exit 0 ;; *) exit 7 ;; esac'
+  OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "GATE_PASSED" && [ "$RC" = "0" ]; then
+    pass "check-dev-server: 无 backend 字段 → 跳过后端检查"
+  else
+    fail "check-dev-server: 无 backend 字段" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ minus-lib（分发器 node 解析）═══"
+# ══════════════════════════════════════════════════════
+
+ML="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
+
+# ── 不变量【老 node 遮挡】──
+# 复现人工测试 2026-06-11：/usr/local/bin/node v12.18.0 遮挡 volta v24，
+# 跑 ?? 语法的脚本当场 SyntaxError。不变量：**所有**运行时调 node 的脚本，
+# 经 minus-lib 在「v12 假 node 占 PATH 首位」下执行，都不得出现 SyntaxError。
+# 逐脚本登记 smoke 调用（OLDNODE_SMOKE），并用 grep 做完整性断言——新增裸 node
+# 脚本而忘记登记 → 测试失败，不靠人记得。
+#
+# 登记格式：脚本名|参数...（参数可空）。统一前置：tmp 项目 + .minus/skill.json。
+# 判定：输出不含 SyntaxError（部分脚本在空项目里合法非零退出，rc 不作统一断言；
+# 关键脚本另有 rc 断言）。
+OLDNODE_SMOKE="
+update-progress|init-design
+progress-check|
+project-detector|
+projects-manager|list
+post-install-check|
+generate-steps|步骤A|步骤B
+generate-node-code|1
+check-dev-server|
+detect-preview-port|
+record-preview-port|5173
+resume-env|cli
+start-dev|full
+"
+# 豁免（不进 smoke，必须有理由）：
+#   bootstrap-env —— 安装器，真实跑会装依赖；node 适配由 env-matrix 场景全量覆盖
+#   sync-plugin   —— 仅开发机使用，不随插件分发到用户环境
+OLDNODE_EXEMPT="bootstrap-env sync-plugin"
+
+# 完整性断言：扫描所有运行时脚本里的 node -e/-p 调用，必须被登记或豁免
+(
+  PLUG="$REPO_DIR/plugins/claude/minus-creator"
+  MISSING=""
+  for f in $(grep -lE '(^|[^a-zA-Z_./-])node( |\.exe)? +(-e|-p|--eval)' "$PLUG"/scripts/*.sh "$PLUG"/skills/*/scripts/*.sh 2>/dev/null); do
+    name="$(basename "$f" .sh)"
+    case " $OLDNODE_EXEMPT " in *" $name "*) continue ;; esac
+    echo "$OLDNODE_SMOKE" | grep -q "^$name|" || MISSING="$MISSING $name"
+  done
+  if [ -z "$MISSING" ]; then
+    pass "老 node 不变量: 所有裸 node 脚本均已登记 smoke 或豁免"
+  else
+    fail "老 node 不变量: 完整性" "未登记 smoke 的裸 node 脚本:$MISSING（在 OLDNODE_SMOKE 登记或在 OLDNODE_EXEMPT 豁免并注明理由）"
+  fi
+)
+
+# 逐条 smoke：v12 假 node 占 PATH 首位，经 minus-lib 执行
+if ! host_has_abs_modern_node; then
+  skip "老 node 不变量: 全量 smoke" "本机绝对路径上无 >=18 node"
+else
+  OLDNODE_SHIM="$TMPDIR_BASE/oldnode-shim"
+  mkdir -p "$OLDNODE_SHIM"
+  cat > "$OLDNODE_SHIM/node" <<'FAKE'
+#!/bin/bash
+if [ "$1" = "-p" ]; then echo 12; exit 0; fi
+if [ "$1" = "-v" ]; then echo v12.18.0; exit 0; fi
+echo "SyntaxError: Unexpected token '?'" >&2; exit 1
+FAKE
+  chmod +x "$OLDNODE_SHIM/node"
+  # start-dev/resume-env 会走到 pnpm/curl：给无害 stub，smoke 只验 node 解析链
+  printf '#!/bin/bash\nexit 0\n' > "$OLDNODE_SHIM/pnpm"; chmod +x "$OLDNODE_SHIM/pnpm"
+
+  echo "$OLDNODE_SMOKE" | while IFS='|' read -r SM_NAME SM_A1 SM_A2; do
+    [ -n "$SM_NAME" ] || continue
+    (
+      TMP=$(make_tmp); mkdir -p "$TMP/proj/.minus"; cd "$TMP/proj"
+      echo '{"name":"t","skillId":"sk_t","version":"1"}' > .minus/skill.json
+      echo '{"frontend":5173}' > .minus/dev-ports.json
+      SM_ARGS=()
+      [ -n "$SM_A1" ] && SM_ARGS+=("$SM_A1")
+      [ -n "$SM_A2" ] && SM_ARGS+=("$SM_A2")
+      if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 MINUS_DEV_RESTART=1 MINUS_NODE_BIN_DIR= \
+           PATH="$OLDNODE_SHIM:$PATH" bash "$ML" "$SM_NAME" ${SM_ARGS+"${SM_ARGS[@]}"} 2>&1); then RC=0; else RC=$?; fi
+      if echo "$OUTPUT" | grep -q "SyntaxError"; then
+        fail "老 node 不变量: $SM_NAME" "rc=$RC 出现 SyntaxError: $(echo "$OUTPUT" | head -3)"
+      else
+        pass "老 node 不变量: $SM_NAME 无 SyntaxError"
+      fi
+    )
+  done
+
+  # 关键脚本 rc 断言：update-progress 必须真正成功（防 smoke 判定退化成空转）
+  (
+    TMP=$(make_tmp); mkdir -p "$TMP/proj/.minus"; cd "$TMP/proj"
+    echo '{"name":"t","version":"1"}' > .minus/skill.json
+    if OUTPUT=$(MINUS_NODE_BIN_DIR= PATH="$OLDNODE_SHIM:$PATH" bash "$ML" update-progress init-design 2>&1); then RC=0; else RC=$?; fi
+    if [ "$RC" = "0" ] && grep -q '"designStage": "input_done"' .minus/progress.json 2>/dev/null; then
+      pass "老 node 不变量: update-progress 在遮挡下真实成功"
+    else
+      fail "老 node 不变量: update-progress rc 断言" "rc=$RC out=$OUTPUT"
+    fi
+  )
+fi
+
+# Test: node 完全缺失时分发器不阻断（bootstrap 前场景，脚本自身可继续跑）
+(
+  TMP=$(make_tmp); mkdir -p "$TMP/proj"
+  cd "$TMP/proj"
+  if OUTPUT=$(MINUS_NODE_BIN_DIR= PATH="/usr/bin:/bin" bash "$ML" check-project-state 2>&1); then RC=0; else RC=$?; fi
+  if [ "$RC" = "0" ] && echo "$OUTPUT" | grep -q "INITIALIZED="; then
+    pass "minus-lib: node 缺失时不阻断纯 shell 脚本"
+  else
+    fail "minus-lib: node 缺失不阻断" "rc=$RC out=$OUTPUT"
   fi
 )
 
@@ -2557,10 +2854,14 @@ write_stub() {
 )
 
 (
-  if grep -q "minus-lib check-project-state" "$SKILL_MD" 2>/dev/null; then
-    pass "SKILL.md: env init uses check-project-state for local state"
+  # 开机链已单源到 resume-env.sh（内部执行 check-project-state 等确定性步骤），
+  # md 只需引用 resume-env；脚本侧验证 resume-env 确实调用了 check-project-state。
+  RESUME_ENV="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/resume-env.sh"
+  if grep -q "minus-lib resume-env" "$SKILL_MD" 2>/dev/null \
+     && grep -q "check-project-state" "$RESUME_ENV" 2>/dev/null; then
+    pass "SKILL.md: env init uses resume-env（内含 check-project-state）"
   else
-    fail "SKILL.md: env init state check" "missing minus-lib check-project-state"
+    fail "SKILL.md: env init state check" "md 缺 minus-lib resume-env 或 resume-env.sh 缺 check-project-state"
   fi
 )
 
@@ -2858,7 +3159,9 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 # 该逻辑已硬编码进 generate-launch-json.sh（设计原则①），skill 只调脚本
 (
   GLJ="$SKILL_LIB/generate-launch-json.sh"
-  if grep -q 'minus-lib generate-launch-json' "$SKILL_MD" \
+  RESUME_ENV="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/resume-env.sh"
+  if { grep -q 'minus-lib generate-launch-json' "$SKILL_MD" \
+       || grep -q 'generate-launch-json' "$RESUME_ENV"; } \
      && grep -q '/bin/pnpm' "$GLJ" && grep -q 'PNPM_BIN' "$GLJ" \
      && ! grep -qE '"runtimeExecutable": *"pnpm"' "$GLJ"; then
     pass "launch.json: skill 调 generate-launch-json.sh，脚本内 runtimeExecutable 绝对路径无裸 pnpm"
@@ -2868,7 +3171,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q '自动打开预览' "$SKILL_MD"; then
+  if grep -q '自动打开' "$SKILL_MD"; then
     pass "SKILL.md: branch B auto-opens preview via detect-preview-port.sh"
   else
     fail "SKILL.md: branch B auto-opens preview via detect-preview-port.sh" "not found"
@@ -2894,11 +3197,11 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 # 启动逻辑已下沉到 start-dev.sh（CLAUDE.md #3 单源化）：dev:win 分支 + pnpm 解析
 # 都在脚本里，SKILL.md 只引用脚本，不再内联。
 (
-  if grep -q 'run dev:win' "$SD" \
-     && grep -q 'run dev:win:backend' "$SD" \
-     && grep -q '"\$PNPM_CMD" dev:backend' "$SD" \
-     && grep -q '"\$PNPM_CMD" dev' "$SD" \
-     && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SD"; then
+  if grep -q 'run dev:win' "$SD_SRC" \
+     && grep -q 'run dev:win:backend' "$SD_SRC" \
+     && grep -q '"\$PNPM_CMD" dev:backend' "$SD_SRC" \
+     && grep -q '"\$PNPM_CMD" dev' "$SD_SRC" \
+     && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SD_SRC"; then
     pass "start-dev.sh: Windows uses dev:win while mac/Linux keeps stable dev scripts"
   else
     fail "start-dev.sh: platform dev script selection" "missing dev:win branch or mac/Linux stable command"
@@ -2906,9 +3209,9 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SD" \
-     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SD" \
-     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SD"; then
+  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SD_SRC" \
+     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SD_SRC" \
+     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SD_SRC"; then
     pass "start-dev.sh: dev server launch resolves pnpm via VOLTA_HOME before PATH"
   else
     fail "start-dev.sh: pnpm resolution for GUI PATH" "missing VOLTA_HOME/PNPM_CMD resolution"
@@ -3875,6 +4178,8 @@ echo ""
 echo "═══ post-install-check.sh ═══"
 # ══════════════════════════════════════════════════════
 
+# post-install-check 由 hooks.json 直调（不经 minus-lib），且其测试需模拟坏 node 环境，
+# 经分发器会被缓存的好 node 干扰——保持直调。
 PIC="$LIB_DIR/post-install-check.sh"
 
 # 构造一个伪 PLUGIN_ROOT（complete=yes 时含全部 MCP 产物）
@@ -4015,6 +4320,92 @@ make_plugin_root() {
     pass "install.sh: 产物校验委托给 post-install-check.sh（单源）"
   else
     fail "install.sh: 产物校验应委托单源脚本" "内联校验未移除或未调用 --strict"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ resume-env.sh ═══"
+# ══════════════════════════════════════════════════════
+
+RE="$(via_lib resume-env)"
+
+# Test: 依赖缺失 → NEED_BOOTSTRAP=1 即停（bootstrap 决策留给 agent）
+(
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$RE" cli 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "NEED_BOOTSTRAP=1" && echo "$OUTPUT" | grep -q "INITIALIZED=0" \
+     && ! echo "$OUTPUT" | grep -q "ENV=" && [ "$RC" = "0" ]; then
+    pass "resume-env: 依赖缺失 → NEED_BOOTSTRAP=1 即停"
+  else
+    fail "resume-env: NEED_BOOTSTRAP" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: 缺参数 → 退出码 2
+(
+  TMP=$(make_tmp); cd "$TMP"; mkdir -p node_modules .venv
+  if OUTPUT=$(bash "$RE" bogus 2>&1); then RC=0; else RC=$?; fi
+  if [ "$RC" = "2" ]; then
+    pass "resume-env: 非法分支退出码 2"
+  else
+    fail "resume-env: 非法分支" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: desktop 分支——后端健康 → ENV=ready + NEED_PREVIEW_START=1 + 进度摘要
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus" "$TMP/node_modules" "$TMP/.venv"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 0'   # 后端健康（start-dev backend 自检会 ALREADY_RUNNING，无害）
+  write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo \"n\$(pwd)\" ;; esac"
+  write_stub "$SB" pnpm 'exit 0'
+  echo '{"backend":4001}' > .minus/dev-ports.json
+  printf '{"currentStep":1,"steps":{"1":{"name":"步骤1","status":"pending"}},"phase":"developing"}' > .minus/progress.json
+  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); RC=$?
+  if echo "$OUTPUT" | grep -q "ENV=ready" && echo "$OUTPUT" | grep -q "NEED_PREVIEW_START=1" \
+     && echo "$OUTPUT" | grep -q "BACKEND_PORT=4001" && echo "$OUTPUT" | grep -q "PHASE=developing" \
+     && echo "$OUTPUT" | grep -q "CURRENT_STEP=1" && echo "$OUTPUT" | grep -q "STEPS_TOTAL=1" \
+     && echo "$OUTPUT" | grep -q "STEPS_DONE=0" && echo "$OUTPUT" | grep -q "STEP_STATUS=" && [ "$RC" = "0" ]; then
+    pass "resume-env: desktop 就绪 → ENV=ready + 进度摘要齐全"
+  else
+    fail "resume-env: desktop 就绪" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: desktop 分支——后端起不来 → ENV=failed + FAIL_REASON + 日志摘要
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus" "$TMP/node_modules" "$TMP/.venv"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 7'   # 后端永远不健康
+  write_stub "$SB" lsof 'exit 1'
+  write_stub "$SB" pnpm 'echo "BACKEND_BOOT_ERROR"; exit 1'
+  write_stub "$SB" sleep 'exit 0'  # 跳过 30 次真实等待
+  if OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); then RC=0; else RC=$?; fi
+  if echo "$OUTPUT" | grep -q "ENV=failed" && echo "$OUTPUT" | grep -q "FAIL_REASON=BACKEND_START_TIMEOUT" \
+     && [ "$RC" = "1" ]; then
+    pass "resume-env: desktop 后端超时 → ENV=failed + FAIL_REASON"
+  else
+    fail "resume-env: desktop 失败路径" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# Test: cli 分支——端口检测失败 → ENV=failed + FAIL_REASON=PREVIEW_DETECT_FAILED
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus" "$TMP/node_modules" "$TMP/.venv"; cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 7'
+  write_stub "$SB" lsof 'exit 1'
+  write_stub "$SB" pnpm 'exit 1'
+  if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" cli 2>&1); then RC=0; else RC=$?; fi
+  if echo "$OUTPUT" | grep -q "ENV=failed" && echo "$OUTPUT" | grep -q "FAIL_REASON=PREVIEW_DETECT_FAILED" \
+     && [ "$RC" = "1" ]; then
+    pass "resume-env: cli 检测失败 → ENV=failed + FAIL_REASON"
+  else
+    fail "resume-env: cli 失败路径" "rc=$RC out=$OUTPUT"
   fi
 )
 
