@@ -44,6 +44,8 @@ claude plugin uninstall minus-creator
 bash ~/minus-platform-develop/minus-plugin/plugins/claude/minus-creator/uninstall.sh
 ```
 
+> **Windows 首次安装报 EPERM？** `claude plugin install` 解压到 `cache/temp_local_*` 后 rename，撞上残留目录会失败。补救：`rm -rf ~/.claude/plugins/cache/temp_local_*` 后重装。已安装用户的升级场景由 SessionStart 自检（`scripts/post-install-check.sh`）自动清理残留，无需手动处理。
+
 ## 测试
 
 ```bash
@@ -71,6 +73,9 @@ E2E_KEEP=1 bash ~/minus-platform-develop/minus-plugin/tests/e2e-dev-flow.sh     
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-agent/run.sh keyword-to-asin   # 跑指定剧本（scenarios/ 下的文件名）
 E2E_SKIP_RUN=1 bash tests/e2e-agent/run.sh keyword-to-asin                          # 只测对话流程，跳过真实运行验证
 E2E_KEEP=1 E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus bash tests/e2e-agent/run.sh ...   # 可覆盖的参数
+E2E_DESKTOP=1 bash tests/e2e-agent/run.sh keyword-to-asin                           # Desktop 模式：mock Claude_Preview 验证分支 A
+                                                                                    # （preview_start → record-preview-port → 门禁）行为链
+                                                                                    # 真实 Desktop 冒烟见 References/Desktop Smoke Checklist.md
 node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token）
 ```
 

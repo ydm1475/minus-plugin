@@ -3016,22 +3016,25 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
   fi
 )
 
-# Test: install.sh 校验自包含 bundle，不再跑 npm install --omit=dev
+# Test: install.sh 产物校验委托单源脚本（dist bundle + launch.cjs 检查在 post-install-check.sh），
+# 且不再跑 npm install --omit=dev
 (
-  if grep -q 'dist/minus-platform.cjs' "$INSTALL_SH" \
+  if grep -q 'post-install-check.sh" --strict' "$INSTALL_SH" \
      && ! grep -q 'npm install --omit=dev' "$INSTALL_SH"; then
-    pass "install.sh: 校验 dist bundle，无 npm install --omit=dev"
+    pass "install.sh: 产物校验委托 post-install-check.sh，无 npm install --omit=dev"
   else
-    fail "install.sh: 校验 dist bundle" "still uses npm install --omit=dev or missing dist check"
+    fail "install.sh: 产物校验委托" "missing post-install-check.sh --strict call or still uses npm install --omit=dev"
   fi
 )
 
-# Test: install.sh 校验 launcher 存在（.mcp.json command 实际跑它）
+# Test: post-install-check.sh 校验 bundle + launcher（单源所在处）
 (
-  if grep -q 'launch.cjs' "$INSTALL_SH" && ! grep -q 'launch.sh' "$INSTALL_SH"; then
-    pass "install.sh: 校验 MCP launcher (launch.cjs) 存在"
+  PIC_SH="$REPO_DIR/plugins/claude/minus-creator/scripts/post-install-check.sh"
+  if grep -q 'dist/minus-platform.cjs' "$PIC_SH" && grep -q 'launch.cjs' "$PIC_SH" \
+     && ! grep -q 'launch.sh' "$PIC_SH"; then
+    pass "post-install-check.sh: 校验 dist bundle + launch.cjs（单源）"
   else
-    fail "install.sh: 校验 launch.cjs" "missing launch.cjs validation or stale launch.sh ref"
+    fail "post-install-check.sh: 产物校验单源" "missing dist/launch.cjs checks or stale launch.sh ref"
   fi
 )
 
@@ -3782,6 +3785,104 @@ MINUS_LIB="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
         -maxdepth 1 \( -name "$n" -o -name "$n.sh" \) 2>/dev/null
     done)
     fail "minus-lib: 脚本名全局唯一" "重名脚本会被静默遮蔽: $(echo $PATHS)"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ post-install-check.sh ═══"
+# ══════════════════════════════════════════════════════
+
+PIC="$LIB_DIR/post-install-check.sh"
+
+# 构造一个伪 PLUGIN_ROOT（complete=yes 时含全部 MCP 产物）
+make_plugin_root() {
+  local root="$1"; local complete="$2"
+  mkdir -p "$root/mcp-servers/minus-platform/dist"
+  if [ "$complete" = "yes" ]; then
+    echo "//bundle" > "$root/mcp-servers/minus-platform/dist/minus-platform.cjs"
+    echo "//launcher" > "$root/mcp-servers/minus-platform/launch.cjs"
+  fi
+}
+
+# Test: 产物齐全 → 静默成功（hook 模式不污染会话上下文）
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" yes
+  OUTPUT=$(bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
+  if [ "$RC" -eq 0 ] && [ -z "$OUTPUT" ]; then
+    pass "post-install-check: 产物齐全 → 静默 exit 0"
+  else
+    fail "post-install-check: 产物齐全应静默" "rc=$RC out: $OUTPUT"
+  fi
+)
+
+# Test: 缺产物，hook 模式 → 输出补救指引但 exit 0（不阻塞会话）
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" no
+  OUTPUT=$(bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
+  if [ "$RC" -eq 0 ] && assert_contains "$OUTPUT" "minus-platform.cjs" \
+     && assert_contains "$OUTPUT" "claude plugin install"; then
+    pass "post-install-check: 缺产物 hook 模式 → 补救指引 + exit 0"
+  else
+    fail "post-install-check: 缺产物 hook 模式" "rc=$RC out: $OUTPUT"
+  fi
+)
+
+# Test: 缺产物，--strict 模式 → exit 1（install.sh 据此中止）
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" no
+  OUTPUT=$(bash "$PIC" --strict "$TMP/plugin" 2>&1); RC=$?
+  if [ "$RC" -eq 1 ]; then
+    pass "post-install-check: 缺产物 --strict → exit 1"
+  else
+    fail "post-install-check: 缺产物 --strict 应 exit 1" "rc=$RC out: $OUTPUT"
+  fi
+)
+
+# Test: 陈旧 temp_local_* 残留被清理；新鲜的（可能正在安装）保留
+(
+  TMP=$(make_tmp)
+  export HOME="$TMP"
+  make_plugin_root "$TMP/plugin" yes
+  CACHE="$TMP/cache"
+  mkdir -p "$CACHE/temp_local_stale" "$CACHE/temp_local_fresh"
+  # 陈旧目录：mtime 拨到 2 小时前（mac 用 -v，linux 用 -d）
+  touch -t "$(date -v-2H +%Y%m%d%H%M 2>/dev/null || date -d '2 hours ago' +%Y%m%d%H%M)" "$CACHE/temp_local_stale"
+  MINUS_CACHE_ROOT="$CACHE" bash "$PIC" "$TMP/plugin" >/dev/null 2>&1
+  if [ ! -d "$CACHE/temp_local_stale" ] && [ -d "$CACHE/temp_local_fresh" ]; then
+    pass "post-install-check: 清理陈旧 temp_local_*，保留新鲜目录"
+  else
+    fail "post-install-check: temp_local_* 清理" "stale: $([ -d "$CACHE/temp_local_stale" ] && echo 还在 || echo 已清), fresh: $([ -d "$CACHE/temp_local_fresh" ] && echo 还在 || echo 被误删)"
+  fi
+)
+
+# Test: hooks.json 已注册 post-install-check 到 SessionStart（机制接线，不靠人记得）
+(
+  HOOKS_JSON="$REPO_DIR/plugins/claude/minus-creator/hooks/hooks.json"
+  if node -e '
+    const h=require(process.argv[1]).hooks.SessionStart.flatMap(g=>g.hooks);
+    process.exit(h.some(x=>x.command.includes("post-install-check.sh"))?0:1);
+  ' "$HOOKS_JSON"; then
+    pass "hooks.json: SessionStart 已注册 post-install-check.sh"
+  else
+    fail "hooks.json: SessionStart 应注册 post-install-check.sh" "未找到注册项"
+  fi
+)
+
+# Test: install.sh 不再内联产物校验，而是调用单源脚本
+(
+  INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
+  if grep -q 'post-install-check.sh" --strict' "$INSTALL_SH" \
+     && ! grep -q 'MCP_DIR/dist/minus-platform.cjs' "$INSTALL_SH"; then
+    pass "install.sh: 产物校验委托给 post-install-check.sh（单源）"
+  else
+    fail "install.sh: 产物校验应委托单源脚本" "内联校验未移除或未调用 --strict"
   fi
 )
 
