@@ -42,10 +42,15 @@ if [ $RC2 -eq 0 ] && [ -n "$OUT" ]; then
   pass "resolve-node.sh：命中 Volta 新装的 node（${OUT}）"
 else
   fail "resolve-node.sh：装后探测" "rc=$RC2 out=[$OUT]"
-  # 诊断：node 实际落在哪（假 HOME / 假 LOCALAPPDATA / 真 LOCALAPPDATA）
-  echo "  [diag] install 输出尾部：$(echo "$INSTALL_OUT" | tail -3)"
-  for d in "$EHOME/.volta" "$ELA/Volta" "${LOCALAPPDATA:-}/Volta"; do
-    [ -n "$d" ] && [ -d "$d" ] && echo "  [diag] $d: $(find "$d" -name 'node*' -maxdepth 4 2>/dev/null | head -5)"
+  # 诊断：安装全程输出 + volta/node 实际落点
+  echo "  [diag] install 输出："
+  echo "$INSTALL_OUT" | tail -15 | sed 's/^/    /'
+  echo "  [diag] env 内探测：$(env HOME="$EHOME" LOCALAPPDATA="$ELA" PATH="$CLEAN_PATH" bash -c '
+    . "'"$BOOTSTRAP_ENV"'" 2>/dev/null
+    volta_on_path >/dev/null 2>&1
+    echo "volta=$(command -v volta 2>&1) node=$(command -v node 2>&1) node-v=$(node -v 2>&1) volta-which=$(volta which node 2>&1)"' 2>&1)"
+  for d in "$EHOME/.volta" "$ELA/Volta"; do
+    [ -n "$d" ] && [ -d "$d" ] && echo "  [diag] $d: $(find "$d" \( -name 'node' -o -name 'node.exe' \) 2>/dev/null | head -5)"
   done
 fi
 

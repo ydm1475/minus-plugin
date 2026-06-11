@@ -57,6 +57,10 @@ done
 echo "▶ Build MCP bundle"
 echo "────────────────────"
 MCP_BUILD_DIR="$SCRIPT_DIR/../plugins/claude/minus-creator/mcp-servers/minus-platform"
+# 构建前解析合规 node 并前置 PATH：终端 PATH 上的老 node（实测 /usr/local/bin/node v12）
+# 会让 build.mjs 直接崩（ESM/语法不兼容），这正是 resolve-node.sh 存在的原因
+GOOD_NODE="$(sh "$SCRIPT_DIR/../plugins/claude/minus-creator/scripts/resolve-node.sh" 2>/dev/null || true)"
+[ -n "$GOOD_NODE" ] && export PATH="$(dirname "$GOOD_NODE"):$PATH"
 if ( cd "$MCP_BUILD_DIR" && [ -d node_modules/esbuild ] || npm install >/dev/null 2>&1; npm run build ); then
   echo "  ✓ dist/minus-platform.cjs 已生成"
   echo ""

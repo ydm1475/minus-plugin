@@ -93,28 +93,45 @@ in_env() {
 # CI runner 一次性、免密 sudo → 临时改名；本机绝不动文件系统。
 # 返回 0 = 屏蔽完成（或本就无残留），调用方可继续；返回 1 = 本机有残留且不能动 → 场景应 skip。
 hide_abs_nodes() {
-  is_windows && return 0  # Git Bash 下 /usr/local /opt/homebrew 映射进 Git 安装目录，无系统 node
   local p found=""
-  for p in /usr/local/bin/node /opt/homebrew/bin/node; do
-    [ -e "$p" ] && found="$found $p"
-  done
+  if is_windows; then
+    # 假 ProgramFiles env 不可靠：MSYS→Windows 子进程的 env 大小写不敏感合并会把
+    # ProgramFiles 还原成真值（实测），而新 runner 镜像在 C:\Program Files\nodejs
+    # 真有 node。唯一可靠的屏蔽是把目录改名（CI runner 以管理员跑，一次性机器）。
+    for p in "/c/Program Files/nodejs" "/c/Program Files (x86)/nodejs"; do
+      [ -e "$p" ] && found="$found|$p"
+    done
+  else
+    for p in /usr/local/bin/node /opt/homebrew/bin/node; do
+      [ -e "$p" ] && found="$found|$p"
+    done
+  fi
   [ -z "$found" ] && return 0
   if is_ci; then
+    local oldifs="$IFS"; IFS='|'
     for p in $found; do
-      if sudo mv "$p" "$p.matrix-bak"; then MOVED_NODES="$MOVED_NODES $p"; else
-        echo "  ! sudo mv $p 失败"; return 1
+      [ -z "$p" ] && continue
+      if move_path "$p" "$p.matrix-bak"; then MOVED_NODES="$MOVED_NODES|$p"; else
+        IFS="$oldifs"; echo "  ! mv $p 失败"; return 1
       fi
     done
+    IFS="$oldifs"
     return 0
   fi
   return 1
 }
 
+move_path() { # mac 系统目录需 sudo；Windows Git Bash（管理员）直接 mv
+  if is_windows; then mv "$1" "$2"; else sudo mv "$1" "$2"; fi
+}
+
 restore_abs_nodes() {
-  local p
+  local p oldifs="$IFS"; IFS='|'
   for p in ${MOVED_NODES:-}; do
-    sudo mv "$p.matrix-bak" "$p" 2>/dev/null || true
+    [ -z "$p" ] && continue
+    move_path "$p.matrix-bak" "$p" 2>/dev/null || true
   done
+  IFS="$oldifs"
   MOVED_NODES=""
 }
 
