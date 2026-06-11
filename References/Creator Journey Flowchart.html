@@ -504,8 +504,11 @@
       <div class="node">
         <div class="node-dot plugin"></div>
         <div class="node-card plugin">
-          <div class="node-label">执行安装 &amp; 自动进入初始化</div>
-          <div class="node-desc">下载并注册 Plugin，静默创建全局配置目录 <code>~/.minus/</code> 和 Workspace 目录 <code>~/minus/</code>，安装完成后自动进入首次初始化流程</div>
+          <div class="node-label">执行安装 &amp; 提示可用</div>
+          <div class="node-desc">下载并注册 Plugin，静默创建全局配置目录 <code>~/.minus/</code> 和 Workspace 目录 <code>~/minus/</code>。安装完成后提示：「输入 /minus 开始使用」，不自动进入初始化流程</div>
+          <!-- 设计变更 [2026-05-22]：安装后不再自动进入初始化。
+               原因：Plugin 在 SessionStart 自动跑完整流程会干扰不想使用 Plugin 的用户。
+               改为被动触发——Creator 主动输入 /minus 才启动登录和项目流程。 -->
           <span class="node-tag auto">自动</span>
         </div>
       </div>
@@ -646,10 +649,25 @@
         <div class="node-dot creator"></div>
         <div class="node-card creator">
           <div class="node-label">打开项目文件夹</div>
-          <div class="node-desc">启动 Claude Desktop，将 Skill 项目文件夹设为工作目录。Claude Code 自动加载 CLAUDE.md 和项目级 Memory，SessionStart hook 自动激活 Plugin</div>
+          <div class="node-desc">启动 Claude Desktop，将 Skill 项目文件夹设为工作目录。Claude Code 自动加载 CLAUDE.md 和项目级 Memory。SessionStart hook 输出一行轻量提示，不自动执行任何流程</div>
+          <!-- 设计变更 [2026-05-22]：SessionStart 不再自动激活完整流程。
+               原因：即使在 Skill 项目目录，Creator 也可能只是想用 Claude Code 做其他事（查代码、问问题），
+               强制激活 Plugin 会造成干扰。改为 Creator 输入 /minus 后才启动环境检查和开发流程。 -->
           <span class="node-tag manual">手动</span>
         </div>
       </div>
+
+      <div class="node">
+        <div class="node-dot creator"></div>
+        <div class="node-card creator">
+          <div class="node-label">输入 /minus</div>
+          <div class="node-desc">Creator 主动触发 Plugin 进入开发模式。这是从"打开项目"到"环境就绪"之间的显式激活步骤</div>
+          <span class="node-tag manual">手动</span>
+        </div>
+      </div>
+      <!-- 设计变更 [2026-05-22]：新增显式激活步骤。
+           原因：SessionStart 瘦身为轻量提示后，需要 Creator 主动触发才进入开发流程。
+           这让 Creator 拥有选择权——打开项目目录不等于要用 Plugin。 -->
 
       <div class="node">
         <div class="node-dot plugin"></div>

@@ -1,0 +1,57 @@
+# 剧本：关键词拓词 → 热销 ASIN 查询（提炼自 2026-05-21/22 真实手测对话）
+name: keyword-to-asin
+steps: 2
+
+brief: |
+  我想做一个 Skill：用户输入一个主关键词，先拓展出相关关键词，
+  然后查这些关键词下的热销 ASIN。
+
+persona: |
+  你是一个跨境电商运营，不太懂技术，用中文口语回答，每次回答不超过两句话。
+  你的需求：输入一个主关键词，先以词拓词，再查热销 ASIN，两步完成。
+  被问到口径没覆盖的问题时，倾向接受 Agent 的推荐方案。
+
+answers:
+  structure:
+    input: "一个主关键词，提示语写'输入主关键词，如 wireless earbuds'"
+    steps: "先以词拓词，再查这些词下的热销 ASIN，两步就行"
+    confirm_structure: "差不多就这样"
+  step1:
+    data: "用 SIF 的以词拓词接口，可以了"
+    logic: "按搜索量排序，只展示前 200 个"
+    output: "表格，列出关键词和搜索量"
+    confirm: "需要暂停让用户确认，把选中的关键词传给下一步"
+  step2:
+    data: "用关键词查 ASIN 的接口"
+    logic: "Top 3，所有 ASIN 汇总一张表，去重，按销量排名"
+    output: "展示销量、价格，按销量排名"
+  result:
+    summary: "大模型自动生成摘要，突出关键数字"
+    download: "不需要下载文件"
+
+expect:
+  # 终验：以最终用户身份真实运行。
+  # 入参键名由 Agent 生成代码自定，default 值赋给 pipeline.py 的第一个入参键。
+  # 注意：SIF 类目联想对部分词（如 wireless earbuds）查不到类目，用已验证可命中的词
+  final_input:
+    default: "gaming chair"
+  # 交互确认步骤（step1 interactive）：$select:N = 从候选行里选前 N 行
+  confirm_data:
+    selectedKeywords: "$select:3"
+  # 节点输出 payload 应包含的字段（子串匹配，宽松）
+  step1_output_contains:
+    - "keyword"
+  final_output_contains:
+    - "asin"
+
+transcript_rules:
+  - id: B1
+    rule: "结构设计阶段，Agent 先确认'用户输入什么'（输入定义），之后才问'分几步/每步做什么'（两步法顺序）"
+  - id: B2
+    rule: "每个节点开发严格按 数据需求→处理逻辑→输出定义→用户确认 四维度顺序提问，没有跳过维度或把多个维度并在一个问题里问"
+  - id: B3
+    rule: "step2 是最后一步，Agent 全程没有就 step2 提问维度④（是否暂停确认/传什么数据给下一步）"
+  - id: B4
+    rule: "每个节点的代码在该节点四维度全部确认之后才一次性生成，没有边问答边写代码"
+  - id: B5
+    rule: "在模拟用户明确确认（如'可以了'）之前，Agent 没有擅自替用户做关键决定（如直接选定接口并开始写代码）"

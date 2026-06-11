@@ -1,0 +1,693 @@
+openapi: 3.1.0
+info:
+  title: 关键词调研 Skill Rest API
+  version: 1.0.0
+  description: |
+    关键词调研 Skill 的 REST 接口，供 Skill 前端调用 Skill 后端。
+
+    ## 认证
+
+    所有接口需携带 `MINUS_AI_SID` Cookie（Spring Session opaque token），由平台网关 `SessionAuthFilter` 统一校验后转发到 Skill 容器。详见 [docs/1.0/architecture.md §7](../../../../docs/1.0/architecture.md)。
+
+    ## 基础路径
+
+    接口挂载在 `/skill/keyword-research/{version}/api/` 下。
+    `{version}` 为具体版本号（如 `1.0.0`）；**不传时网关自动解析为该用户安装的最新版本**。
+servers:
+  - url: /skill/keyword-research/1.0.0/api
+    description: 本地联调（自动跟随当前 docs 页面的 host，浏览器访问哪个就调哪个）
+  - url: https://dev.sif.com/skill/keyword-research/1.0.0/api
+    description: 开发环境
+  - url: https://www.sif.com/skill/keyword-research/1.0.0/api
+    description: 生产环境
+security:
+  - minusAiSid: []
+tags:
+  - name: OAuth
+    description: |
+      ## OAuth 2.0 SDK 侧固定路由
+
+      本组路由由 SDK 框架（`minus_ai_sdk`）固定注册，**所有 skill 共用**，不是 keyword-research 特有的业务路由。
+      本文档作为第一个落地 skill 范本，承担"展示 skill 客户端可见 endpoint 完整列表"职责。
+
+      ### 用途
+
+      第三方 skill 开发者本地调试时的 OAuth 2.0 Authorization Code + PKCE flow 的 SDK 侧两段。
+      平台侧两个端点 `/oauth/authorize` + `/oauth/token` 见 [Web API OAuth tag](../web/rest.html)。
+
+      ### 触发关系图
+
+      前端 API 收 401 → `window.location.href` 跳 `/api/oauth/start` → 后端 302 platform `/oauth/authorize` → 平台授权 → 302 回 `/api/oauth/callback` → 后端写 `MINUS_AI_SID` cookie → 302 回业务页。
+
+      ### 本地调试 URL 形态
+
+      剥 platform prefix 后，开发者本机 `uvicorn :3000` 上的实际监听路径为 `http://localhost:3000/api/oauth/start` / `http://localhost:3000/api/oauth/callback`（即文档中 URL 去掉 `/skill/{skillId}/{version}` 前缀）。
+
+      ### 错误响应格式
+
+      本组 endpoint 走项目 ErrorResponse `{ code, message, details }`（**SDK 端是普通业务 endpoint，不是 OAuth 协议端**），**不**使用 RFC 6749 §5.2 `{ error, error_description }` 格式——后者仅平台 `/oauth/authorize` + `/oauth/token` 使用。
+  - name: Pipeline
+    description: Pipeline 执行控制——启动、查询进度、提交用户确认
+  - name: Errors
+    description: |
+      ## 错误响应格式
+
+      所有错误响应均使用统一结构：
+
+      ```json
+      {
+        "code": "NOT_FOUND",
+        "message": "Resource not found",
+        "details": {}
+      }
+      ```
+
+      | 字段 | 类型 | 必填 | 说明 |
+      |------|------|------|------|
+      | `code` | string | ✓ | 错误码，全大写下划线格式 |
+      | `message` | string | ✓ | 人类可读的错误描述 |
+      | `details` | object | — | 附加上下文，结构因错误类型而异 |
+
+      ---
+
+      ## 错误码
+
+      > HTTP 状态码 → `code` 是一对多；`code` → HTTP 状态码 是一对一。
+      >
+      > **调用方处理逻辑**：优先看 `code` 做精细处理（`QUOTA_EXCEEDED` → 弹升级套餐引导；`RATE_LIMITED` → 提示「请求过于频繁，请稍后重试」）；`code` 不可用时（网络超时、Nginx 502/504 等基础设施层错误导致响应体非 JSON）降级看 HTTP 状态码兜底（`401` → 清空 cookie 跳登录页；`5xx` → 通用报错弹窗并上报日志）。
+
+      | HTTP 状态码 | `code` | 说明 |
+      |------------|--------|------|
+      | 400 | `VALIDATION_ERROR` | 请求参数缺失或格式错误（如 OAuth `/oauth/start` 收到非同源 `returnTo`） |
+      | 400 | `STATE_MISMATCH` | OAuth callback 阶段 query.state 与 cookie.OAUTH_STATE 不一致 / cookie 缺失（CSRF 防御触发） |
+      | 400 | `OAUTH_ERROR` | OAuth callback 阶段调 platform `/oauth/token` 返非 200（`details` 透传 platform 的 `error` + `error_description`） |
+      | 401 | `UNAUTHORIZED` | `MINUS_AI_SID` Cookie 缺失、过期或无效，需重新登录 |
+      | 404 | `NOT_FOUND` | Pipeline session 不存在或不属于当前用户 |
+      | 409 | `CONFLICT` | pipeline 当前不处于 `step_input_required` 状态，或同步骤的 `step_input_submitted` 已存在，无法提交确认 |
+      | 429 | `QUOTA_EXCEEDED` | 用户月度 skill 执行次数超出套餐上限 |
+      | 429 | `RATE_LIMITED` | 短时间内重复提交 pipeline 请求 |
+      | 500 | `INTERNAL_ERROR` | 服务器内部错误，请稍后重试 |
+paths:
+  /oauth/start:
+    get:
+      tags:
+        - OAuth
+      summary: OAuth Start（启动 OAuth flow）
+      description: |
+        `GET /skill/{skillId}/{version}/api/oauth/start`
+
+        前端 SDK 工具库拦截到任意业务接口返 401 时，自动 `window.location.href` 跳到此 URL；也允许业务代码主动跳（landing page 的"登录"按钮等）。
+
+        ## 实现效果
+
+        1. 校验 `returnTo` 参数同源（防开放重定向；不传则用 Referer 头兜底；都没有则 `/`）
+        2. 生成高熵 `state` = `base64url(SecureRandom(32))`（43 字符）
+        3. 生成高熵 `code_verifier` = `base64url(SecureRandom(32))`（43 字符）
+        4. 计算 `code_challenge` = `base64url(sha256(code_verifier))`
+        5. Set-Cookie 写 `OAUTH_STATE` / `OAUTH_PKCE` / `OAUTH_RETURN`（HttpOnly、SameSite=Lax、Path=`/api/oauth`、Max-Age=600）
+        6. 302 到 platform `/oauth/authorize` 带 OAuth 标准 query
+
+        ## 鉴权
+
+        公开（不需要 `MINUS_AI_SID`；本端点就是登录流程入口）。
+
+        ## 为什么不让后端在 401 响应里直接拼好 loginUrl
+
+        后端只见到 API 请求 URL（如 `/api/some-data`），不知道前端浏览器地址栏 URL（如 `/foo`）；Referer 头存在但受浏览器隐私策略影响，不可靠。**只能前端拦截器知道并 append**。Start URL 本身是 SDK 框架级常量，前端硬编码即可，无需后端动态发现。
+      operationId: oauthStart
+      security: []
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            业务最终回跳 URL = 用户原本想访问的页面。
+            **前端拦截器 401 跳转时应当主动填值**：`window.location.pathname + window.location.search`。
+            后端兜底优先级：query.returnTo → Referer 头 → `/`。
+            **必须同源**（接受相对路径 `/foo?x=1` 或绝对 URL 但 host 与当前请求 host 一致），否则返 `400 VALIDATION_ERROR` 防开放重定向。
+          example: /foo?x=1
+      responses:
+        '302':
+          description: |
+            重定向到 platform `/oauth/authorize`，附 3 个临时 cookie 用于 callback 阶段还原状态。
+          headers:
+            Set-Cookie:
+              description: |
+                3 个临时 cookie，`HttpOnly`、`SameSite=Lax`、`Path=/api/oauth`、`Max-Age=600`：
+                - `OAUTH_STATE` = `state` 原值（CSRF token；callback 阶段校验）
+                - `OAUTH_PKCE` = `code_verifier`（PKCE 原文 verifier；callback 阶段提交给 platform `/oauth/token`）
+                - `OAUTH_RETURN` = `returnTo` 兜底后的最终值（callback 阶段读取作业务回跳目标）
+              schema:
+                type: string
+                example: OAUTH_STATE=dBjftJeZ...; Path=/api/oauth; HttpOnly; SameSite=Lax; Max-Age=600
+            Location:
+              description: 平台 OAuth Authorization Server 入口
+              schema:
+                type: string
+                format: uri
+                example: https://minusai-dev.com/oauth/authorize?response_type=code&client_id=skl_xxx&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Foauth%2Fcallback&state=...&code_challenge=...&code_challenge_method=S256
+        '400':
+          description: '`returnTo` URL 非同源（host / 协议与当前请求不一致 / 跨站绝对 URL）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_0
+                  - code
+                  - message
+                properties: &ref_1
+                  code:
+                    type: string
+                    description: 错误码，全大写下划线格式
+                    example: NOT_FOUND
+                  message:
+                    type: string
+                    description: 人类可读的错误描述
+                  details:
+                    type: object
+                    description: 附加上下文，结构因错误类型而异
+              example:
+                code: VALIDATION_ERROR
+                message: returnTo must be same-origin
+                details:
+                  returnTo: https://attacker.com/steal
+        '500':
+          description: '`MINUS_AI_SKILL_ID` 未配置（开发者 `.env` 漏填）'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: INTERNAL_ERROR
+                message: MINUS_AI_SKILL_ID is not configured
+  /oauth/callback:
+    get:
+      tags:
+        - OAuth
+      summary: OAuth Callback（接收平台回跳、换 access_token）
+      description: |
+        `GET /skill/{skillId}/{version}/api/oauth/callback`
+
+        浏览器从 platform `/oauth/authorize` 302 跳回时（用户授权完成、平台已颁发 auth code）触发。
+
+        ## 实现效果
+
+        1. 读 cookie `OAUTH_STATE` / `OAUTH_PKCE` / `OAUTH_RETURN`，缺失任一 → 错误
+        2. 校验 `state` query 与 cookie `OAUTH_STATE` 一致（CSRF 防御），不一致 → 错误
+        3. 用 cookie 中的 `code_verifier` + query 中的 `code` + 本机 `.env` 的 `client_secret` server-to-server POST platform `/oauth/token`
+        4. platform 返 200 `{ access_token, expires_in }` → 写 `MINUS_AI_SID` cookie 到本机域（`HttpOnly`、`SameSite=Lax`、`Max-Age=expires_in`）
+        5. 清掉临时 `OAUTH_STATE` / `OAUTH_PKCE` / `OAUTH_RETURN` cookie（`Max-Age=0`）
+        6. 302 回 cookie `OAUTH_RETURN` 保存的业务 URL
+
+        ## 调用的平台端服务
+
+        - `POST /oauth/token`（详见 [Web API OAuth tag](../web/rest.html)）—— server-to-server，带 `client_secret` = 本地 `.env` 的 `MINUS_AI_SKILL_API_KEY`
+
+        ## 鉴权
+
+        本路由本身公开（不需要 `MINUS_AI_SID`），但要求请求带 query `code` + `state`，且浏览器带回 `OAUTH_STATE` / `OAUTH_PKCE` / `OAUTH_RETURN` 临时 cookie。
+      operationId: oauthCallback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: platform `/oauth/authorize` 颁发的一次性 auth code
+          example: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: platform 原样回传的 CSRF token，必须与 cookie `OAUTH_STATE` 一致
+          example: 5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '302':
+          description: |
+            授权完成，写 `MINUS_AI_SID` cookie 到本机域，清临时 cookie，302 回业务页。
+          headers:
+            Set-Cookie:
+              description: |
+                多个 Set-Cookie：
+                - `MINUS_AI_SID=<sid>; Path=/; HttpOnly; SameSite=Lax; Max-Age={expires_in}` —— 写入业务 session
+                - `OAUTH_STATE=; Path=/api/oauth; Max-Age=0` —— 清临时 cookie（OAUTH_PKCE / OAUTH_RETURN 同）
+              schema:
+                type: string
+                example: MINUS_AI_SID=spring_sid_xxxxxxx; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800
+            Location:
+              description: cookie `OAUTH_RETURN` 原值（兜底 `/`）
+              schema:
+                type: string
+                example: /foo
+        '400':
+          description: |
+            - `STATE_MISMATCH` — query.state 与 cookie.OAUTH_STATE 不一致 / cookie 缺失（CSRF 防御触发）
+            - `OAUTH_ERROR` — platform `/oauth/token` 返非 200；`details` 透传 platform 的 `error` + `error_description`
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              examples:
+                state_mismatch:
+                  summary: state 不匹配（CSRF 防御）
+                  value:
+                    code: STATE_MISMATCH
+                    message: state query parameter does not match OAUTH_STATE cookie
+                oauth_error:
+                  summary: platform /oauth/token 返非 200
+                  value:
+                    code: OAUTH_ERROR
+                    message: platform token exchange failed
+                    details:
+                      error: invalid_grant
+                      error_description: authorization code has expired or already been used
+        '500':
+          description: 网络异常 / `MINUS_AI_SKILL_API_KEY` 未配置等
+          content:
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: INTERNAL_ERROR
+                message: MINUS_AI_SKILL_API_KEY is not configured
+  /sessions/{sessionId}/pipeline/stream:
+    get:
+      tags:
+        - Pipeline
+      summary: 运行 pipeline（SSE）
+      description: '`GET /skill/keyword-research/{version}/api/sessions/{sessionId}/pipeline/stream`'
+      operationId: runPipeline
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 目标 session ID
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: lastEventId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 主动重连时使用的 message ID；query 非空时优先于 Last-Event-ID header
+          example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 浏览器 EventSource 自动重连时发送的 message ID；优先级低于 query 参数 lastEventId
+          example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+      responses:
+        '200':
+          description: |
+            SSE 事件流。建立连接即触发 pipeline 启动，持续推送执行事件直至 `pipeline_complete` 或 `pipeline_error`。
+
+            每条 SSE 消息格式：
+            ```
+            id: {event_id}
+            event: {event_type}
+            data: {JSON}
+            ```
+
+            **`event` 字段**：与 `messageType` 字面值一致（如 `event: pipeline_start` / `event: step_progress`），前端按 messageType 渲染。
+
+            **`id` 字段**：持久化事件为平台 message ID（`msg_xxx`）；瞬时事件为 SDK 进程内自增序号（如 `ev_<n>`），仅本次 stream 内有效，断线重连不重传。
+
+            SDK 所有 SSE 事件均上报 platform，platform 按 messageType 决定持久化策略。
+
+            **持久化状态事件**（platform INSERT `session_messages` + 联动 `skill_runs.pipeline_status`，支持历史回放和断线续传）：
+            `pipeline_start` / `step_start` / `step_complete` / `step_input_required` / `pipeline_complete` / `pipeline_error`
+
+            **瞬时事件**（platform skip INSERT，SSE 流实时推送）：
+            `step_progress` / `step_partial_detail`
+
+            **Last-Event-ID 协议**：主动重连用 query 参数 `?lastEventId={msg_xxx}`；浏览器自动重连用 header `Last-Event-ID: {msg_xxx}`；query 非空时优先于 header。服务端按 history snapshot + delta 处理，瞬时事件不重传。
+
+            **SSE 心跳**：stream 持续期间，SDK 每 15 秒 yield 一次 SSE 注释行 `: heartbeat\n\n`，EventSource 自动忽略。
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - title: pipeline_start
+                    type: object
+                    description: 'event: pipeline_start — pipeline 开始（持久化，存入 session_messages）'
+                    properties: &ref_4
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: skill 自定义扩展数据
+                    example: &ref_5
+                      data: {}
+                  - title: step_start
+                    type: object
+                    description: 'event: step_start — 步骤开始（持久化，存入 session_messages）'
+                    required: &ref_6
+                      - stepNumber
+                    properties: &ref_7
+                      stepNumber:
+                        type: integer
+                        description: 当前步骤序号，从 1 开始
+                        example: 1
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: skill 自定义扩展数据
+                    example: &ref_8
+                      stepNumber: 1
+                  - title: step_complete
+                    type: object
+                    description: 'event: step_complete — 步骤完成，含结果数据（持久化，存入 session_messages）'
+                    required: &ref_9
+                      - stepNumber
+                    properties: &ref_10
+                      stepNumber:
+                        type: integer
+                        description: 完成的步骤序号
+                        example: 1
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: skill 自定义结果数据（如表格、图片、下载链接等），skill 前后端自行约定结构
+                    example: &ref_11
+                      stepNumber: 1
+                      data:
+                        columns:
+                          - 关键词
+                          - 搜索量
+                          - 竞争度
+                        rows:
+                          - - bluetooth speaker
+                            - 45000
+                            - 高
+                        totalRows: 6968
+                  - title: step_input_required
+                    type: object
+                    description: 'event: step_input_required — 等待用户输入，触发确认面板（持久化，存入 session_messages）。用户通过 POST /sessions/{sessionId}/pipeline/confirm 提交确认'
+                    required: &ref_12
+                      - stepNumber
+                    properties: &ref_13
+                      stepNumber:
+                        type: integer
+                        description: 需要用户确认的步骤序号
+                        example: 2
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: skill 自定义确认面板数据，skill 前端据此渲染对应的确认面板
+                    example: &ref_14
+                      stepNumber: 2
+                      data:
+                        keywords:
+                          - bluetooth speaker
+                          - wireless speaker
+                        hint: 请确认需要保留的关键词
+                  - title: pipeline_complete
+                    type: object
+                    description: 'event: pipeline_complete — 全部步骤完成，SSE 连接随后关闭（持久化，存入 session_messages）'
+                    properties: &ref_15
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: skill 自定义产出摘要（如导出文件列表）
+                    example: &ref_16
+                      data:
+                        fileId: file_5k8Zt7QhZ3kR9mVx2yNpEw
+                        description: 关键词调研结果.xlsx
+                  - title: pipeline_error
+                    type: object
+                    description: 'event: pipeline_error — pipeline 执行出错，SSE 连接随后关闭（持久化，存入 session_messages，并将 pipeline_status 更新为 error）'
+                    required: &ref_17
+                      - reason
+                    properties: &ref_18
+                      reason:
+                        type: string
+                        description: 错误原因码
+                        example: STEP_TIMEOUT
+                      details:
+                        type: object
+                        additionalProperties: true
+                        description: 附加上下文，结构因错误类型而异
+                    example: &ref_19
+                      reason: STEP_TIMEOUT
+                      details:
+                        stepNumber: 2
+                        message: 请求超时
+                  - title: step_progress
+                    type: object
+                    description: 'event: step_progress — 步骤内实时进度滚动日志（瞬时，不存库）'
+                    required: &ref_20
+                      - stepNumber
+                    properties: &ref_21
+                      stepNumber:
+                        type: integer
+                        description: 当前步骤序号
+                        example: 1
+                      data:
+                        type: object
+                        description: skill 自定义进度数据
+                        properties:
+                          detail:
+                            type: string
+                            description: 实时进度描述文字
+                            example: 正在拉取 ASIN 1/1 的自然流量：B0DSW9CP9L...
+                        additionalProperties: true
+                    example: &ref_22
+                      stepNumber: 1
+                      data:
+                        detail: 正在拉取 ASIN 1/1 的自然流量：B0DSW9CP9L...
+                  - title: step_partial_detail
+                    type: object
+                    description: 'event: step_partial_detail — 步骤内部分结果实时流入，用于分批渲染（瞬时，不存库）。data 结构与 step_complete 一致，但为部分数据'
+                    required: &ref_23
+                      - stepNumber
+                    properties: &ref_24
+                      stepNumber:
+                        type: integer
+                        description: 当前步骤序号
+                        example: 1
+                      data:
+                        type: object
+                        additionalProperties: true
+                        description: 步骤内部分结果，结构与对应 step_complete 的 data 一致
+                    example: &ref_25
+                      stepNumber: 1
+                      data:
+                        rows:
+                          - - bluetooth speaker
+                            - 45000
+                            - 高
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: &ref_2
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: UNAUTHORIZED
+                message: Session is invalid or expired
+        '404':
+          description: 资源不存在或无权访问
+          content: &ref_3
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: NOT_FOUND
+                message: Resource not found
+  /sessions/{sessionId}/pipeline/confirm:
+    post:
+      tags:
+        - Pipeline
+      summary: 提交步骤确认面板
+      description: '`POST /skill/keyword-research/{version}/api/sessions/{sessionId}/pipeline/confirm`'
+      operationId: confirmStep
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 目标 session ID
+          example: ses_5k8Zt7QhZ3kR9mVx2yNpEw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_26
+                - stepNumber
+                - data
+              properties: &ref_27
+                stepNumber:
+                  type: integer
+                  description: 正在确认的步骤序号，需与对应 step_input_required 事件的 stepNumber 一致
+                  example: 2
+                data:
+                  type: object
+                  additionalProperties: true
+                  description: 用户确认数据，结构由 skill 定义，与 step_input_required 事件的 data 格式约定一致
+      responses:
+        '200':
+          description: 确认已写入，返回 step_input_submitted 的 message ID；前端用该 ID 重连 stream 触发后续 step 执行
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_28
+                  - messageId
+                properties: &ref_29
+                  messageId:
+                    type: string
+                    description: platform 为本次 step_input_submitted 分配的 message ID，前端拿到后用 ?lastEventId= 重连 stream
+                    example: msg_5k8Zt7QhZ3kR9mVx2yNpEw
+        '401':
+          description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+          content: *ref_2
+        '404':
+          description: 资源不存在或无权访问
+          content: *ref_3
+        '409':
+          description: pipeline 当前不处于 step_input_required 状态，或同步骤的 step_input_submitted 已存在，无法提交确认
+          content: &ref_30
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: CONFLICT
+                message: Pipeline is not waiting for user input or input has already been submitted
+components:
+  securitySchemes:
+    minusAiSid:
+      type: apiKey
+      in: cookie
+      name: MINUS_AI_SID
+      description: Spring Session opaque token，由平台网关 SessionAuthFilter 统一校验后注入 X-User-Id / X-Team-Id 头给下游。
+  schemas:
+    SseEventPipelineStart:
+      title: pipeline_start
+      type: object
+      description: 'event: pipeline_start — pipeline 开始（持久化，存入 session_messages）'
+      properties: *ref_4
+      example: *ref_5
+    SseEventStepStart:
+      title: step_start
+      type: object
+      description: 'event: step_start — 步骤开始（持久化，存入 session_messages）'
+      required: *ref_6
+      properties: *ref_7
+      example: *ref_8
+    SseEventStepComplete:
+      title: step_complete
+      type: object
+      description: 'event: step_complete — 步骤完成，含结果数据（持久化，存入 session_messages）'
+      required: *ref_9
+      properties: *ref_10
+      example: *ref_11
+    SseEventStepInputRequired:
+      title: step_input_required
+      type: object
+      description: 'event: step_input_required — 等待用户输入，触发确认面板（持久化，存入 session_messages）。用户通过 POST /sessions/{sessionId}/pipeline/confirm 提交确认'
+      required: *ref_12
+      properties: *ref_13
+      example: *ref_14
+    SseEventPipelineComplete:
+      title: pipeline_complete
+      type: object
+      description: 'event: pipeline_complete — 全部步骤完成，SSE 连接随后关闭（持久化，存入 session_messages）'
+      properties: *ref_15
+      example: *ref_16
+    SseEventPipelineError:
+      title: pipeline_error
+      type: object
+      description: 'event: pipeline_error — pipeline 执行出错，SSE 连接随后关闭（持久化，存入 session_messages，并将 pipeline_status 更新为 error）'
+      required: *ref_17
+      properties: *ref_18
+      example: *ref_19
+    SseEventStepProgress:
+      title: step_progress
+      type: object
+      description: 'event: step_progress — 步骤内实时进度滚动日志（瞬时，不存库）'
+      required: *ref_20
+      properties: *ref_21
+      example: *ref_22
+    SseEventStepPartialDetail:
+      title: step_partial_detail
+      type: object
+      description: 'event: step_partial_detail — 步骤内部分结果实时流入，用于分批渲染（瞬时，不存库）。data 结构与 step_complete 一致，但为部分数据'
+      required: *ref_23
+      properties: *ref_24
+      example: *ref_25
+    ConfirmStepRequest:
+      type: object
+      required: *ref_26
+      properties: *ref_27
+    ConfirmStepResponse:
+      type: object
+      required: *ref_28
+      properties: *ref_29
+    ErrorResponse:
+      type: object
+      required: *ref_0
+      properties: *ref_1
+  responses:
+    Unauthorized:
+      description: MINUS_AI_SID Cookie 缺失、过期或无效，需重新登录
+      content: *ref_2
+    Conflict:
+      description: pipeline 当前不处于 step_input_required 状态，或同步骤的 step_input_submitted 已存在，无法提交确认
+      content: *ref_30
+    NotFound:
+      description: 资源不存在或无权访问
+      content: *ref_3
+    QuotaExceeded:
+      description: 套餐额度耗尽，`code` 为 `QUOTA_EXCEEDED`
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: QUOTA_EXCEEDED
+            message: Plan quota exceeded
+    RateLimited:
+      description: 请求频率过快，`code` 为 `RATE_LIMITED`
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: RATE_LIMITED
+            message: Too many requests, please retry later
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            type: object
+            required: *ref_0
+            properties: *ref_1
+          example:
+            code: INTERNAL_ERROR
+            message: Internal server error

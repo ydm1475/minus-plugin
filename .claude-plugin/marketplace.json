@@ -1,0 +1,14 @@
+{
+  "name": "minus-plugin",
+  "owner": {
+    "name": "Minus Team",
+    "url": "https://minusai.com"
+  },
+  "plugins": [
+    {
+      "name": "minus-creator",
+      "source": "./plugins/claude/minus-creator",
+      "description": "Minus Skill 开发平台 — 帮助 Creator 构建、测试和发布 Skill"
+    }
+  ]
+}

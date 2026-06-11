@@ -1,0 +1,50 @@
+# 环境矩阵测试：在真实 Windows / macOS runner 上验证插件的环境适配链路
+# （resolve-node.sh / launch.cjs / bootstrap-env.sh 真实 Volta 安装 / install.sh 插件识别）。
+# Node 状态（无 node / 老 node / Volta / nvm / PATH 错序）由 tests/env-matrix 在 job 内
+# 用受控 PATH + 假 HOME 构造，不按 Node 版本拆 job。详见 tests/env-matrix/lib.sh 头注释。
+name: env-matrix
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash   # Windows 上即 Git Bash，与插件脚本的 MSYS 假设一致
+    env:
+      MINUS_MIRROR: off   # CI 在海外，走官方源；镜像落盘逻辑由场景 08 显式验证
+    steps:
+      - uses: actions/checkout@v6
+
+      # 老 node（18 < NODE_RUNTIME_FLOOR=20）：供场景用「不达标的解释器」跑 launch.cjs，
+      # 验证其候选链与失败路径（execPath 第一位，新 node 跑它会自荐、测不到）
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 18
+      - name: Capture old node path
+        run: |
+          p="$(node -p 'process.execPath')"
+          command -v cygpath >/dev/null 2>&1 && p="$(cygpath -u "$p")"
+          echo "MATRIX_OLD_NODE=$p" >> "$GITHUB_ENV"
+
+      # 主 node（24 = NODE_TARGET）：跑测试本身 + npm 装 claude CLI
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Claude Code CLI（层 2 前置）
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run env matrix (ci scope)
+        run: bash tests/env-matrix/run.sh --scope ci

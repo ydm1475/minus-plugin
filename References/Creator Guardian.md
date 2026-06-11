@@ -62,13 +62,16 @@ Creator 不理解"每个 Skill 是独立目录""需要在正确目录打开 Sess
 
 ### 场景清单
 
-| 场景 | Plugin 行为 |
-|------|------------|
-| 在 Skill A 中创建新 Skill | 在当前 Session 完成创建（API + scaffold），引导开新 Session 打开新目录 |
-| 在 Skill A 中切换到 Skill B | 列出项目列表（从 `projects.json`），引导开新 Session |
-| 在 Workspace 目录"开始开发" | 列出子项目让选择，或引导创建新项目 |
-| 在 Skill 子目录触发 | 向上遍历找到 `.minus.json`，识别项目，提示建议修正工作目录 |
-| 在非 Minus 目录 `/minus` 触发 | 列出已有项目，或引导创建 |
+> **设计变更 [2026-05-22]：** 所有场景的处理逻辑从 SessionStart hook 自动执行，改为由 `/minus` skill 在 Creator 主动触发时执行。
+> **原因：** SessionStart 自动跑完整流程会干扰不想使用 Plugin 的用户。SessionStart 现在只输出轻量提示（"输入 /minus 开始"），不执行交互流程。
+
+| 场景 | 触发方式 | Plugin 行为 |
+|------|---------|------------|
+| 在 Skill A 中创建新 Skill | Creator 输入 /minus | 在当前 Session 完成创建（API + scaffold），引导开新 Session 打开新目录 |
+| 在 Skill A 中切换到 Skill B | Creator 输入 /minus | 列出项目列表（从 `projects.json`），引导开新 Session |
+| 在 Workspace 目录"开始开发" | Creator 输入 /minus | 列出子项目让选择，或引导创建新项目 |
+| 在 Skill 子目录触发 | Creator 输入 /minus | 向上遍历找到 `.minus/skill.json`，识别项目，提示建议修正工作目录 |
+| 在非 Minus 目录触发 | Creator 输入 /minus | 列出已有项目，或引导创建 |
 
 ---
 

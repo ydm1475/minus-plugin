@@ -1,0 +1,88 @@
+# 状态路由与开发调度
+
+门禁通过后，根据项目状态进入对应阶段。
+
+## 状态路由
+
+通过两个来源判断：① .minus/skill.json + 后端 Skill 信息；② `.minus/progress.json` 中的开发进度。
+
+| 状态 | 条件 | Read |
+|------|------|------|
+| A — 开发中 | 有未完成进度 | [node-dev.md](../minus-step/node-dev.md)，继续对应步骤 |
+| B — 待测试 | 所有步骤完成但未测试 | （提示跑端到端测试） |
+| C — 可发布 | 测试已通过 | （提示 /minus publish） |
+| D — 结构设计中 | progress.json phase 为 designing | [structure-design.md](../minus-structure/structure-design.md) |
+| E — 无进度 | 刚创建的项目 | [structure-design.md](../minus-structure/structure-design.md) |
+
+### 首次进入（.minus/initialized 不存在）
+
+1. 通过 `skill_version_get` MCP tool 读取后端草稿版本信息（传入 .minus/skill.json 中的 skillId 和 version）
+2. 创建 .minus/initialized 标记文件
+3. 原样输出（不改写）：
+   「你现在看到的是 Skill 的初始页面，展示了名称、描述、适用场景等基本信息。」
+   「这些都是根据名称自动生成的，随时可以改。」
+4. 「接下来我们来设计这个 Skill。」
+   然后 Read [structure-design.md](../minus-structure/structure-design.md)，从第一步开始执行。
+
+### 非首次进入 — 按状态分发
+
+状态 A — 开发中（有未完成进度）：
+```
+当前项目：{名称} v{版本}
+上次你完成了「{已完成步骤}」的开发，
+下一个待开发的步骤是「{下一步骤}」。
+要继续吗？
+```
+→ Read [node-dev.md](../minus-step/node-dev.md)，继续对应步骤
+
+状态 B — 待测试（所有步骤开发完成但未测试）：
+```
+当前项目：{名称} v{版本}
+所有步骤已开发完成，但还没有运行过测试。
+建议先跑一遍端到端测试，确认流程通畅。
+```
+
+状态 C — 可发布（测试已通过）：
+```
+当前项目：{名称} v{版本}
+所有步骤已开发，测试已通过。
+可以考虑发布了。输入 /minus publish 开始校验和打包。
+```
+
+状态 D — 结构设计进行中（progress.json 存在且 phase 为 designing）：
+根据 `designStage` 恢复：
+- `input_done` → 输入定义已完成
+  ```
+  当前项目：{名称} v{版本}
+  上次已完成输入定义，接下来拆解步骤。
+  ```
+  → Read [structure-design.md](../minus-structure/structure-design.md)，从第二步恢复
+- 无 `designStage` → Read [structure-design.md](../minus-structure/structure-design.md)，从头开始
+
+状态 E — 无进度（刚创建的项目，progress.json 不存在或为空）：
+```
+✓ Minus 已就绪 — {名称} v{版本}
+```
+→ Read [structure-design.md](../minus-structure/structure-design.md)，从第一步开始
+
+## 逐节点开发规则
+
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先 Read [node-dev.md](../minus-step/node-dev.md) 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
+
+**调用方式：** 进入节点开发前，用 Read 工具读取 [node-dev.md](../minus-step/node-dev.md)，然后**在当前对话中**严格按其中定义的四维度流程执行。
+
+**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，更新 `.minus/progress.json`（当前步骤标记 completed，下一步标记 in_progress，更新 currentStep 和 updatedAt），进入下一个节点。
+
+## 结果呈现设计
+
+**所有 pipeline 节点开发完成后**，Read [result-design.md](../minus-structure/result-design.md) 并按其中指令执行。
+
+---
+
+**特殊情况 — Creator 要求创建新项目：**
+```
+当前目录已经是「{当前项目名}」的项目了。要创建新 Skill 请：
+1. 新开一个对话
+2. 选择 `~/minus/` 文件夹作为工作目录
+3. 在新对话里告诉我你要创建的项目名
+```

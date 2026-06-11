@@ -1,0 +1,24 @@
+#!/bin/bash
+# minus-lib — 插件脚本统一分发器
+# bin/ 由 Claude Code 加入 Bash PATH，skill 指令中以裸命令调用：
+#   minus-lib <脚本名> [参数...]
+# 按顺序在根级 scripts/ 和各 skill 私有 scripts/ 中查找同名脚本并执行。
+set -uo pipefail
+
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export MINUS_PLUGIN_ROOT="$PLUGIN_ROOT"
+
+NAME="${1:?用法: minus-lib <脚本名> [参数...]}"
+shift || true
+
+for dir in "$PLUGIN_ROOT/scripts" "$PLUGIN_ROOT"/skills/*/scripts; do
+  [ -d "$dir" ] || continue
+  for cand in "$dir/$NAME" "$dir/$NAME.sh"; do
+    if [ -f "$cand" ]; then
+      exec bash "$cand" "$@"
+    fi
+  done
+done
+
+echo "minus-lib: 未找到脚本 '$NAME'（已查找 scripts/ 与 skills/*/scripts/）" >&2
+exit 127
