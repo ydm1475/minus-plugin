@@ -17,7 +17,7 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 pass "前置：claude CLI 可用（$(claude --version 2>&1 | head -1)）"
 
-# node 已就绪 → install.sh 不会走到交互 read；</dev/null 兜底防挂死
+# install.sh 已全程非交互（node gate 自动 provision）；</dev/null 仅防御性兜底
 INSTALL_OUT="$(bash "$PLUGIN_DIR/install.sh" </dev/null 2>&1)"; RC=$?
 if [ $RC -eq 0 ]; then
   pass "install.sh：退出码 0"

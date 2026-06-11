@@ -3044,23 +3044,27 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
   fi
 )
 
-# Test: install.sh source 了 bootstrap-env.sh 并做 node 版本 gate（复用 Volta 装 24）
+# Test: install.sh node gate 非交互 + 下限单源 toolchain.sh（不再硬编码 NODE_MIN、不再问 Y/n）
 (
   if grep -q 'source .*scripts/bootstrap-env.sh' "$INSTALL_SH" \
+     && grep -q 'source .*scripts/toolchain.sh' "$INSTALL_SH" \
      && grep -q 'provision_node_via_volta' "$INSTALL_SH" \
-     && grep -q 'NODE_MIN=' "$INSTALL_SH"; then
-    pass "install.sh: source bootstrap-env.sh + node 版本 gate（复用 Volta 装 24）"
+     && grep -q 'NODE_RUNTIME_FLOOR' "$INSTALL_SH" \
+     && ! grep -q 'NODE_MIN=' "$INSTALL_SH" \
+     && ! grep -q 'read -r ans' "$INSTALL_SH"; then
+    pass "install.sh: node gate 非交互 + 下限单源 toolchain.sh"
   else
-    fail "install.sh: node 版本 gate" "missing source / provision_node_via_volta / NODE_MIN"
+    fail "install.sh: node gate" "应 source toolchain.sh 用 NODE_RUNTIME_FLOOR、自动 provision、无交互 read"
   fi
 )
 
-# Test: install.sh 文案以"建议 Node 24"为主，不把 18 放主位
+# Test: install.sh node 文案用单源 NODE_TARGET，不硬编码版本号
 (
-  if grep -q '建议.*Node 24\|建议安装 Node 24\|建议升级到 Node 24' "$INSTALL_SH"; then
-    pass "install.sh: node 文案以建议 24 为主"
+  if grep -q '建议 Node ${NODE_TARGET}' "$INSTALL_SH" \
+     && ! grep -q '建议.*Node 24' "$INSTALL_SH"; then
+    pass "install.sh: node 文案版本号单源 NODE_TARGET"
   else
-    fail "install.sh: node 文案建议 24" "missing '建议 Node 24' 主表述"
+    fail "install.sh: node 文案" "应引用 \${NODE_TARGET} 而非硬编码 24"
   fi
 )
 
@@ -3233,14 +3237,17 @@ EOF
   fi
 )
 
-# Test: install.ps1 自迁移——固化到稳定家目录再注册
+# Test: install.ps1 是引导薄壳——委托 install.sh，不再持有第二份安装逻辑（单源化）
 (
   INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
-  if [ -f "$INSTALL_PS1" ] && grep -q 'minus-creator-marketplace' "$INSTALL_PS1" \
-     && grep -q '\$MarketplaceDir = \$StableHome' "$INSTALL_PS1"; then
-    pass "install.ps1: 自迁移到稳定家目录 minus-creator-marketplace"
+  if [ -f "$INSTALL_PS1" ] && grep -q 'install.sh' "$INSTALL_PS1" \
+     && grep -q 'bash' "$INSTALL_PS1" \
+     && ! grep -q 'marketplace add' "$INSTALL_PS1" \
+     && ! grep -q 'plugin install \$PluginId' "$INSTALL_PS1" \
+     && ! grep -q 'Read-Host' "$INSTALL_PS1"; then
+    pass "install.ps1: 引导薄壳，委托 install.sh 且非交互"
   else
-    fail "install.ps1: 自迁移" "未把 marketplace 固化到稳定目录再注册"
+    fail "install.ps1: 应为引导薄壳" "仍持有 marketplace/install 逻辑副本或交互式 Read-Host"
   fi
 )
 
@@ -3254,15 +3261,14 @@ EOF
   fi
 )
 
-# Test: install.ps1 装前清残留 plugin cache（防 Windows EPERM rename 撞已存在目标目录）
+# Test: install.ps1 确保 Git Bash 存在（插件 hooks 与 install.sh 的运行前置）
 (
   INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
-  if [ -f "$INSTALL_PS1" ] && grep -q "temp_local_\*" "$INSTALL_PS1" \
-     && grep -q 'plugins\\cache' "$INSTALL_PS1" \
-     && grep -q '\$pluginCache' "$INSTALL_PS1"; then
-    pass "install.ps1: 装前清残留 plugin cache（temp_local_* + 本插件目标）"
+  if [ -f "$INSTALL_PS1" ] && grep -q 'bash.exe' "$INSTALL_PS1" \
+     && grep -q 'Git.Git' "$INSTALL_PS1"; then
+    pass "install.ps1: 检测 Git Bash，缺失时 winget 自动安装"
   else
-    fail "install.ps1: 清残留缓存" "未在 claude plugin install 前清 temp_local_* / 本插件 cache 目标"
+    fail "install.ps1: Git Bash 引导" "未检测 bash.exe 或缺 winget 安装 Git.Git 兜底"
   fi
 )
 
