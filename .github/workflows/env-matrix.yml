@@ -4,9 +4,10 @@
 # 用受控 PATH + 假 HOME 构造，不按 Node 版本拆 job。详见 tests/env-matrix/lib.sh 头注释。
 name: env-matrix
 
+# 任意分支 push 都触发：这个 GitHub 仓库是纯 CI 载体（主仓库在 codeup），
+# 开发者平时在特性分支工作，推上来就该跑矩阵验证，不必等并入 master
 on:
   push:
-    branches: [master]
   pull_request:
     branches: [master]
   workflow_dispatch:
