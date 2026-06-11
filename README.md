@@ -54,6 +54,10 @@ bash ~/minus-platform-develop/minus-plugin/tests/shell-scripts.test.sh          
 node --test ~/minus-platform-develop/minus-plugin/tests/mcp-server.test.js       # MCP Server 单元测试（15 个）
 node --test ~/minus-platform-develop/minus-plugin/tests/integration.test.js      # 集成测试 - mock API 完整流程（42 个）
 
+# ── 环境矩阵测试（OS × Node 状态边界，全量在 GitHub Actions 跑）──
+bash ~/minus-platform-develop/minus-plugin/tests/env-matrix/run.sh               # local scope：CI-only/不可屏蔽场景自动 skip
+bash ~/minus-platform-develop/minus-plugin/tests/env-matrix/run.sh --only 03     # 只跑指定编号场景（调试）
+
 # ── E2E 测试（真实调用 Claude API，需登录态）──
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-autostart.sh                # 自动启动：dev server 启动 + 预览地址输出
 bash ~/minus-platform-develop/minus-plugin/tests/e2e-three-step.sh               # 两步法流程完整性
@@ -69,6 +73,8 @@ E2E_SKIP_RUN=1 bash tests/e2e-agent/run.sh keyword-to-asin                      
 E2E_KEEP=1 E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus bash tests/e2e-agent/run.sh ...   # 可覆盖的参数
 node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token）
 ```
+
+环境矩阵测试：在真实 Windows/macOS runner（`.github/workflows/env-matrix.yml`）上验证插件在各种 Node 环境（无 node / 老 node / Volta / nvm / PATH 错序 / 真实 Volta 自动安装 / `install.sh` 插件识别）下的安装与运行，零 API key。Node 状态用受控 PATH + 假 HOME 在 job 内构造（见 `tests/env-matrix/lib.sh` 头注释），本机跑 local scope 时破坏性场景自动 skip。
 
 E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度④等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
 
