@@ -37,6 +37,17 @@ const MAX_ROUNDS = parseInt(process.env.E2E_MAX_ROUNDS || "60", 10);
 const AGENT_MODEL = process.env.E2E_AGENT_MODEL || "sonnet";
 const ROUND_BUDGET_USD = process.env.E2E_ROUND_BUDGET_USD || "3";
 const SKIP_RUN = process.env.E2E_SKIP_RUN === "1"; // 跳过真实运行（调试对话流程用）
+// Desktop 模式：注入 CLAUDE_CODE_ENTRYPOINT + mock Claude_Preview MCP，
+// 驱动 env-init 走分支 A（preview_start → record-preview-port → 门禁）。
+// 验证的是 Agent 行为链；进程不可见的降级路径由 shell 桩测试覆盖。
+const DESKTOP = process.env.E2E_DESKTOP === "1";
+const MOCK_PREVIEW_MCP = path.join(path.dirname(new URL(import.meta.url).pathname), "mock-preview-mcp.mjs");
+const MCP_CONFIG_FILE = path.join(LOG_DIR, "mock-preview-mcp.json");
+if (DESKTOP) {
+  fs.writeFileSync(MCP_CONFIG_FILE, JSON.stringify({
+    mcpServers: { Claude_Preview: { command: process.execPath, args: [MOCK_PREVIEW_MCP] } },
+  }, null, 2));
+}
 
 const TRACKER = path.join(PLUGIN_DIR, "skills/minus-step/scripts/step-tracker.sh");
 const GEN_NODE = path.join(PLUGIN_DIR, "skills/minus-step/scripts/generate-node-code.sh");
@@ -76,13 +87,17 @@ function claudeSend(prompt) {
     "--output-format", "json",
     "--max-budget-usd", ROUND_BUDGET_USD,
   ];
+  if (DESKTOP) args.push("--mcp-config", MCP_CONFIG_FILE);
   if (sessionId) args.push("--resume", sessionId);
   args.push(prompt);
+  const env = DESKTOP
+    ? { ...process.env, CLAUDE_CODE_ENTRYPOINT: "claude-desktop" }
+    : process.env;
   return new Promise((resolve, reject) => {
     execFile(
       "claude",
       args,
-      { cwd: PROJECT_DIR, timeout: 15 * 60_000, maxBuffer: 32 * 1024 * 1024, env: process.env },
+      { cwd: PROJECT_DIR, timeout: 15 * 60_000, maxBuffer: 32 * 1024 * 1024, env },
       (err, stdout, stderr) => {
         round++;
         fs.writeFileSync(path.join(LOG_DIR, `round-${round}.json`), stdout || "");
@@ -133,10 +148,52 @@ const phaseState = {
 
 let devServerHandle = null;
 
+// Desktop 分支 A 行为链断言：env-init 完成后（结构设计开始即说明已过门禁），
+// D1: Agent 把 preview_start 返回的端口 record 进了 dev-ports.json（高位端口下门禁通过的唯一途径）
+// D2: 门禁脚本在项目里真实通过
+function assertDesktopPreview() {
+  const stateFile = path.join(PROJECT_DIR, ".minus", "mock-preview-state.json");
+  const portsFile = path.join(PROJECT_DIR, ".minus", "dev-ports.json");
+  let mockPort = null, recordedPort = null;
+  try {
+    mockPort = Object.values(JSON.parse(fs.readFileSync(stateFile, "utf8")))[0]?.port ?? null;
+  } catch {}
+  try {
+    recordedPort = JSON.parse(fs.readFileSync(portsFile, "utf8")).frontend ?? null;
+  } catch {}
+  report.add("D1", `preview_start 端口已 record 进 dev-ports.json（mock=${mockPort} recorded=${recordedPort}）`,
+    mockPort !== null && recordedPort === mockPort);
+  let gateOut = "", gateOk = false;
+  try {
+    gateOut = execFileSync("bash", [path.join(PLUGIN_DIR, "skills/minus/scripts/check-dev-server.sh")], {
+      cwd: PROJECT_DIR, encoding: "utf8", timeout: 60_000,
+      env: { ...process.env, DETECT_PORT_MAX_WAIT: "3" },
+    });
+    gateOk = /GATE_PASSED/.test(gateOut);
+  } catch (err) {
+    gateOut = (err.stdout || "") + (err.stderr || "");
+  }
+  report.add("D2", "dev server 门禁 GATE_PASSED（Desktop 分支 A）", gateOk, gateOk ? "" : gateOut.slice(0, 200));
+}
+
+function stopMockPreview() {
+  if (!DESKTOP) return;
+  const stateFile = path.join(PROJECT_DIR, ".minus", "mock-preview-state.json");
+  try {
+    for (const s of Object.values(JSON.parse(fs.readFileSync(stateFile, "utf8")))) {
+      try { process.kill(s.pid); } catch {}
+    }
+  } catch {}
+}
+
 async function checkPhaseTransitions() {
   if (!phaseState.structureAsserted && countPipelineSteps(PROJECT_DIR) >= scenario.steps) {
     console.log("\n═══ 阶段断言：结构设计 ═══");
     assertStructure(report, PROJECT_DIR, scenario.steps);
+    if (DESKTOP) {
+      console.log("\n═══ 阶段断言：Desktop 分支 A（preview → record → 门禁） ═══");
+      assertDesktopPreview();
+    }
     phaseState.structureAsserted = true;
   }
   for (let n = 1; n <= scenario.steps; n++) {
@@ -254,6 +311,7 @@ function finish(code) {
     JSON.stringify({ scenario: scenario.name, items: report.items, round, tokensTotal }, null, 2)
   );
   stopDevServer(devServerHandle);
+  stopMockPreview();
   process.exit(code ?? (fail > 0 ? 1 : 0));
 }
 

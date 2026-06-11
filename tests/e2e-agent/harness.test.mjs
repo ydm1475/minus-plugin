@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import childProcess from "node:child_process";
 
 import { parseYaml, loadScenario } from "./scenario.mjs";
 import { buildSimPrompt } from "./simulate-user.mjs";
@@ -194,4 +195,66 @@ test("Report: 统计与失败收集", () => {
   r.add("H2", "fail 项", false, "原因");
   assert.deepEqual(r.summary(), { pass: 1, fail: 1, total: 2 });
   assert.equal(r.failed[0].id, "H2");
+});
+
+// ── mock Claude_Preview MCP server（Desktop 模式）──
+
+const MOCK = path.join(path.dirname(fileURLToPath(import.meta.url)), "mock-preview-mcp.mjs");
+
+// 起一个 mock MCP 子进程，发一串 JSON-RPC 请求，收齐响应
+function mcpRoundtrip(cwd, requests) {
+  return new Promise((resolve, reject) => {
+    const { spawn } = childProcess;
+    const child = spawn(process.execPath, [MOCK], { cwd, stdio: ["pipe", "pipe", "inherit"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.on("close", () => {
+      try {
+        resolve(out.trim().split("\n").map((l) => JSON.parse(l)));
+      } catch (e) { reject(e); }
+    });
+    child.on("error", reject);
+    child.stdin.write(requests.map((r) => JSON.stringify(r) + "\n").join(""));
+    child.stdin.end();
+  });
+}
+
+function callText(resp) {
+  return resp.result.content[0].text;
+}
+
+test("mock-preview-mcp: 协议、幂等、跨进程复用、stop、不支持工具报错", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mockprev-"));
+  const init = { jsonrpc: "2.0", id: 1, method: "initialize", params: {} };
+  const start = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "preview_start", arguments: { name: "frontend" } } };
+
+  // 第一次 start：分配高位端口，reused:false，状态文件落盘
+  let resps = await mcpRoundtrip(dir, [init, { jsonrpc: "2.0", id: 9, method: "tools/list" }, start]);
+  const tools = resps.find((r) => r.id === 9).result.tools.map((t) => t.name);
+  assert.ok(tools.includes("preview_start") && tools.includes("preview_list") && tools.includes("preview_stop"));
+  const first = JSON.parse(callText(resps.find((r) => r.id === 2)).split("\n}")[0] + "\n}");
+  assert.equal(first.reused, false);
+  assert.ok(first.port > 1024);
+  const stateFile = path.join(dir, ".minus", "mock-preview-state.json");
+  assert.ok(fs.existsSync(stateFile), "状态文件已写入");
+
+  // 第二次（新 MCP 进程，模拟下一轮 claude -p）：同 serverId/端口，reused:true
+  resps = await mcpRoundtrip(dir, [init, start, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "preview_eval", arguments: {} } }]);
+  const second = JSON.parse(callText(resps.find((r) => r.id === 2)).split("\n}")[0] + "\n}");
+  assert.equal(second.reused, true);
+  assert.equal(second.port, first.port);
+  assert.equal(second.serverId, first.serverId);
+  const evalResp = resps.find((r) => r.id === 3);
+  assert.equal(evalResp.result.isError, true, "不支持的工具明确报错");
+
+  // 子进程真实可达
+  const reachable = await fetch(`http://127.0.0.1:${first.port}/`).then((r) => r.ok).catch(() => false);
+  assert.equal(reachable, true, "detached 子进程跨 MCP 进程存活且可达");
+
+  // stop：杀子进程并清状态
+  resps = await mcpRoundtrip(dir, [init, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "preview_stop", arguments: { serverId: first.serverId } } }]);
+  assert.ok(callText(resps.find((r) => r.id === 4)).includes("stopped"));
+  assert.deepEqual(JSON.parse(fs.readFileSync(stateFile, "utf8")), {});
+
+  fs.rmSync(dir, { recursive: true });
 });

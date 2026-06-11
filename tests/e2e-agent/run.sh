@@ -7,6 +7,8 @@
 #   E2E_KEEP=1 bash tests/e2e-agent/run.sh <scenario>   # 保留临时项目
 #   E2E_SKIP_RUN=1 ...                                # 跳过真实运行（只测对话流程）
 #   E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus ...        # 覆盖默认参数
+#   E2E_DESKTOP=1 ...                                 # Desktop 模式：注入 ENTRYPOINT + mock Claude_Preview，
+#                                                     # 验证分支 A 行为链（preview_start → record → 门禁）
 #
 # 注意：会消耗真实 token（一次全流程可能数十万），不进 run-all.sh。
 
@@ -68,6 +70,13 @@ fi
 echo "→ 项目已创建: $PROJECT_DIR"
 
 cleanup() {
+  # Desktop 模式兜底：driver 异常退出时按状态文件清理 mock preview 子进程
+  if [ -f "$PROJECT_DIR/.minus/mock-preview-state.json" ]; then
+    node -e "
+      const s = JSON.parse(require('fs').readFileSync('$PROJECT_DIR/.minus/mock-preview-state.json','utf8'));
+      for (const v of Object.values(s)) { try { process.kill(v.pid); } catch {} }
+    " 2>/dev/null || true
+  fi
   if [ "$KEEP" = "1" ]; then
     echo "→ E2E_KEEP=1，保留项目: $PROJECT_DIR"
   else
