@@ -2721,10 +2721,11 @@ RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/scripts/resolve-node.sh"
   if [ -f "$RESOLVE_NODE" ] \
      && grep -q 'NODE_RUNTIME_FLOOR' "$RESOLVE_NODE" \
      && grep -q 'toolchain.sh' "$RESOLVE_NODE" \
-     && grep -q '.volta/tools/image/node' "$RESOLVE_NODE"; then
-    pass "resolve-node.sh: 下限单源 toolchain.sh + 探测 Volta image"
+     && grep -q '.volta/tools/image/node' "$RESOLVE_NODE" \
+     && grep -q 'Volta/tools/image/node' "$RESOLVE_NODE"; then
+    pass "resolve-node.sh: 下限单源 toolchain.sh + 探测 Volta image（unix + Windows LOCALAPPDATA）"
   else
-    fail "resolve-node.sh: 探测逻辑" "missing file/NODE_RUNTIME_FLOOR/toolchain source/volta image"
+    fail "resolve-node.sh: 探测逻辑" "missing file/NODE_RUNTIME_FLOOR/toolchain source/volta image(unix/win)"
   fi
 )
 

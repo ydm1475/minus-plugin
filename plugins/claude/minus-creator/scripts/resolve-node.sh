@@ -39,7 +39,13 @@ emit_candidates() {
   command -v node 2>/dev/null || true
   ls -t "$HOME"/.volta/tools/image/node/*/bin/node 2>/dev/null | head -1
   printf '%s\n' "$HOME/.volta/bin/node"
-  [ -n "${LOCALAPPDATA:-}" ] && win_path "$LOCALAPPDATA/Volta/bin/node.exe"
+  # Windows Volta：先 image 真身后 shim，与 launch.cjs 一致。
+  # shim 依赖 volta setup 生成，实测（windows-2025 runner）可能缺失；image 真身只要
+  # volta install 成功就在，是更稳的候选。
+  if [ -n "${LOCALAPPDATA:-}" ]; then
+    ls -t "$(win_path "$LOCALAPPDATA")"/Volta/tools/image/node/*/node.exe 2>/dev/null | head -1
+    win_path "$LOCALAPPDATA/Volta/bin/node.exe"
+  fi
   [ -n "${ProgramFiles:-}" ] && win_path "$ProgramFiles/nodejs/node.exe"
   [ -n "${PROGRAMFILES:-}" ] && win_path "$PROGRAMFILES/nodejs/node.exe"
   ls -t "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | head -1
