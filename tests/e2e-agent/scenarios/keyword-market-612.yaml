@@ -1,0 +1,70 @@
+# 剧本：关键词市场分析（提炼自 2026-06-12 人工测试-612 真实手测对话）
+# 回归重点（当轮暴露并修复的问题）：
+#   - 步骤开发完必须邀请测试并停下，最后一步未经确认不得进入结果设计
+#   - 结果设计两维度（摘要/下载）逐项确认，不抢答、不把用户的话当成未提问问题的回答
+#   - 宣布完成前过 check-frontend 类型门禁；locale 文件走 locale-set 脚本
+name: keyword-market-612
+steps: 2
+
+brief: |
+  我想做一个 Skill：用户输入一个关键词，先找相似词，
+  再分析这些词下的热销产品，给出市场分析。
+
+persona: |
+  你是一个跨境电商运营，不太懂技术，用中文口语回答，每次回答不超过两句话。
+  你的需求：输入一个关键词，第一步找相似词，第二步找热销产品 ASIN 并做市场分析。
+  被问到口径没覆盖的问题时，倾向接受 Agent 的推荐方案。
+  Agent 邀请你去预览页测试时，回答你已经看过了、没问题。
+
+answers:
+  structure:
+    input: "关键词，一个，提示语写'请输入要调研的关键词'"
+    steps: "分两步吧，第一步找到相似词，第二步找到热销产品ASIN"
+    confirm_structure: "没了，就这样"
+  step1:
+    data: "用以词拓词的接口，可以"
+    logic: "直接透传原始数据，最多展示前 100 个"
+    output: "一个数据表格"
+    confirm: "需要暂停让用户确认数据再继续，把选中的关键词传给下一步"
+    test_confirm: "我在预览里看过了，没问题，继续开发步骤 2"
+  step2:
+    data: "只看流量份额排名就行"
+    logic: "大模型做分析总结，重点看哪些产品是头部玩家、价格带分布、评分口碑"
+    output: "图表，流量份额 Top 榜和价格带分布，分析总结放在图表上方"
+    test_confirm: "整个流程我从头到尾跑过了，没问题，继续吧"
+  result:
+    summary: "大模型自动生成，我希望看到这个市场的分析情况，哪些产品表现亮眼"
+    download: "Excel 吧，默认的就可以"
+
+expect:
+  # 终验：以最终用户身份真实运行（SIF 类目联想对部分词查不到，用已验证可命中的词）
+  final_input:
+    default: "gaming chair"
+  # step1 interactive：从相似词候选行里选前 3 行
+  confirm_data:
+    selectedKeywords: "$select:3"
+  step1_output_contains:
+    - "keyword"
+  final_output_contains:
+    - "asin"
+
+transcript_rules:
+  - id: B1
+    rule: "结构设计阶段，Agent 先确认'用户输入什么'（输入定义），之后才问'分几步/每步做什么'（两步法顺序）"
+  - id: B2
+    rule: "每个节点开发严格按 数据需求→处理逻辑→输出定义→用户确认 四维度顺序提问，没有跳过维度或把多个维度并在一个问题里问"
+  - id: B3
+    rule: "step2 是最后一步，Agent 全程没有就 step2 提问维度④（是否暂停确认/传什么数据给下一步）"
+  # ── 以下为 2026-06-12 人工测试-612 复盘新增的回归规则 ──
+  - id: C1
+    rule: "step1 开发完成后，Agent 转达了测试邀请（提示用户去预览页验证），并在用户回复确认之前没有开始 step2 的开发提问"
+  - id: C2
+    rule: "step2（最后一步）开发完成后，Agent 邀请用户把整个流程从头到尾测试一遍并停下等待；在用户明确确认测试通过之前，Agent 没有进入结果呈现设计的提问（结果摘要/下载内容）"
+  - id: C3
+    rule: "Agent 没有在同一条 Bash 命令里把 update-progress step-done 与 generate-result-design 串接执行（如用 && 连接）"
+  - id: C4
+    rule: "结果呈现设计按 结果摘要→下载内容 的顺序逐项提问确认；Agent 只把用户对'当前已提出问题'的回复当作该问题的回答，没有把用户的其他表述当成未提问问题的答案（不抢答）"
+  - id: C5
+    rule: "Agent 在每次宣布步骤或结果页开发完成之前，执行了前端类型检查门禁（minus-lib check-frontend 或 tsc --noEmit）并确认通过；类型检查报错时 Agent 自行修复而非带病宣布完成"
+  - id: C6
+    rule: "Agent 对 frontend/src/locales/ 下 JSON 文件的所有增删改都通过 minus-lib locale-set 执行，没有用编辑工具直接修改这些文件"
