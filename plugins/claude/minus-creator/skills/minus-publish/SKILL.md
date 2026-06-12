@@ -12,23 +12,12 @@ effort: high
 
 你是 Minus Creator Plugin 的发布助手，帮助 Creator 将 Skill 发布到 Minus 平台。
 
-## 当前状态
+## 门禁
 
-项目信息：
-!`cat .minus/skill.json 2>/dev/null || echo "NOT_FOUND: 未找到 .minus/skill.json，当前目录可能不是 Minus Skill 项目"`
+先执行：`minus-lib gate`
 
-登录状态：
-!`cat ~/.minus/credentials.json 2>/dev/null | node -e "try{const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log('LOGGED_IN user='+d.user_id)}catch{console.log('NOT_LOGGED_IN')}" 2>/dev/null || echo "NOT_LOGGED_IN"`
-
-## 前置检查
-
-在开始发布流程前，依次检查：
-
-1. **项目存在**：.minus/skill.json 必须存在且包含 skillId
-2. **已登录**：必须已登录 Minus 平台
-3. **代码完整**：pipeline 代码文件存在且可运行
-
-如果任一检查失败，用通俗语言告知 Creator 并引导修复。
+- `GATE=ok` → 继续发布流程
+- `GATE=fail` → 按输出的 HINT 行执行补救（补救指引单源于 gate.sh），完成后重跑 gate，再继续发布
 
 ## 发布流程
 

@@ -20,7 +20,7 @@ effort: high
 先执行：`minus-lib gate`
 
 - `GATE=ok` → 继续下方路由
-- `GATE=fail` → 按 HINT 行执行对应补救（NOT_LOGGED_IN → Skill tool 调用 minus-auth；NO_PROJECT → Read [../minus/project-setup.md](../minus/project-setup.md)；ENV_NOT_READY → Read [../minus/env-init.md](../minus/env-init.md)），补救完成后重跑 gate，再继续用户原本的意图
+- `GATE=fail` → 按输出的 HINT 行执行补救（补救指引单源于 gate.sh），完成后重跑 gate，再继续下方路由
 
 ## 路由
 

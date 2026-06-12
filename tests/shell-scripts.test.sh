@@ -4243,6 +4243,88 @@ GATE="$REPO_DIR/plugins/claude/minus-creator/scripts/gate.sh"
 
 # ══════════════════════════════════════════════════════
 echo ""
+echo "═══ diagnose.sh（错误诊断聚合体检） ═══"
+# ══════════════════════════════════════════════════════
+
+DIAG="$REPO_DIR/plugins/claude/minus-creator/skills/minus-diagnose/scripts/diagnose.sh"
+
+# 构造"gate 全过"的项目目录（登录 + 项目 + 依赖目录）
+make_ready_proj() {
+  TMP=$(make_tmp)
+  mkdir -p "$TMP/.minus" "$TMP/proj/.minus" "$TMP/proj/node_modules" "$TMP/proj/.venv"
+  echo '{"session_id":"s1","user_id":"u1"}' > "$TMP/.minus/credentials.json"
+  echo '{"skillId":"t"}' > "$TMP/proj/.minus/skill.json"
+  echo "$TMP"
+}
+
+(
+  # 未登录 → 透传 gate 的 HINT 并归类 NOT_LOGGED_IN
+  TMP=$(make_tmp)
+  OUT=$(cd "$TMP" && HOME="$TMP" bash "$DIAG")
+  if assert_contains "$OUT" "DIAGNOSE=NOT_LOGGED_IN" \
+     && assert_contains "$OUT" "minus-auth"; then
+    pass "diagnose.sh: 未登录 → DIAGNOSE=NOT_LOGGED_IN + 透传 HINT"
+  else
+    fail "diagnose.sh: 未登录分支" "out: $OUT"
+  fi
+)
+
+(
+  # gate 全过 + dev server 未运行 → DEV_SERVER_DOWN（dev 检查用桩模拟失败）
+  TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED_NOT' 'echo GATE_FAILED' 'exit 1' > "$TMP/devcheck"
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  if assert_contains "$OUT" "DIAGNOSE=DEV_SERVER_DOWN"; then
+    pass "diagnose.sh: dev server 未运行 → DIAGNOSE=DEV_SERVER_DOWN"
+  else
+    fail "diagnose.sh: dev server down 分支" "out: $OUT"
+  fi
+)
+
+(
+  # 前端在跑、后端无响应 → BACKEND_DOWN
+  TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE_FAILED' 'echo BACKEND_DOWN' 'exit 1' > "$TMP/devcheck"
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  if assert_contains "$OUT" "DIAGNOSE=BACKEND_DOWN"; then
+    pass "diagnose.sh: 后端无响应 → DIAGNOSE=BACKEND_DOWN"
+  else
+    fail "diagnose.sh: backend down 分支" "out: $OUT"
+  fi
+)
+
+(
+  # pipeline.py 存在且依赖检查失败 → PYTHON_DEPS_MISSING
+  TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED' 'echo PREVIEW_PORT=5173' > "$TMP/devcheck"
+  printf '%s\n' '#!/bin/bash' 'echo 缺失依赖 requests' 'exit 1' > "$TMP/pycheck"
+  touch "$TMP/proj/pipeline.py"
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" MINUS_CHECK_PY_SH="$TMP/pycheck" bash "$DIAG")
+  if assert_contains "$OUT" "DIAGNOSE=PYTHON_DEPS_MISSING" \
+     && assert_contains "$OUT" "requests"; then
+    pass "diagnose.sh: Python 依赖缺失 → DIAGNOSE=PYTHON_DEPS_MISSING + 透传输出"
+  else
+    fail "diagnose.sh: python deps 分支" "out: $OUT"
+  fi
+)
+
+(
+  # 全绿（无 pipeline.py）→ clean + 透传端口；DIAGNOSE 恒为最后一行
+  TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED' 'echo PREVIEW_PORT=5173' 'echo BACKEND_PORT=4001' > "$TMP/devcheck"
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  LAST=$(printf '%s\n' "$OUT" | tail -1)
+  if [ "$LAST" = "DIAGNOSE=clean" ] \
+     && assert_contains "$OUT" "PREVIEW_PORT=5173" \
+     && assert_contains "$OUT" "BACKEND_PORT=4001"; then
+    pass "diagnose.sh: 环境全绿 → DIAGNOSE=clean（最后一行）+ 透传端口"
+  else
+    fail "diagnose.sh: 全绿分支" "out: $OUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
 echo "═══ minus-lib（glob 查找新 skill 目录） ═══"
 # ══════════════════════════════════════════════════════
 
