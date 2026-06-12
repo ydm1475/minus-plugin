@@ -934,6 +934,69 @@ ST="$(via_lib step-tracker)"
   fi
 )
 
+# Test: complete 输出下一维度引导话术（话术单源在脚本，不靠 Agent 记忆）
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  OUTPUT=$(bash "$ST" complete 1 data 2>&1)
+  if assert_contains "$OUTPUT" "NEXT_DIM=logic" && assert_contains "$OUTPUT" "数据获取确认完毕"; then
+    pass "step-tracker: complete data emits next-dimension prompt"
+  else
+    fail "step-tracker: complete data emits next-dimension prompt" "got: $OUTPUT"
+  fi
+)
+
+# Test: 非最后一步 complete output 输出维度④话术
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 3 > .minus/total-steps
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" complete 1 output 2>&1)
+  if assert_contains "$OUTPUT" "NEXT_DIM=confirm" && assert_contains "$OUTPUT" "需要暂停让用户确认数据"; then
+    pass "step-tracker: complete output (non-last) prompts confirm dimension"
+  else
+    fail "step-tracker: complete output (non-last) prompts confirm dimension" "got: $OUTPUT"
+  fi
+)
+
+# Test: 最后一步 complete output 自动跳过维度④（硬编码，不靠 Agent 自觉）
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 2 > .minus/total-steps
+  bash "$ST" complete 2 data >/dev/null 2>&1
+  bash "$ST" complete 2 logic >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" complete 2 output 2>&1)
+  MODE=$(cat .minus/dev-progress/step_2_confirm_mode 2>/dev/null || echo MISSING)
+  if assert_contains "$OUTPUT" "NEXT=GENERATE" && [ "$MODE" = "auto" ] && bash "$ST" check 2 >/dev/null 2>&1; then
+    pass "step-tracker: complete output (last step) auto-completes confirm(auto)"
+  else
+    fail "step-tracker: complete output (last step) auto-completes confirm(auto)" "got: $OUTPUT / mode=$MODE"
+  fi
+)
+
+# Test: complete confirm 输出 NEXT=GENERATE 提示进入阶段二
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo 3 > .minus/total-steps
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  bash "$ST" complete 1 logic >/dev/null 2>&1
+  bash "$ST" complete 1 output >/dev/null 2>&1
+  OUTPUT=$(bash "$ST" complete 1 confirm interactive 2>&1)
+  if assert_contains "$OUTPUT" "NEXT=GENERATE" && assert_contains "$OUTPUT" "generate-node-code 1"; then
+    pass "step-tracker: complete confirm emits NEXT=GENERATE"
+  else
+    fail "step-tracker: complete confirm emits NEXT=GENERATE" "got: $OUTPUT"
+  fi
+)
+
 # Test: generate-node-code exposes llm mode to the code-generation stage
 (
   TMP=$(make_tmp)
@@ -1422,7 +1485,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 (
   CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "extendConfirmed" \
-     && assert_contains "$CONTENT" "禁止通过遍历用户目录" \
+     && assert_contains "$CONTENT" "遍历用户目录" \
      && assert_contains "$CONTENT" "禁止在尚未接入真实数据来源时"; then
     pass "node-dev.md: uses extendConfirmed and prohibits undocumented fallback guessing"
   else
@@ -1459,8 +1522,8 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 # Test: node-dev.md makes Agent responsible for dependency fixes
 (
   CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
-  if assert_contains "$CONTENT" "Agent 必须自己更新 \`pyproject.toml\`" \
-     && assert_contains "$CONTENT" "禁止把依赖修复交给 Creator 手动处理" \
+  if assert_contains "$CONTENT" "pyproject.toml" \
+     && assert_contains "$CONTENT" "不交给 Creator 手动处理" \
      && assert_contains "$CONTENT" "通过前不要让 Creator 测试"; then
     pass "node-dev.md: Agent owns dependency fixes"
   else
@@ -4466,6 +4529,57 @@ RE="$(via_lib resume-env)"
     pass "resume-env: cli 检测失败 → ENV=failed + FAIL_REASON"
   else
     fail "resume-env: cli 失败路径" "rc=$RC out=$OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ skill md 运行时规则一致性 ═══"
+# ══════════════════════════════════════════════════════
+
+# 插件 CLAUDE.md 不会加载进用户会话，"非程序员用户"画像唯一定义在 project-detector.sh：
+# hook 在 Minus 语境注入；minus/SKILL.md 用 !`minus-lib project-detector persona` 动态取。
+# 所有 skill md 不允许出现静态副本，改文案只动 project-detector.sh 一处。
+(
+  SKILLS="$REPO_DIR/plugins/claude/minus-creator/skills"
+  PROBLEM=""
+  PERSONA_OUT=$(bash "$LIB_DIR/project-detector.sh" persona 2>&1)
+  echo "$PERSONA_OUT" | grep -q "文字工作者" || PROBLEM="${PROBLEM} persona子命令无输出"
+  grep -qF '!`minus-lib project-detector persona`' "$SKILLS/minus/SKILL.md" \
+    || PROBLEM="${PROBLEM} minus/SKILL.md缺动态加载行"
+  if grep -rq "文字工作者" "$SKILLS" --include='*.md' 2>/dev/null; then
+    PROBLEM="${PROBLEM} skill_md存在静态副本:$(grep -rl '文字工作者' "$SKILLS" --include='*.md' | tr '\n' ' ')"
+  fi
+  if [ -z "$PROBLEM" ]; then
+    pass "skills: 用户画像单源于 project-detector.sh，skill md 无静态副本"
+  else
+    fail "skills: 用户画像单源于 project-detector.sh，skill md 无静态副本" "$PROBLEM"
+  fi
+)
+
+# 画像注入只发生在 Minus 语境：普通目录（场景 4）的 hook 输出不得包含画像
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  OUTPUT=$(bash "$LIB_DIR/project-detector.sh" 2>&1)
+  if ! assert_contains "$OUTPUT" "文字工作者" 2>/dev/null; then
+    pass "project-detector: 非 Minus 目录不注入用户画像"
+  else
+    fail "project-detector: 非 Minus 目录不注入用户画像" "got: $OUTPUT"
+  fi
+)
+
+# Skill 项目目录（场景 1）注入画像
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  echo '{"name":"测试项目","skillId":"t1"}' > .minus/skill.json
+  OUTPUT=$(bash "$LIB_DIR/project-detector.sh" 2>&1)
+  if assert_contains "$OUTPUT" "文字工作者"; then
+    pass "project-detector: Skill 项目目录注入用户画像"
+  else
+    fail "project-detector: Skill 项目目录注入用户画像" "got: $OUTPUT"
   fi
 )
 

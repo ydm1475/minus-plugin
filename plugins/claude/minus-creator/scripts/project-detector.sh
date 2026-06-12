@@ -6,6 +6,19 @@
 # 原因：自动跑登录/项目选择/创建流程会干扰不想使用 Plugin 的用户。
 # 完整的交互流程（登录、项目选择、环境初始化）由 /minus skill 承担。
 
+# ── 用户画像（唯一定义处）──
+# 插件 CLAUDE.md 不会进入用户会话，这句由两个渠道取用：
+# 1) 本脚本作为 SessionStart hook 在 Minus 语境（Skill 项目 / Workspace）注入；
+#    装了插件不等于在用 Minus，普通目录的会话不做画像假设
+# 2) minus/SKILL.md 通过 !`minus-lib project-detector persona` 动态加载（覆盖普通目录首次 /minus）
+# skill md 中不允许出现静态副本（tests/shell-scripts.test.sh 有断言）
+PERSONA="Minus 开发流程中：Creator 是文字工作者，不是程序员。用业务语言交流，不给 Creator 看命令、代码、报错原文；出问题直接说「我来修」，补救由 Agent 自动执行。"
+
+if [ "${1:-}" = "persona" ]; then
+  echo "$PERSONA"
+  exit 0
+fi
+
 # ── 跨平台路径 ──
 OS_TYPE="$(uname -s)"
 case "$OS_TYPE" in
@@ -114,6 +127,7 @@ if [ -f "$MINUS_JSON" ]; then
   echo "<context>"
   echo "Minus Creator Plugin 已加载。"
   echo "当前目录是 Minus Skill 项目：$PROJ_DISPLAY_NAME"
+  echo "$PERSONA"
   echo "项目根目录：$(pwd)"
   echo "登录状态：$LOGGED_IN"
   echo "$NODE_INFO"
@@ -126,6 +140,7 @@ elif [ -f "$(pwd)/.minus-workspace" ] || [ "$(pwd)" = "$MINUS_WORKSPACE" ] || [[
   echo "<context>"
   echo "Minus Creator Plugin 已加载。"
   echo "当前在 Minus Workspace 目录中。"
+  echo "$PERSONA"
   echo "登录状态：$LOGGED_IN"
   echo "已有项目数：$PROJECT_COUNT"
   echo "输入 /minus 创建或打开 Skill 项目。"
