@@ -9,6 +9,8 @@
 #   E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus ...        # 覆盖默认参数
 #   E2E_DESKTOP=1 ...                                 # Desktop 模式：注入 ENTRYPOINT + mock Claude_Preview，
 #                                                     # 验证分支 A 行为链（preview_start → record → 门禁）
+#   E2E_DIRTY_PORTS=1 ...                             # 脏端口模式：起"邻居项目"进程占住 loopback 5173，
+#                                                     # 复现真实多项目开发机（2026-06-12 验收踩雷复盘）
 #
 # 注意：会消耗真实 token（一次全流程可能数十万），不进 run-all.sh。
 
@@ -73,6 +75,11 @@ fi
 echo "→ 项目已创建: $PROJECT_DIR"
 
 cleanup() {
+  # 脏端口模式：回收"邻居项目"占位进程
+  if [ -n "${DIRTY_PID:-}" ]; then
+    kill "$DIRTY_PID" 2>/dev/null || true
+    rm -rf "${DIRTY_DIR:-}" 2>/dev/null || true
+  fi
   # Desktop 模式兜底：driver 异常退出时按状态文件清理 mock preview 子进程
   if [ -f "$PROJECT_DIR/.minus/mock-preview-state.json" ]; then
     node -e "
@@ -88,6 +95,30 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+# ── 脏端口模式 ──
+# 真实开发机常有邻居项目的 dev server 占着 localhost:5173。默认"干净机器"假设测不出
+# 端口共存类 bug：vite host:true 绑通配地址与 loopback 监听不冲突 → 不漂移 → 预览打到
+# 别人项目（2026-06-12 人工验收实测）。此模式在外部 cwd 起 loopback 监听占住 5173，
+# 验证整条链路在脏环境下选对端口、预览归属正确。
+if [ "${E2E_DIRTY_PORTS:-0}" = "1" ]; then
+  DIRTY_DIR=$(mktemp -d "${TMPDIR:-/tmp}/e2e-neighbor-XXXXXX")
+  (cd "$DIRTY_DIR" && nohup node -e '
+    const net = require("net");
+    for (const h of ["127.0.0.1", "::1"]) {
+      net.createServer((c) => c.end()).listen(5173, h, () => console.log("NEIGHBOR_LISTENING", h));
+    }
+    setInterval(() => {}, 1e9);
+  ' > "$DIRTY_DIR/listener.log" 2>&1 & echo $! > "$DIRTY_DIR/pid")
+  DIRTY_PID=$(cat "$DIRTY_DIR/pid")
+  sleep 1
+  if ! grep -q NEIGHBOR_LISTENING "$DIRTY_DIR/listener.log" 2>/dev/null; then
+    echo "⚠ 5173 已被本机其他进程占用，跳过注入（环境本身已是脏的）"
+    DIRTY_PID=""
+  else
+    echo "→ 脏端口模式：邻居进程 PID $DIRTY_PID 占住 loopback 5173（cwd=$DIRTY_DIR）"
+  fi
+fi
 
 # ── 安装依赖（真实运行验证需要）──
 if [ "${E2E_SKIP_RUN:-0}" != "1" ]; then
@@ -131,6 +162,17 @@ export E2E_SCENARIO="$SCENARIO_FILE"
 
 node "$SCRIPT_DIR/driver.mjs"
 EXIT_CODE=$?
+
+# 脏端口模式追加断言：本项目前端绝不能落在被邻居占用的 5173 上
+if [ "${E2E_DIRTY_PORTS:-0}" = "1" ] && [ -n "${DIRTY_PID:-}" ] && [ "$EXIT_CODE" = "0" ]; then
+  FE_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PROJECT_DIR/.minus/dev-ports.json','utf8')).frontend||'')" 2>/dev/null)
+  if [ -z "$FE_PORT" ] || [ "$FE_PORT" = "5173" ]; then
+    echo "✗ 脏端口断言失败：frontend=$FE_PORT（5173 被邻居占用时必须漂移到其他端口）" >&2
+    EXIT_CODE=1
+  else
+    echo "→ 脏端口断言通过：邻居占 5173，本项目漂移到 $FE_PORT"
+  fi
+fi
 
 echo ""
 echo "→ 完整日志: $LOG_DIR"
