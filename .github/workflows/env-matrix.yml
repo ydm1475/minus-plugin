@@ -47,6 +47,12 @@ jobs:
       - name: Install Claude Code CLI（层 2 前置）
         run: npm install -g @anthropic-ai/claude-code
 
+      # create-skill 用 npm 发布包（兄弟仓库 minus-platform 不在 GitHub，CI 拉不到源码）。
+      # 装上后 integration 的 Flow 6/7（MCP ↔ create-skill 凭证共享契约）在 CI 也有覆盖；
+      # 若发布版落后源码导致断言失败，属于「该发包了」的信号而非测试问题。
+      - name: Install create-skill CLI（Flow 6/7 跨工具契约测试）
+        run: npm install -g @minus-ai/create-skill
+
       - name: Run env matrix (ci scope)
         run: bash tests/env-matrix/run.sh --scope ci
 

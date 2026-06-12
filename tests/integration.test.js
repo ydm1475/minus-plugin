@@ -1022,7 +1022,8 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", { skip
     );
     const { stdout } = await runBash(`HOME="${tmpHome}" bash "${PD}"`, projectPath);
     assert.ok(stdout.includes("登录状态：true"), `Expected 登录状态：true in: ${stdout}`);
-    assert.ok(stdout.includes("[自动触发]"), `Expected auto-trigger instruction in: ${stdout}`);
+    // project-detector 已从「[自动触发] 无条件进入」改为「默认入口 + 意图触发」措辞
+    assert.ok(stdout.includes("默认入口"), `Expected default-entry instruction in: ${stdout}`);
     assert.ok(stdout.includes("minus-creator:minus"), `Expected minus-creator:minus in: ${stdout}`);
   });
 });
