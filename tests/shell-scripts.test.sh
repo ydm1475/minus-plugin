@@ -1054,7 +1054,7 @@ TSXEOF
   OUTPUT=$(bash "$GS" "搜索量查询" "竞争度分析" "长尾词推荐" 2>&1)
 
   # 验证 pipeline.py 有 3 个 step 方法
-  STEP_COUNT=$(grep -c "async def step_" pipeline.py)
+  STEP_COUNT=$(grep -c "async def step_" pipeline.py || true)
   if assert_eq "$STEP_COUNT" "3"; then
     pass "generate-steps: generates 3 steps in pipeline.py"
   else
@@ -1133,7 +1133,7 @@ TSXEOF
   bash "$GS" "数据采集" "趋势分析" 2>&1 >/dev/null
 
   MAIN_TSX="frontend/src/main.tsx"
-  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX")
+  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX" || true)
   if assert_eq "$RENDER_COUNT" "2"; then
     pass "generate-steps: main.tsx buildSteps has 2 render blocks"
   else
@@ -1184,7 +1184,7 @@ TSXEOF
   bash "$GS" "步骤X" "步骤Y" 2>&1 >/dev/null
 
   MAIN_TSX="frontend/src/main.tsx"
-  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX")
+  RENDER_COUNT=$(grep -c "render:" "$MAIN_TSX" || true)
   if assert_eq "$RENDER_COUNT" "2"; then
     pass "generate-steps: main.tsx works with extra brackets in function body"
   else
@@ -1696,11 +1696,12 @@ OP="$(via_lib open-preview)"
   write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
   write_stub "$SB" open "echo \"open \$*\" >> $TMP/open.log"
   write_stub "$SB" xdg-open "echo \"open \$*\" >> $TMP/open.log"
+  write_stub "$SB" uname 'echo Darwin'   # 固定平台：Windows 真跑会走 start 而非 open stub
   : > "$TMP/open.log"
   OUT1=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
   OUT2=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 2>&1 || true)
   OUT3=$(CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5180 2>&1 || true)
-  OPENS=$(grep -c "open" "$TMP/open.log")
+  OPENS=$(grep -c "open" "$TMP/open.log" || true)
   if [ "$OPENS" = "2" ] && assert_contains "$OUT2" "OPEN_SKIPPED_ALREADY" \
      && assert_contains "$OUT2" "PREVIEW_URL=http://localhost:5173" \
      && [ "$(cat .minus/.preview-opened)" = "5180" ]; then
@@ -1716,10 +1717,11 @@ OP="$(via_lib open-preview)"
   write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
   write_stub "$SB" open "echo open >> $TMP/open.log"
   write_stub "$SB" xdg-open "echo open >> $TMP/open.log"
+  write_stub "$SB" uname 'echo Darwin'   # 固定平台：Windows 真跑会走 start 而非 open stub
   : > "$TMP/open.log"
   CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 >/dev/null 2>&1 || true
   CLAUDE_CODE_ENTRYPOINT=cli PATH="$SB:$PATH" bash "$OP" 5173 >/dev/null 2>&1 || true
-  OPENS=$(grep -c "open" "$TMP/open.log")
+  OPENS=$(grep -c "open" "$TMP/open.log" || true)
   if [ "$OPENS" = "2" ]; then
     pass "open-preview: 非项目目录不去重"
   else
