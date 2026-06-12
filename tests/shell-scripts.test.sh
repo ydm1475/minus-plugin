@@ -1316,7 +1316,7 @@ import datetime
 from io import BytesIO
 PY
   write_pyproject pyproject.toml ""
-  OUTPUT=$(bash "$CPD" 2>&1)
+  OUTPUT=$(bash "$CPD" 2>&1 || true)
   if assert_contains "$OUTPUT" "DEPENDENCIES_OK"; then
     pass "check-python-deps: allows stdlib imports"
   else
