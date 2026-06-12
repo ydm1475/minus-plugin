@@ -130,7 +130,7 @@ PM="$(via_lib projects-manager)"
 # Test: list with no projects
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   OUTPUT=$(bash "$PM" list 2>&1)
   if assert_contains "$OUTPUT" "无项目"; then
     pass "list: empty project list shows '无项目'"
@@ -142,7 +142,7 @@ PM="$(via_lib projects-manager)"
 # Test: add a project
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
   OUTPUT=$(bash "$PM" add "my-skill" "$PROJ" 2>&1)
   if assert_contains "$OUTPUT" "已注册"; then
@@ -155,7 +155,7 @@ PM="$(via_lib projects-manager)"
 # Test: add duplicate project
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
   bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" add "my-skill" "$PROJ" 2>&1)
@@ -169,7 +169,7 @@ PM="$(via_lib projects-manager)"
 # Test: list after adding (use real dirs so list doesn't filter them out)
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ_A=$(make_tmp)
   PROJ_B=$(make_tmp)
   bash "$PM" add "skill-a" "$PROJ_A" >/dev/null 2>&1
@@ -185,7 +185,7 @@ PM="$(via_lib projects-manager)"
 # Test: list auto-cleans deleted project directories
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ_ALIVE=$(make_tmp)
   PROJ_DEAD=$(make_tmp)
   bash "$PM" add "alive-skill" "$PROJ_ALIVE" >/dev/null 2>&1
@@ -202,7 +202,7 @@ PM="$(via_lib projects-manager)"
 # Test: remove a project
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
   bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" remove "$PROJ" 2>&1)
@@ -223,7 +223,7 @@ PM="$(via_lib projects-manager)"
 # Test: find a project
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
   bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" find "my-skill" 2>&1)
@@ -237,7 +237,7 @@ PM="$(via_lib projects-manager)"
 # Test: find non-existent
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   if bash "$PM" find "nonexistent" >/dev/null 2>&1; then
     fail "find: non-existent returns exit 1" "expected non-zero exit"
   else
@@ -248,7 +248,7 @@ PM="$(via_lib projects-manager)"
 # Test: touch updates last_opened
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
   bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   sleep 1
@@ -619,7 +619,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: scenario 1 - in a Skill project directory
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
   echo '{"skillId":"sk_abc"}' > "$TMP/test-project/.minus/skill.json"
@@ -635,7 +635,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: scenario 4 - non-Minus directory
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   cd "$TMP"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
@@ -649,7 +649,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: scenario 2 - in Workspace directory
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/minus"
   touch "$TMP/minus/.minus-workspace"
@@ -665,7 +665,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Skill project output triggers auto-load of minus skill
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
   echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
@@ -684,7 +684,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Skill project output includes project root and Creator workflow scope
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
   echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
@@ -701,7 +701,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Skill project output does NOT contain auto-execution instructions
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
   echo '{"skillId":"sk_abc","name":"test-project"}' > "$TMP/test-project/.minus/skill.json"
@@ -718,7 +718,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Skill project shows project name from skill.json
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/test-project/.minus"
   echo '{"skillId":"sk_abc","name":"我的测试项目"}' > "$TMP/test-project/.minus/skill.json"
@@ -734,7 +734,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Skill project shows login status
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   echo '{"auth_type":"api_key"}' > "$TMP/.minus/credentials.json"
   mkdir -p "$TMP/test-project/.minus"
@@ -751,7 +751,7 @@ PD_SCRIPT="$(via_lib project-detector)"
 # Test: Non-Minus directory output is lightweight (no login/create flow)
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   mkdir -p "$TMP/random-dir"
   cd "$TMP/random-dir"
@@ -1497,7 +1497,7 @@ echo "═══ project-detector.sh ═══"
 # Test: outputs context tags
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   mkdir -p "$TMP/.minus"
   cd "$TMP"
   OUTPUT=$(bash "$PD_SCRIPT" 2>&1)
@@ -4247,7 +4247,7 @@ make_plugin_root() {
 # Test: 产物齐全 → 静默成功（hook 模式不污染会话上下文）
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" yes
   OUTPUT=$(bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
   if [ "$RC" -eq 0 ] && [ -z "$OUTPUT" ]; then
@@ -4260,7 +4260,7 @@ make_plugin_root() {
 # Test: 缺产物，hook 模式 → 输出补救指引但 exit 0（不阻塞会话）
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" no
   OUTPUT=$(bash "$PIC" "$TMP/plugin" 2>&1); RC=$?
   if [ "$RC" -eq 0 ] && assert_contains "$OUTPUT" "minus-platform.cjs" \
@@ -4274,7 +4274,7 @@ make_plugin_root() {
 # Test: 缺产物，--strict 模式 → exit 1（install.sh 据此中止）
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" no
   RC=0; OUTPUT=$(bash "$PIC" --strict "$TMP/plugin" 2>&1) || RC=$?
   if [ "$RC" -eq 1 ]; then
@@ -4287,7 +4287,7 @@ make_plugin_root() {
 # Test: 陈旧 temp_local_* 残留被清理；新鲜的（可能正在安装）保留
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" yes
   CACHE="$TMP/cache"
   mkdir -p "$CACHE/temp_local_stale" "$CACHE/temp_local_fresh"
@@ -4304,7 +4304,7 @@ make_plugin_root() {
 # Test: Node 过旧（v18 桩）且无合格备选 → 指示 Agent 跑 bootstrap-env，受众是 Agent 而非用户
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" yes
   mkdir -p "$TMP/bin"
   printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
@@ -4321,7 +4321,7 @@ make_plugin_root() {
 # Test: PATH 无合格 node 但备选位置（如 Volta）有 → 静默，不误报
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" yes
   mkdir -p "$TMP/bin" "$TMP/volta"
   printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
@@ -4338,7 +4338,7 @@ make_plugin_root() {
 # Test: --strict 模式跳过 Node 检查（install.sh 有自己的交互式 gate）
 (
   TMP=$(make_tmp)
-  export HOME="$TMP"
+  export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   make_plugin_root "$TMP/plugin" yes
   mkdir -p "$TMP/bin"
   printf '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 18; else echo v18.0.0; fi\n' > "$TMP/bin/node"
