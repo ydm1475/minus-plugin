@@ -22,10 +22,28 @@ ${ruleLines}
 ${transcriptText}`;
 }
 
+// 评判模型 evidence 引用对话原文时常带未转义引号，严格 JSON.parse 会整步失败。
+// 降级路径：逐条正则提取 id/pass（判定结论不受影响，只丢 evidence 文本）。
+function lenientVerdicts(output) {
+  const found = [];
+  const re = /"id"\s*:\s*"(\w+)"\s*,\s*"pass"\s*:\s*(true|false)/g;
+  let m;
+  while ((m = re.exec(output))) {
+    found.push({ id: m[1], pass: m[2] === "true", evidence: "（评判 JSON 解析降级，evidence 略）" });
+  }
+  return found;
+}
+
 export function parseVerdicts(output, rules) {
   const m = output.match(/\[[\s\S]*\]/);
   if (!m) throw new Error(`评判输出中找不到 JSON 数组: ${output.slice(0, 300)}`);
-  const arr = JSON.parse(m[0]);
+  let arr;
+  try {
+    arr = JSON.parse(m[0]);
+  } catch (e) {
+    arr = lenientVerdicts(m[0]);
+    if (!arr.length) throw new Error(`评判输出 JSON 解析失败且无法降级提取: ${e.message}`);
+  }
   // 漏判的规则按 fail 处理，不允许静默缺项
   return rules.map((r) => {
     const v = arr.find((x) => x.id === r.id);

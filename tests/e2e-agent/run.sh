@@ -91,6 +91,26 @@ trap cleanup EXIT
 
 # ── 安装依赖（真实运行验证需要）──
 if [ "${E2E_SKIP_RUN:-0}" != "1" ]; then
+  # 联调仓库布局下优先用本地 platform 包（与上方 create-skill 同哲学）：
+  # 模板钉的版本可能尚未发布到 npm（platform 发包节奏不同步），本地存在同版本包时 pack 后注入
+  VITE_PLUGIN_LOCAL="$REPO_DIR/../minus-platform/packages/dev-vite-plugin"
+  if [ -f "$VITE_PLUGIN_LOCAL/package.json" ]; then
+    TPL_VER=$(node -e "const p=require('$PROJECT_DIR/package.json');console.log(((p.devDependencies||{})['@minus-ai/dev-vite-plugin'])||((p.dependencies||{})['@minus-ai/dev-vite-plugin'])||'')" 2>/dev/null)
+    LOCAL_VER=$(node -e "console.log(require('$VITE_PLUGIN_LOCAL/package.json').version)" 2>/dev/null)
+    if [ -n "$TPL_VER" ] && [ "${TPL_VER#^}" = "$LOCAL_VER" ]; then
+      echo "→ 注入本地 dev-vite-plugin@${LOCAL_VER}（npm pack）"
+      TARBALL=$(cd "$VITE_PLUGIN_LOCAL" && npm pack --pack-destination "$LOG_DIR" 2>/dev/null | tail -1)
+      if [ -n "$TARBALL" ]; then
+        for pkg in "$PROJECT_DIR/package.json" "$PROJECT_DIR/frontend/package.json"; do
+          [ -f "$pkg" ] && node -e "
+            const fs=require('fs');const p=JSON.parse(fs.readFileSync('$pkg','utf8'));
+            for (const k of ['dependencies','devDependencies'])
+              if (p[k] && p[k]['@minus-ai/dev-vite-plugin']) p[k]['@minus-ai/dev-vite-plugin']='file:$LOG_DIR/$TARBALL';
+            fs.writeFileSync('$pkg', JSON.stringify(p,null,2)+'\n');"
+        done
+      fi
+    fi
+  fi
   echo "→ npm install..."
   (cd "$PROJECT_DIR" && npm install) > "$LOG_DIR/npm-install.log" 2>&1 || {
     echo "✗ npm install 失败，日志: $LOG_DIR/npm-install.log" >&2

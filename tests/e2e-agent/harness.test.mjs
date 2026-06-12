@@ -110,6 +110,20 @@ test("parseVerdicts: 解析评判 JSON 并补齐漏判项为 fail", () => {
   assert.ok(verdicts[1].evidence.includes("未返回"));
 });
 
+test("parseVerdicts: evidence 含未转义引号时降级提取 id/pass", () => {
+  const rules = [
+    { id: "B1", rule: "规则一" },
+    { id: "B2", rule: "规则二" },
+  ];
+  // evidence 内嵌未转义双引号 → 严格 JSON.parse 失败，走降级路径
+  const out = `[{"id":"B1","pass":true,"evidence":"用户说"没问题"继续"},{"id":"B2","pass":false,"evidence":"违规"}]`;
+  const verdicts = parseVerdicts(out, rules);
+  assert.equal(verdicts.length, 2);
+  assert.equal(verdicts[0].pass, true);
+  assert.equal(verdicts[1].pass, false);
+  assert.ok(verdicts[0].evidence.includes("降级"));
+});
+
 test("buildJudgePrompt: 包含全部规则", () => {
   const p = buildJudgePrompt(
     [{ id: "B1", rule: "两步法顺序" }],
