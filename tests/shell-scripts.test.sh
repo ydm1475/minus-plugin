@@ -85,7 +85,8 @@ assert_eq() {
 # ── Setup ──
 
 TMPDIR_BASE=$(mktemp -d)
-trap "rm -rf '$TMPDIR_BASE'" EXIT
+# 清理失败不算测试失败：Windows 上偶有进程残留锁住 .tmp（Device or resource busy）
+trap "rm -rf '$TMPDIR_BASE' 2>/dev/null || true" EXIT
 
 make_tmp() {
   mktemp -d "$TMPDIR_BASE/test.XXXXXX"
