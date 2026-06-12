@@ -6,6 +6,7 @@
 #   update-progress.sh design-done <名1> <名2> ...  — 写入步骤列表，phase=developing
 #   update-progress.sh append-steps <名1> ...       — 追加新步骤（pending）
 #   update-progress.sh step-done <N>                — 标记步骤 N 完成并推进；最后一步自动 phase=testing
+#   update-progress.sh confirm-test                 — 记录 Creator 已确认最后一步测试通过（结果设计的前置门禁）
 #   update-progress.sh set-phase <phase>            — 设置 phase（designing|developing|testing|ready）
 #   update-progress.sh touch                        — 仅刷新 updatedAt
 #   update-progress.sh show                         — 输出当前 progress.json
@@ -148,11 +149,45 @@ case "$ACTION" in
 
     TOTAL=$(total_steps)
     PROGRESS_OP=step-done STEP_NUM="$STEP" TOTAL_STEPS="$TOTAL" apply
+
+    # 测试邀请话术单源在此（node-dev.md 只引用，不复制）。
+    # 设计原因（CLAUDE.md #1 能硬编码的别靠 Agent 自觉）：人工测试 612 中
+    # Agent 把 step-done 和结果设计脚本串在一条命令执行，跳过了测试邀请。
+    step_name() { cat ".minus/dev-progress/step_${1}_name" 2>/dev/null || echo "步骤${1}"; }
+    STEP_NAME=$(step_name "$STEP")
     if [ "$STEP" -ge "$TOTAL" ]; then
-      echo "✓ 步骤 $STEP 已完成。全部 $TOTAL 个步骤开发完毕，进入待测试阶段（phase=testing）"
+      # 标记最后一步测试待确认：结果设计门禁靠它拦截
+      rm -f .minus/dev-progress/final_test_confirmed
+      echo "✓ 步骤 ${STEP} 已完成。全部 ${TOTAL} 个步骤开发完毕，进入待测试阶段（phase=testing）"
+      echo "NEXT=WAIT_FOR_CREATOR_TEST"
+      echo "── 原样转达给 Creator（每行独立）──"
+      echo "「步骤 ${STEP}「${STEP_NAME}」已开发完成，所有步骤都开发完了。」"
+      echo "「你现在可以在预览页面输入测试数据，把整个流程从头到尾跑一遍，检查每一步的展示和数据是否符合预期。」"
+      echo "「看完如果没问题，告诉我，我们就进入结果呈现设计（结果摘要和下载内容）。」"
+      echo "── 转达后停止，等 Creator 确认 ──"
+      echo "Creator 确认测试通过后，先执行 minus-lib update-progress confirm-test，再执行结果设计脚本。"
+      echo "⛔ 禁止把本命令与 generate-result-design 串在一条命令里执行；Creator 未确认前禁止进入结果设计。"
     else
-      echo "✓ 步骤 $STEP 已完成，当前进行步骤 $((STEP + 1))"
+      NEXT_STEP=$((STEP + 1))
+      NEXT_NAME=$(step_name "$NEXT_STEP")
+      echo "✓ 步骤 ${STEP} 已完成，当前进行步骤 ${NEXT_STEP}"
+      echo "── 原样转达给 Creator（每行独立）──"
+      echo "「步骤 ${STEP}「${STEP_NAME}」已开发完成。」"
+      echo "「你现在可以在预览页面重新输入测试数据开始一次新的流程，检查这个步骤的展示和数据是否符合预期。」"
+      echo "「也可以在已有执行页面点击【重新执行】按钮，用同一份输入重新跑一遍流程。」"
+      echo "「看完如果没问题，我们继续开发步骤 ${NEXT_STEP}「${NEXT_NAME}」吗？」"
+      echo "── 转达后停止，等 Creator 回复 ──"
     fi
+    ;;
+
+  confirm-test)
+    if [ ! -f ".minus/total-steps" ]; then
+      echo "错误：步骤骨架尚未生成，无法确认测试" >&2
+      exit 1
+    fi
+    mkdir -p .minus/dev-progress
+    date -u '+%Y-%m-%dT%H:%M:%SZ' > .minus/dev-progress/final_test_confirmed
+    echo "✓ 已记录 Creator 确认整体测试通过，可以进入结果呈现设计"
     ;;
 
   set-phase)
@@ -179,7 +214,7 @@ case "$ACTION" in
     ;;
 
   *)
-    echo "用法: update-progress.sh <init-design|design-done|append-steps|step-done|set-phase|touch|show> [args]" >&2
+    echo "用法: update-progress.sh <init-design|design-done|append-steps|step-done|confirm-test|set-phase|touch|show> [args]" >&2
     exit 1
     ;;
 esac

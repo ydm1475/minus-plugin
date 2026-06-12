@@ -206,10 +206,25 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 需要在默认确认值之外向下一步追加字段时，使用前端 SDK 手册里的 `extendConfirmed`；`mapConfirmed` 是完全自定义 payload 的高级能力，使用不当会导致 readonly 回放丢失用户选择。
 
+### locale 文件
+
+`frontend/src/locales/*.json` ⛔ 禁止用 Edit 直接修改（手工编辑会破坏 JSON 格式），必须走脚本：
+
+```bash
+minus-lib locale-set set frontend/src/locales/zh-CN.json "{key}" "{文案}"
+minus-lib locale-set rm  frontend/src/locales/zh-CN.json "{key}"
+```
+
 ### 代码生成后
 
 1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
-2. 执行 Python 依赖一致性检查：
+2. 执行前端类型检查硬门禁（输出 `FRONTEND_OK` 才能继续；`GATE_FAILED` 时 Agent 必须自己修到通过，包括 tsconfig 配置错误——配置错误意味着类型检查整体失效，不是可忽略的小报错）：
+
+```bash
+minus-lib check-frontend
+```
+
+3. 执行 Python 依赖一致性检查：
 
 ```bash
 minus-lib check-python-deps
@@ -219,24 +234,19 @@ minus-lib check-python-deps
 - 如果报缺失依赖 → Agent 自己修复：把依赖写进 `pyproject.toml` 再执行 `uv pip install -e .`（只装进 `.venv` 不更新 pyproject，换环境就丢），然后重新检查；通过前不要让 Creator 测试（依赖修复是 Agent 的事，不交给 Creator 手动处理）
 - 验证依赖用项目 venv 的 python（Unix：`.venv/bin/python`；Windows：`.venv/Scripts/python.exe`）——系统 `python3` 看不到 venv 里的包，结果不可信
 
-3. 告诉 Creator 可以测试当前步骤效果。原样输出：
-
-「步骤 {step_number}「{step_name}」已开发完成。」
-
-「你现在可以在预览页面重新输入测试数据开始一次新的流程，检查这个步骤的展示和数据是否符合预期。」
-
-「也可以在已有执行页面点击【重新执行】按钮，用同一份输入重新跑一遍流程。」
-
-如果不是最后一步，原样输出：
-
-「看完如果没问题，我们继续开发步骤 {next_step_number}「{next_step_name}」吗？」
-
-如果是最后一步，原样输出：
-
-「看完如果没问题，我们继续进入结果呈现设计。」
-
 4. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
 5. 执行 `minus-lib update-progress step-done {step_number}`（自动标记本步骤完成、推进 currentStep；最后一步会自动进入待测试阶段）。⛔ 禁止手写 `.minus/progress.json`。
+6. 脚本会输出测试邀请话术（单源在脚本里）：原样转达「」内的行（每行独立），然后**停止，等 Creator 回复**。
+   - ⛔ 禁止把 step-done 与其他流程命令（如 generate-result-design）串在一条命令里执行
+   - 最后一步：Creator 确认整体测试通过后，先执行 `minus-lib update-progress confirm-test`，再进入结果呈现设计（其门禁会校验该确认）
+
+### 测试期间的代码修改保护
+
+Creator 可测试后（任一步骤 step-done 之后），修改 pipeline.py 会触发后端热重载，**正在跑的流程会被立刻打断**。因此：
+
+- 修改 pipeline.py 或重启 dev server 前，先执行 `minus-lib check-running-flow`
+- 输出 `RUNNING` → 先问 Creator：「你当前正在跑的流程会被这次修改打断，现在改还是等你跑完？」，Creator 同意后再动
+- 输出 `IDLE` → 直接修改
 
 ## 代码生成规则
 

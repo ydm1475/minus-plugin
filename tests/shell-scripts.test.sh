@@ -493,6 +493,53 @@ implement_step() {
   fi
 )
 
+# Test: 非最后一步 step-done 输出测试邀请话术（人工测试 612 回归：话术单源在脚本）
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1
+  OUTPUT=$(bash "$UP" step-done 1 2>&1)
+  if assert_contains "$OUTPUT" "原样转达给 Creator" \
+     && assert_contains "$OUTPUT" "预览页面重新输入测试数据" \
+     && assert_contains "$OUTPUT" "继续开发步骤 2"; then
+    pass "update-progress: step-done emits test invitation"
+  else
+    fail "update-progress: step-done emits test invitation" "got: $OUTPUT"
+  fi
+)
+
+# Test: 最后一步 step-done 输出 WAIT_FOR_CREATOR_TEST 并清掉旧确认标记
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mark_dims_done 1; implement_step 1; bash "$UP" step-done 1 >/dev/null 2>&1
+  mark_dims_done 2; implement_step 2
+  mkdir -p .minus/dev-progress
+  echo stale > .minus/dev-progress/final_test_confirmed
+  OUTPUT=$(bash "$UP" step-done 2 2>&1)
+  if assert_contains "$OUTPUT" "NEXT=WAIT_FOR_CREATOR_TEST" \
+     && assert_contains "$OUTPUT" "禁止" \
+     && [ ! -f .minus/dev-progress/final_test_confirmed ]; then
+    pass "update-progress: last step-done waits for creator test"
+  else
+    fail "update-progress: last step-done waits for creator test" "got: $OUTPUT"
+  fi
+)
+
+# Test: confirm-test 写入确认标记
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  OUTPUT=$(bash "$UP" confirm-test 2>&1)
+  if assert_contains "$OUTPUT" "已记录" && [ -f .minus/dev-progress/final_test_confirmed ]; then
+    pass "update-progress: confirm-test records flag"
+  else
+    fail "update-progress: confirm-test records flag" "got: $OUTPUT"
+  fi
+)
+
 # Test: set-phase 枚举校验
 (
   TMP=$(make_tmp); cd "$TMP"
@@ -1292,6 +1339,70 @@ GRD="$(via_lib generate-result-design)"
   }
 )
 
+# Test: blocked when Creator has not confirmed final test (人工测试 612 回归)
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus/dev-progress
+  echo "2" > .minus/total-steps
+  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
+  touch .minus/dev-progress/step_2_{data,logic,output,confirm}
+  OUTPUT=$(bash "$GRD" 2>&1) && {
+    fail "generate-result-design: should block without final test confirmation" "got: $OUTPUT"
+  } || {
+    if echo "$OUTPUT" | grep -q "GATE_FAILED" && echo "$OUTPUT" | grep -q "confirm-test"; then
+      pass "generate-result-design: blocked without final test confirmation"
+    else
+      fail "generate-result-design: block message should mention confirm-test" "got: $OUTPUT"
+    fi
+  }
+)
+
+# Test: confirm/check 维度追踪流
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus/dev-progress
+  OUTPUT=$(bash "$GRD" check 2>&1) && {
+    fail "generate-result-design: check should fail before confirms" "got: $OUTPUT"
+  } || {
+    pass "generate-result-design: check fails before confirms"
+  }
+  OUT_SUM=$(bash "$GRD" confirm summary 2>&1)
+  if echo "$OUT_SUM" | grep -q "NEXT_DIM=download" && echo "$OUT_SUM" | grep -q "下载哪些内容"; then
+    pass "generate-result-design: confirm summary emits download question"
+  else
+    fail "generate-result-design: confirm summary emits download question" "got: $OUT_SUM"
+  fi
+  OUT_DL=$(bash "$GRD" confirm download 2>&1)
+  if echo "$OUT_DL" | grep -q "NEXT=GENERATE"; then
+    pass "generate-result-design: confirm download emits NEXT=GENERATE"
+  else
+    fail "generate-result-design: confirm download emits NEXT=GENERATE" "got: $OUT_DL"
+  fi
+  OUT_CHECK=$(bash "$GRD" check 2>&1)
+  if echo "$OUT_CHECK" | grep -q "RESULT_DESIGN_COMPLETE"; then
+    pass "generate-result-design: check passes after both confirms"
+  else
+    fail "generate-result-design: check passes after both confirms" "got: $OUT_CHECK"
+  fi
+)
+
+# Test: 重新设计时主流程清掉上一轮维度标记（防 check 凭旧标记放行）
+(
+  cd "$(mktemp -d)"
+  mkdir -p .minus/dev-progress
+  echo "1" > .minus/total-steps
+  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
+  echo x > .minus/dev-progress/final_test_confirmed
+  echo stale > .minus/dev-progress/result_summary_confirmed
+  echo stale > .minus/dev-progress/result_download_confirmed
+  bash "$GRD" >/dev/null 2>&1
+  if bash "$GRD" check >/dev/null 2>&1; then
+    fail "generate-result-design: redesign resets dim confirmations" "check passed with stale flags"
+  else
+    pass "generate-result-design: redesign resets dim confirmations"
+  fi
+)
+
 # Test: passes when all steps complete
 (
   cd "$(mktemp -d)"
@@ -1299,6 +1410,7 @@ GRD="$(via_lib generate-result-design)"
   echo "2" > .minus/total-steps
   touch .minus/dev-progress/step_1_{data,logic,output,confirm}
   touch .minus/dev-progress/step_2_{data,logic,output,confirm}
+  echo "2026-06-12T00:00:00Z" > .minus/dev-progress/final_test_confirmed
   OUTPUT=$(bash "$GRD" 2>&1)
   if echo "$OUTPUT" | grep -q "GATE_PASSED"; then
     pass "generate-result-design: gate passes when all steps complete"
@@ -1505,14 +1617,13 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
   fi
 )
 
-# Test: node-dev.md reminds Creator how to test after step implementation
+# Test: node-dev.md 测试邀请话术已单源到 step-done 脚本，md 只引用（人工测试 612 回归）
 (
   CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
-  if assert_contains "$CONTENT" "重新输入测试数据开始一次新的流程" \
-     && assert_contains "$CONTENT" "点击【重新执行】按钮" \
-     && assert_contains "$CONTENT" "用同一份输入重新跑一遍流程" \
-     && assert_contains "$CONTENT" "看完如果没问题，我们继续开发步骤 {next_step_number}「{next_step_name}」吗？" \
-     && assert_contains "$CONTENT" "看完如果没问题，我们继续进入结果呈现设计"; then
+  if assert_contains "$CONTENT" "脚本会输出测试邀请话术" \
+     && assert_contains "$CONTENT" "禁止把 step-done 与其他流程命令" \
+     && assert_contains "$CONTENT" "confirm-test" \
+     && ! assert_contains "$CONTENT" "重新输入测试数据开始一次新的流程"; then
     pass "node-dev.md: step completion includes test reminder"
   else
     fail "node-dev.md: should include step completion test reminder" ""
@@ -1991,6 +2102,65 @@ EOF
   fi
 )
 
+# Test【多项目并存】: 5173 被邻居项目占用、本项目 vite 漂移到 5174（无 dev-ports.json）
+# → 方法 3 扫描必须跳过别人的 5173、认领自己的 5174。复现 2026-06-12 人工测试环境：
+# 真实开发机多项目共存，e2e 清场式测试永远撞不上。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/frontend"
+  cd "$TMP"   # 无 dev-ports.json → 走方法 2/3
+  PROJ="$(pwd)"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 0'    # 两个端口都可达
+  write_stub "$SB" pgrep 'exit 1'   # 方法 2 不命中，逼出方法 3 扫描
+  cat > "$SB/lsof" <<EOF
+#!/bin/bash
+args="\$*"
+case "\$args" in
+  *":5173"*) echo 8888 ;;                                  # 邻居项目的 vite
+  *":5174"*) echo 7777 ;;                                  # 本项目的 vite
+  *"-p 8888"*) printf 'fcwd\nn/Users/other/neighbor-project\n' ;;
+  *"-p 7777"*) printf 'fcwd\nn%s/frontend\n' "$PROJ" ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$SB/lsof"
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$DPP" 2>&1 | head -1 || true)
+  if [ "$OUTPUT" = "5174" ]; then
+    pass "detect-preview-port: 邻居项目占 5173 时跳过并认领本项目的 5174（多项目并存）"
+  else
+    fail "detect-preview-port: 多项目并存扫描" "got: $OUTPUT (expected 5174)"
+  fi
+)
+
+# Test【多项目并存·脏记录】: dev-ports.json 记录的 5173 实际被邻居项目占用（陈旧/错误记录）
+# → trusted 路径的归属校验必须拒绝它，绝不把别人的页面当自己的预览地址输出。
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"
+  cd "$TMP"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  echo '{"frontend":5173,"backend":4001}' > .minus/dev-ports.json
+  write_stub "$SB" uname 'echo Darwin'
+  write_stub "$SB" curl 'exit 0'    # 端口可达（是别人的服务在应答！）
+  write_stub "$SB" pgrep 'exit 1'
+  cat > "$SB/lsof" <<EOF
+#!/bin/bash
+args="\$*"
+case "\$args" in
+  *":5173"*) echo 8888 ;;
+  *"-p 8888"*) printf 'fcwd\nn/Users/other/neighbor-project\n' ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$SB/lsof"
+  OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=1 PATH="$SB:$PATH" bash "$DPP" 2>&1 || true)
+  if [ "$OUTPUT" = "DETECT_FAILED" ]; then
+    pass "detect-preview-port: dev-ports.json 指向邻居项目端口时拒绝（不输出别人的预览）"
+  else
+    fail "detect-preview-port: 脏记录归属拒绝" "got: $OUTPUT"
+  fi
+)
+
 # Test: DETECT_PORT_MAX_WAIT env controls polling duration
 (
   TMP=$(make_tmp)
@@ -2088,17 +2258,33 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   fi
 )
 
-# Test: Windows full → pnpm run dev:win
+# Test: Windows + 存量旧项目（package.json 有 dev:win）→ pnpm run dev:win
 (
   TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
   write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
   write_stub "$SB" uname 'echo MINGW64_NT-10.0'
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
-  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  echo '{"scripts":{"dev":"legacy-unix-only","dev:win":"minus-dev --port 4001"}}' > "$TMP/package.json"
+  OUTPUT=$(cd "$TMP" && VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
   if echo "$OUTPUT" | grep -q "PNPM_ARGS=run dev:win$"; then
-    pass "start-dev: Windows full → pnpm run dev:win"
+    pass "start-dev: Windows 存量项目（有 dev:win）→ pnpm run dev:win"
   else
-    fail "start-dev: Windows full" "got: $OUTPUT"
+    fail "start-dev: Windows legacy full" "got: $OUTPUT"
+  fi
+)
+
+# Test: Windows + 新模板项目（无 dev:win，dev 已跨平台）→ pnpm dev
+(
+  TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB"
+  write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
+  write_stub "$SB" uname 'echo MINGW64_NT-10.0'
+  write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
+  echo '{"scripts":{"dev":"minus-dev --port 4001"}}' > "$TMP/package.json"
+  OUTPUT=$(cd "$TMP" && VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
+  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+    pass "start-dev: Windows 新模板（无 dev:win）→ pnpm dev"
+  else
+    fail "start-dev: Windows new-template full" "got: $OUTPUT"
   fi
 )
 
@@ -2425,6 +2611,8 @@ detect-preview-port|
 record-preview-port|5173
 resume-env|cli
 start-dev|full
+check-running-flow|
+locale-set|
 "
 # 豁免（不进 smoke，必须有理由）：
 #   bootstrap-env —— 安装器，真实跑会装依赖；node 适配由 env-matrix 场景全量覆盖
@@ -2443,7 +2631,7 @@ OLDNODE_EXEMPT="bootstrap-env sync-plugin"
   if [ -z "$MISSING" ]; then
     pass "老 node 不变量: 所有裸 node 脚本均已登记 smoke 或豁免"
   else
-    fail "老 node 不变量: 完整性" "未登记 smoke 的裸 node 脚本:$MISSING（在 OLDNODE_SMOKE 登记或在 OLDNODE_EXEMPT 豁免并注明理由）"
+    fail "老 node 不变量: 完整性" "未登记 smoke 的裸 node 脚本:${MISSING}（在 OLDNODE_SMOKE 登记或在 OLDNODE_EXEMPT 豁免并注明理由）"
   fi
 )
 
@@ -3314,17 +3502,17 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
   fi
 )
 
-# 启动逻辑已下沉到 start-dev.sh（CLAUDE.md #3 单源化）：dev:win 分支 + pnpm 解析
-# 都在脚本里，SKILL.md 只引用脚本，不再内联。
+# 启动逻辑已下沉到 start-dev.sh（CLAUDE.md #3 单源化）。新模板 dev 全平台统一，
+# dev:win 仅作为存量旧项目的 Windows 回退（按 package.json 实际内容判定，不猜模板版本）。
 (
-  if grep -q 'run dev:win' "$SD_SRC" \
-     && grep -q 'run dev:win:backend' "$SD_SRC" \
+  if grep -q 'has_script "dev:win"' "$SD_SRC" \
+     && grep -q 'has_script "dev:win:backend"' "$SD_SRC" \
      && grep -q '"\$PNPM_CMD" dev:backend' "$SD_SRC" \
      && grep -q '"\$PNPM_CMD" dev' "$SD_SRC" \
      && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SD_SRC"; then
-    pass "start-dev.sh: Windows uses dev:win while mac/Linux keeps stable dev scripts"
+    pass "start-dev.sh: dev 全平台统一，dev:win 仅按 package.json 内容做存量回退"
   else
-    fail "start-dev.sh: platform dev script selection" "missing dev:win branch or mac/Linux stable command"
+    fail "start-dev.sh: platform dev script selection" "missing has_script fallback or unified dev command"
   fi
 )
 
@@ -4663,6 +4851,93 @@ echo "═══ skill md 运行时规则一致性 ═══"
   else
     fail "project-detector: Skill 项目目录注入用户画像" "got: $OUTPUT"
   fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ check-running-flow.sh ═══"
+# ══════════════════════════════════════════════════════
+
+CRF="$(via_lib check-running-flow)"
+
+# Test: 无 dev-ports.json 时输出 IDLE
+(
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$CRF" 2>&1)
+  if assert_eq "$OUTPUT" "IDLE"; then
+    pass "check-running-flow: IDLE without dev-ports.json"
+  else
+    fail "check-running-flow: IDLE without dev-ports.json" "got: $OUTPUT"
+  fi
+)
+
+# Test: 后端端口无连接时输出 IDLE
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"frontend":5173,"backend":59321}' > .minus/dev-ports.json
+  OUTPUT=$(bash "$CRF" 2>&1)
+  if assert_eq "$OUTPUT" "IDLE"; then
+    pass "check-running-flow: IDLE when no connections"
+  else
+    fail "check-running-flow: IDLE when no connections" "got: $OUTPUT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ locale-set.sh ═══"
+# ══════════════════════════════════════════════════════
+
+LS="$(via_lib locale-set)"
+
+# Test: set 新增 key 且 JSON 合法
+(
+  TMP=$(make_tmp); cd "$TMP"
+  printf '{\n  "a.b": "旧"\n}\n' > zh.json
+  bash "$LS" set zh.json '测试.step1.col."引号"' '值带$符号和"引号"' >/dev/null 2>&1
+  VAL=$(L_F=zh.json node -e 'console.log(JSON.parse(require("fs").readFileSync(process.env.L_F,"utf8"))["测试.step1.col.\"引号\""])')
+  if [ "$VAL" = '值带$符号和"引号"' ]; then
+    pass "locale-set: set writes key safely"
+  else
+    fail "locale-set: set writes key safely" "got: $VAL / $(cat zh.json)"
+  fi
+)
+
+# Test: rm 删除 key；不存在的 key 报错
+(
+  TMP=$(make_tmp); cd "$TMP"
+  printf '{\n  "a": "1",\n  "b": "2"\n}\n' > zh.json
+  bash "$LS" rm zh.json a >/dev/null 2>&1
+  KEYS=$(node -e 'console.log(Object.keys(JSON.parse(require("fs").readFileSync("zh.json","utf8"))).join(","))')
+  RM_MISSING=0
+  bash "$LS" rm zh.json nope >/dev/null 2>&1 || RM_MISSING=1
+  if [ "$KEYS" = "b" ] && [ "$RM_MISSING" = "1" ]; then
+    pass "locale-set: rm deletes key, missing key errors"
+  else
+    fail "locale-set: rm deletes key, missing key errors" "keys=$KEYS rm_missing=$RM_MISSING"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ check-frontend.sh ═══"
+# ══════════════════════════════════════════════════════
+
+CF="$(via_lib check-frontend)"
+
+# Test: 无 frontend 目录时 GATE_FAILED
+(
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$CF" 2>&1) && {
+    fail "check-frontend: should fail without frontend dir" "got: $OUTPUT"
+  } || {
+    if assert_contains "$OUTPUT" "GATE_FAILED"; then
+      pass "check-frontend: GATE_FAILED without frontend dir"
+    else
+      fail "check-frontend: GATE_FAILED without frontend dir" "got: $OUTPUT"
+    fi
+  }
 )
 
 # ══════════════════════════════════════════════════════
