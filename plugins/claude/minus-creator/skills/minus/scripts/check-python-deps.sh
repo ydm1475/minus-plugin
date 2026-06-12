@@ -28,7 +28,9 @@ TMP_IMPORTS=$(mktemp)
 TMP_DEPS=$(mktemp)
 trap 'rm -f "$TMP_IMPORTS" "$TMP_DEPS"' EXIT
 
-"$PYTHON_BIN" - <<'PY' > "$TMP_IMPORTS"
+# Windows 上 Python stdout 为文本模式输出 CRLF，行尾 \r 会污染 case 匹配 /
+# find_spec / grep -qx，统一 tr -d 掉（pipefail 保留 python 退出码语义）。
+"$PYTHON_BIN" - <<'PY' | tr -d '\r' > "$TMP_IMPORTS"
 import ast
 import sys
 
@@ -48,7 +50,7 @@ for name in sorted(imports):
     print(name)
 PY
 
-"$PYTHON_BIN" - <<'PY' > "$TMP_DEPS"
+"$PYTHON_BIN" - <<'PY' | tr -d '\r' > "$TMP_DEPS"
 import re
 
 text = open("pyproject.toml", "r", encoding="utf-8").read()
