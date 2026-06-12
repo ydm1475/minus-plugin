@@ -20,6 +20,78 @@ ensure_dir() {
 DIMS=("data" "logic" "output" "confirm")
 DIM_NAMES=("数据需求" "处理逻辑" "输出定义" "用户确认")
 
+# 总步骤数：优先 .minus/total-steps，其次扫 pipeline.py；都没有返回空
+total_steps() {
+  if [ -f ".minus/total-steps" ]; then
+    cat ".minus/total-steps"
+  elif [ -f "pipeline.py" ]; then
+    # grep -c 无匹配时自己输出 0 且退出码 1，用 || true 防 set -e，不能再 echo 0（会输出两行）
+    grep -c 'async def step_[0-9]' "pipeline.py" 2>/dev/null || true
+  else
+    echo ""
+  fi
+}
+
+# is_last_step <step> → YES / NO / UNKNOWN
+is_last_step() {
+  local t
+  t=$(total_steps)
+  if [ -z "$t" ] || [ "$t" -eq 0 ]; then
+    echo "UNKNOWN"
+  elif [ "$1" -eq "$t" ]; then
+    echo "YES"
+  else
+    echo "NO"
+  fi
+}
+
+# 维度完成后输出下一步引导话术（Agent 原样转达「」内的行，每行独立）
+emit_next_prompt() {
+  local STEP="$1" DIM="$2"
+  case "$DIM" in
+    data)
+      echo "NEXT_DIM=logic"
+      echo "── 原样转达给 Creator（每行独立；若 Creator 已表达过处理意图，跳过转达直接标记 logic）──"
+      echo "「数据获取确认完毕。」"
+      echo ""
+      echo "「下一个问题：拿到这些数据之后，怎么处理？」"
+      echo ""
+      echo "「比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？」"
+      ;;
+    logic)
+      echo "NEXT_DIM=output"
+      echo "── 原样转达给 Creator（每行独立；若 Creator 已表达过展示意图，跳过转达直接标记 output）──"
+      echo "「处理逻辑确认完毕。」"
+      echo ""
+      echo "「下一个问题：这一步要展示什么给用户看？」"
+      echo ""
+      echo "「比如一个数据表格、一段文字摘要、一个评分卡片……」"
+      ;;
+    output)
+      if [ "$(is_last_step "$STEP")" = "YES" ]; then
+        # 最后一步没有"用户确认后传给下一步"，硬编码跳过维度④
+        touch "$TRACKER_DIR/step_${STEP}_confirm"
+        echo "auto" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
+        echo "✓ 最后一步无需用户确认设置，已自动标记 confirm (auto)"
+        echo "NEXT=GENERATE"
+        echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
+      else
+        echo "NEXT_DIM=confirm"
+        echo "── 原样转达给 Creator（每行独立）──"
+        echo "「展示内容确认完毕。」"
+        echo ""
+        echo "「下一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？」"
+        echo ""
+        echo "「还是自动往下走？」"
+      fi
+      ;;
+    confirm)
+      echo "NEXT=GENERATE"
+      echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
+      ;;
+  esac
+}
+
 case "${1:-}" in
   status)
     STEP="${2:?用法: step-tracker.sh status <step_number>}"
@@ -95,6 +167,7 @@ case "${1:-}" in
       echo "$MODE" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
     fi
     echo "✓ 步骤 $STEP — ${DIM} 已确认${MODE:+ (模式: $MODE)}"
+    emit_next_prompt "$STEP" "$DIM"
     ;;
 
   check)
@@ -128,22 +201,12 @@ case "${1:-}" in
 
   is-last)
     STEP="${2:?用法: step-tracker.sh is-last <step_number>}"
-    TOTAL_STEPS_FILE=".minus/total-steps"
-    if [ -f "$TOTAL_STEPS_FILE" ]; then
-      TOTAL_STEPS=$(cat "$TOTAL_STEPS_FILE")
-    else
-      PIPELINE_FILE="pipeline.py"
-      if [ ! -f "$PIPELINE_FILE" ]; then
-        echo "ERROR: pipeline.py 不存在且 .minus/total-steps 不存在" >&2
-        exit 1
-      fi
-      TOTAL_STEPS=$(grep -c 'async def step_[0-9]' "$PIPELINE_FILE" 2>/dev/null || echo 0)
+    RESULT=$(is_last_step "$STEP")
+    if [ "$RESULT" = "UNKNOWN" ]; then
+      echo "ERROR: pipeline.py 不存在且 .minus/total-steps 不存在" >&2
+      exit 1
     fi
-    if [ "$STEP" -eq "$TOTAL_STEPS" ]; then
-      echo "YES"
-    else
-      echo "NO"
-    fi
+    echo "$RESULT"
     ;;
 
   list)

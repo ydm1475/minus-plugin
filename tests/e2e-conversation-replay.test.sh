@@ -211,20 +211,16 @@ fi
 
 # TC-R10: 维度③ — Creator 说"一个表格列出热销"（最后一步展示）
 # 对应 conversation 第 782 行
-bash "$ML_BIN" step-tracker complete 2 output > /dev/null 2>&1
+OUTPUT_DONE=$(bash "$ML_BIN" step-tracker complete 2 output 2>&1)
 
-# TC-R11: 最后一步 → 维度④应自动跳过
-# 新流程：is-last=YES → 维度③完成后直接标记 confirm，不问 Creator
-# 验证 node-dev.md 指令：维度③结束时最后一步跳过维度④
-SKIP_BLOCK=$(sed -n '/如果是最后一步.*跳过维度④/,/step-tracker.*confirm/p' "$NODE_DEV")
-if echo "$SKIP_BLOCK" | grep -q "step-tracker.*complete.*confirm"; then
-  pass "最后一步：维度③后直接 complete confirm（跳过维度④）"
+# TC-R11: 最后一步 → 维度④自动跳过（已硬编码进 step-tracker.sh，不靠 md 指令）
+# complete output 时脚本检测 is-last=YES → 自动标记 confirm(auto) 并输出 NEXT=GENERATE
+if echo "$OUTPUT_DONE" | grep -q "NEXT=GENERATE" && echo "$OUTPUT_DONE" | grep -q "自动标记 confirm"; then
+  pass "最后一步：complete output 自动跳过维度④（脚本硬编码）"
 else
-  fail "最后一步：应在维度③后直接 complete confirm" "包含自动 complete confirm" "未找到"
+  fail "最后一步：complete output 应自动标记 confirm" "NEXT=GENERATE + 自动标记 confirm" "$OUTPUT_DONE"
 fi
 
-# 模拟自动跳过：最后一步用 auto 模式
-bash "$ML_BIN" step-tracker complete 2 confirm auto > /dev/null 2>&1
 CHECK_STEP2=$(bash "$ML_BIN" step-tracker check 2 2>&1)
 if echo "$CHECK_STEP2" | grep -q "COMPLETE"; then
   pass "第 2 步四维度全部完成 → COMPLETE"
