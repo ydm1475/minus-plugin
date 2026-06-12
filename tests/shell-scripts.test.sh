@@ -225,6 +225,8 @@ PM="$(via_lib projects-manager)"
   TMP=$(make_tmp)
   export HOME="$TMP" APPDATA="$TMP" XDG_CONFIG_HOME="$TMP"
   PROJ=$(make_tmp)
+  # 脚本入库前会把 MSYS 路径经 cygpath -m 归一化（/tmp/… → C:/…），期望值同样归一化
+  if command -v cygpath >/dev/null 2>&1; then PROJ=$(cygpath -m "$PROJ"); fi
   bash "$PM" add "my-skill" "$PROJ" >/dev/null 2>&1
   OUTPUT=$(bash "$PM" find "my-skill" 2>&1)
   if assert_eq "$OUTPUT" "$PROJ"; then
