@@ -300,8 +300,12 @@ fi
 echo ""
 echo "── SDK 文档可达性验证 ──"
 
-SDK_WIDGETS_DOC=$(find ~/minus-platform-develop/minus-platform/runtime/platform-widgets -name "docs.md" 2>/dev/null | head -1)
-if [ -n "$SDK_WIDGETS_DOC" ]; then
+# find 不存在的路径在 set -euo pipefail 下整条管道 rc=1 → 套件无声死亡（CI 单仓
+# checkout 没有兄弟仓库 minus-platform）。|| true 兜住，仓库缺失走 skip。
+SDK_WIDGETS_DOC=$(find ~/minus-platform-develop/minus-platform/runtime/platform-widgets -name "docs.md" 2>/dev/null | head -1 || true)
+if [ ! -d ~/minus-platform-develop/minus-platform ]; then
+  skip "SDK 文档可达性验证" "兄弟仓库 minus-platform 不存在（CI 单仓 checkout）"
+elif [ -n "$SDK_WIDGETS_DOC" ]; then
   pass "SDK platform-widgets docs.md 存在"
 
   if grep -q "CompletionPanel" "$SDK_WIDGETS_DOC"; then

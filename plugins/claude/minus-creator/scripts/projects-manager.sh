@@ -18,6 +18,18 @@ case "$OS_TYPE" in
     PROJECTS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/minus/projects.json" ;;
 esac
 
+# Windows Git Bash 下 node 是原生二进制，读不了嵌在 JS 字符串里的 MSYS 路径
+# （/c/Users/... 或 APPDATA 缺失时的 /tmp/...）。cygpath -m 转成 C:/Users/...
+# 正斜杠形式，JS 字符串里无需转义，两边通吃。下方所有 node -e 统一用本变量。
+js_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+PROJECTS_FILE_JS="$(js_path "$PROJECTS_FILE")"
+
 ensure_file() {
   if [ ! -f "$PROJECTS_FILE" ]; then
     mkdir -p "$(dirname "$PROJECTS_FILE")"
@@ -30,7 +42,7 @@ case "$1" in
     ensure_file
     node -e "
       const fs = require('fs'), path = require('path'), os = require('os');
-      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
+      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE_JS','utf8'));
       const before = (d.projects||[]).length;
       d.projects = (d.projects||[]).filter(p => fs.existsSync(p.path));
       // 兜底：projects.json 为空时扫描 ~/minus/*/.minus/skill.json 重建
@@ -49,7 +61,7 @@ case "$1" in
         } catch {}
       }
       if (d.projects.length !== before) {
-        fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2));
+        fs.writeFileSync('$PROJECTS_FILE_JS', JSON.stringify(d,null,2));
       }
       const sorted = d.projects.sort((a,b) => (b.last_opened||'').localeCompare(a.last_opened||''));
       sorted.forEach((p,i) => console.log((i+1)+'. '+p.name+'  '+p.path));
@@ -60,16 +72,16 @@ case "$1" in
   add)
     ensure_file
     NAME="$2"
-    PROJ_PATH="$3"
+    PROJ_PATH="$(js_path "$3")"
     NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     node -e "
       const fs = require('fs');
-      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
+      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE_JS','utf8'));
       if(!d.projects) d.projects=[];
       const exists = d.projects.find(p => p.path === '$PROJ_PATH');
       if(!exists) {
         d.projects.push({name:'$NAME',path:'$PROJ_PATH',created_at:'$NOW',last_opened:'$NOW'});
-        fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2));
+        fs.writeFileSync('$PROJECTS_FILE_JS', JSON.stringify(d,null,2));
         console.log('已注册: $NAME ($PROJ_PATH)');
       } else {
         console.log('已存在: $NAME ($PROJ_PATH)');
@@ -79,26 +91,26 @@ case "$1" in
 
   remove)
     ensure_file
-    PROJ_PATH="$2"
+    PROJ_PATH="$(js_path "$2")"
     node -e "
       const fs = require('fs');
-      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
+      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE_JS','utf8'));
       const before = (d.projects||[]).length;
       d.projects = (d.projects||[]).filter(p => p.path !== '$PROJ_PATH');
-      fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2));
+      fs.writeFileSync('$PROJECTS_FILE_JS', JSON.stringify(d,null,2));
       console.log('移除了 '+(before - d.projects.length)+' 个项目');
     " 2>/dev/null
     ;;
 
   touch)
     ensure_file
-    PROJ_PATH="$2"
+    PROJ_PATH="$(js_path "$2")"
     NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     node -e "
       const fs = require('fs');
-      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE','utf8'));
+      const d = JSON.parse(fs.readFileSync('$PROJECTS_FILE_JS','utf8'));
       const p = (d.projects||[]).find(p => p.path === '$PROJ_PATH');
-      if(p) { p.last_opened = '$NOW'; fs.writeFileSync('$PROJECTS_FILE', JSON.stringify(d,null,2)); }
+      if(p) { p.last_opened = '$NOW'; fs.writeFileSync('$PROJECTS_FILE_JS', JSON.stringify(d,null,2)); }
     " 2>/dev/null
     ;;
 
@@ -106,7 +118,7 @@ case "$1" in
     ensure_file
     NAME="$2"
     node -e "
-      const d = JSON.parse(require('fs').readFileSync('$PROJECTS_FILE','utf8'));
+      const d = JSON.parse(require('fs').readFileSync('$PROJECTS_FILE_JS','utf8'));
       const p = (d.projects||[]).find(p => p.name === '$NAME');
       if(p) console.log(p.path); else process.exit(1);
     " 2>/dev/null

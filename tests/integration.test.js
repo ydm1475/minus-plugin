@@ -847,7 +847,15 @@ describe("Flow 5: project-detector → MCP 联动（完整初始化场景）", (
   });
 });
 
-describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => {
+// Flow 6/7 依赖全局安装的 create-skill CLI（来自兄弟仓库 minus-platform，npm link 提供）。
+// CI 单仓 checkout 没有它 → 整组 skip，本地双仓环境照常跑。
+import { execSync } from "node:child_process";
+const hasCreateSkill = (() => {
+  try { execSync("command -v create-skill", { stdio: "ignore", shell: "/bin/bash" }); return true; }
+  catch { return false; }
+})();
+
+describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", { skip: !hasCreateSkill && "create-skill CLI 不在 PATH（CI 单仓 checkout）" }, () => {
   let mockApi, apiPort, client, tmpHome, tmpWorkspace, fakeBinDir;
 
   before(async () => {
@@ -1019,7 +1027,7 @@ describe("Flow 6: MCP 登录 → create-skill 共享凭证 → scaffold", () => 
   });
 });
 
-describe("Flow 7: create-skill 注册失败场景", () => {
+describe("Flow 7: create-skill 注册失败场景", { skip: !hasCreateSkill && "create-skill CLI 不在 PATH（CI 单仓 checkout）" }, () => {
   let tmpHome, tmpWorkspace;
 
   before(async () => {

@@ -58,13 +58,19 @@ fi
 
 # ── 检测项目列表 ──
 PROJECTS_JSON="$MINUS_GLOBAL/projects.json"
+# Windows Git Bash 下 node 是原生二进制，读不了嵌在 JS 字符串里的 MSYS 路径；
+# cygpath -m 转成 C:/... 正斜杠形式（嵌 JS 用 _JS 变量，bash 测试仍用原变量）。
+PROJECTS_JSON_JS="$PROJECTS_JSON"
+if command -v cygpath >/dev/null 2>&1; then
+  PROJECTS_JSON_JS="$(cygpath -m "$PROJECTS_JSON" 2>/dev/null || echo "$PROJECTS_JSON")"
+fi
 PROJECT_COUNT=0
 if [ -f "$PROJECTS_JSON" ] || [ -d "$HOME/minus" ]; then
   [ ! -f "$PROJECTS_JSON" ] && mkdir -p "$(dirname "$PROJECTS_JSON")" && echo '{"projects":[]}' > "$PROJECTS_JSON"
   PROJECT_COUNT=$(node -e "
     const fs=require('fs'),path=require('path'),os=require('os');
     try{
-      const d=JSON.parse(fs.readFileSync('$PROJECTS_JSON','utf8'));
+      const d=JSON.parse(fs.readFileSync('$PROJECTS_JSON_JS','utf8'));
       const before=(d.projects||[]).length;
       d.projects=(d.projects||[]).filter(p=>fs.existsSync(p.path));
       if(!d.projects.length){
@@ -81,7 +87,7 @@ if [ -f "$PROJECTS_JSON" ] || [ -d "$HOME/minus" ]; then
           }
         }catch{}
       }
-      if(d.projects.length!==before)fs.writeFileSync('$PROJECTS_JSON',JSON.stringify(d,null,2));
+      if(d.projects.length!==before)fs.writeFileSync('$PROJECTS_JSON_JS',JSON.stringify(d,null,2));
       console.log(d.projects.length);
     }catch{console.log(0)}
   " 2>/dev/null)

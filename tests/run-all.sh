@@ -71,9 +71,13 @@ else
 fi
 
 # ── MCP Server Tests ──
+# node 单测/集成测试用解析出的合规 node 跑：CI「老 node 遮挡」维度只针对
+# shell 脚本的自解析能力，单测本身应跑在 engines 目标版本上（node 18 缺特性会误报）。
+# 上面 MCP bundle 构建段已解析 GOOD_NODE 并前置 PATH，这里显式引用同一结果。
+TEST_NODE="${GOOD_NODE:-node}"
 echo "▶ MCP Server Tests (Unit)"
 echo "────────────────────"
-if node --test "$SCRIPT_DIR/mcp-server.test.js" 2>&1 | grep -E "^(ok|not ok|#|$)" | head -30; then
+if "$TEST_NODE" --test "$SCRIPT_DIR/mcp-server.test.js" 2>&1 | grep -E "^(ok|not ok|#|$)" | head -30; then
   echo ""
 else
   FAILED=1
@@ -85,7 +89,7 @@ fi
 # ── Integration Tests ──
 echo "▶ Integration Tests (Mock API → MCP → Shell)"
 echo "────────────────────"
-if node --test "$SCRIPT_DIR/integration.test.js" 2>&1 | grep -E "^(ok|not ok|#|$)" | head -40; then
+if "$TEST_NODE" --test "$SCRIPT_DIR/integration.test.js" 2>&1 | grep -E "^(ok|not ok|#|$)" | head -40; then
   echo ""
 else
   FAILED=1
