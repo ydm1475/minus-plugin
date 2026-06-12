@@ -178,7 +178,11 @@ function createMockApi() {
       }
 
       // ── Sessions: create ──
-      if (method === "POST" && url.match(/^\/api\/me\/skills\/.+\/sessions$/)) {
+      if (
+        method === "POST" &&
+        (url.match(/^\/api\/me\/skills\/.+\/sessions$/) ||
+          url.match(/^\/api\/skills\/.+\/versions\/.+\/sessions$/))
+      ) {
         const sessionId = `sess_${Date.now()}`;
         state.sessions.push({ id: sessionId, entryParams: json.entryParams });
         res.statusCode = 201;
@@ -493,6 +497,7 @@ describe("Flow 3: 创建 Skill → 设置 Endpoint → 创建 Session", () => {
   it("3. 创建运行 Session", async () => {
     const r = await client.callTool("session_create", {
       skillId,
+      version: "1.0-alpha.1",
       entryParams: { keyword: "wireless earbuds", market: "US" },
     });
     const text = getText(r);

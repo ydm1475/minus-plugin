@@ -67,7 +67,8 @@ host_has_abs_modern_node() {
 }
 
 assert_contains() {
-  if echo "$1" | grep -q "$2"; then
+  # 全文件禁用 grep -q：-q 命中即退会让管道上游收 EPIPE，pipefail 下整条管道误判失败
+  if grep >/dev/null -e "$2" <<<"$1"; then
     return 0
   else
     return 1
@@ -1331,7 +1332,7 @@ GRD="$(via_lib generate-result-design)"
   OUTPUT=$(bash "$GRD" 2>&1) && {
     fail "generate-result-design: should fail with incomplete steps" "got: $OUTPUT"
   } || {
-    if echo "$OUTPUT" | grep -q "步骤2"; then
+    if echo "$OUTPUT" | grep >/dev/null "步骤2"; then
       pass "generate-result-design: fails with incomplete steps, reports which"
     else
       fail "generate-result-design: should report incomplete step number" "got: $OUTPUT"
@@ -1349,7 +1350,7 @@ GRD="$(via_lib generate-result-design)"
   OUTPUT=$(bash "$GRD" 2>&1) && {
     fail "generate-result-design: should block without final test confirmation" "got: $OUTPUT"
   } || {
-    if echo "$OUTPUT" | grep -q "GATE_FAILED" && echo "$OUTPUT" | grep -q "confirm-test"; then
+    if echo "$OUTPUT" | grep >/dev/null "GATE_FAILED" && echo "$OUTPUT" | grep >/dev/null "confirm-test"; then
       pass "generate-result-design: blocked without final test confirmation"
     else
       fail "generate-result-design: block message should mention confirm-test" "got: $OUTPUT"
@@ -1367,19 +1368,19 @@ GRD="$(via_lib generate-result-design)"
     pass "generate-result-design: check fails before confirms"
   }
   OUT_SUM=$(bash "$GRD" confirm summary 2>&1)
-  if echo "$OUT_SUM" | grep -q "NEXT_DIM=download" && echo "$OUT_SUM" | grep -q "下载哪些内容"; then
+  if echo "$OUT_SUM" | grep >/dev/null "NEXT_DIM=download" && echo "$OUT_SUM" | grep >/dev/null "下载哪些内容"; then
     pass "generate-result-design: confirm summary emits download question"
   else
     fail "generate-result-design: confirm summary emits download question" "got: $OUT_SUM"
   fi
   OUT_DL=$(bash "$GRD" confirm download 2>&1)
-  if echo "$OUT_DL" | grep -q "NEXT=GENERATE"; then
+  if echo "$OUT_DL" | grep >/dev/null "NEXT=GENERATE"; then
     pass "generate-result-design: confirm download emits NEXT=GENERATE"
   else
     fail "generate-result-design: confirm download emits NEXT=GENERATE" "got: $OUT_DL"
   fi
   OUT_CHECK=$(bash "$GRD" check 2>&1)
-  if echo "$OUT_CHECK" | grep -q "RESULT_DESIGN_COMPLETE"; then
+  if echo "$OUT_CHECK" | grep >/dev/null "RESULT_DESIGN_COMPLETE"; then
     pass "generate-result-design: check passes after both confirms"
   else
     fail "generate-result-design: check passes after both confirms" "got: $OUT_CHECK"
@@ -1412,25 +1413,25 @@ GRD="$(via_lib generate-result-design)"
   touch .minus/dev-progress/step_2_{data,logic,output,confirm}
   echo "2026-06-12T00:00:00Z" > .minus/dev-progress/final_test_confirmed
   OUTPUT=$(bash "$GRD" 2>&1)
-  if echo "$OUTPUT" | grep -q "GATE_PASSED"; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_PASSED"; then
     pass "generate-result-design: gate passes when all steps complete"
   else
     fail "generate-result-design: should output GATE_PASSED" "got: $OUTPUT"
   fi
-  if echo "$OUTPUT" | grep -q "结果摘要" && echo "$OUTPUT" | grep -q "下载内容"; then
+  if echo "$OUTPUT" | grep >/dev/null "结果摘要" && echo "$OUTPUT" | grep >/dev/null "下载内容"; then
     pass "generate-result-design: outputs two-dimension guidance"
   else
     fail "generate-result-design: should output both dimensions" "got: $OUTPUT"
   fi
-  if echo "$OUTPUT" | grep -q "Skill 运行结束后，结果页底部会有一段摘要来总结分析结论。" \
-     && echo "$OUTPUT" | grep -q "这段摘要由大模型在运行时基于实际数据自动生成，还是你来定义模板？"; then
+  if echo "$OUTPUT" | grep >/dev/null "Skill 运行结束后，结果页底部会有一段摘要来总结分析结论。" \
+     && echo "$OUTPUT" | grep >/dev/null "这段摘要由大模型在运行时基于实际数据自动生成，还是你来定义模板？"; then
     pass "generate-result-design: asks whether bottom summary uses runtime LLM or creator template"
   else
     fail "generate-result-design: should ask runtime LLM vs creator template" "got: $OUTPUT"
   fi
-  if echo "$OUTPUT" | grep -q "动态生成需要确认的问题" \
-     && echo "$OUTPUT" | grep -q "禁止照搬固定问题清单" \
-     && echo "$OUTPUT" | grep -q "只有 Creator 明确确认后，才能继续进入下载内容"; then
+  if echo "$OUTPUT" | grep >/dev/null "动态生成需要确认的问题" \
+     && echo "$OUTPUT" | grep >/dev/null "禁止照搬固定问题清单" \
+     && echo "$OUTPUT" | grep >/dev/null "只有 Creator 明确确认后，才能继续进入下载内容"; then
     pass "generate-result-design: runtime LLM summary requires dynamic creator confirmation"
   else
     fail "generate-result-design: runtime LLM summary should require dynamic confirmation" "got: $OUTPUT"
@@ -1741,7 +1742,7 @@ GNS="$(via_lib generate-next-steps)"
 # Test: fails without project name argument
 (
   OUTPUT=$(bash "$GNS" 2>&1) && RC=0 || RC=$?
-  if [ "$RC" -ne 0 ] && echo "$OUTPUT" | grep -q "缺少项目名称"; then
+  if [ "$RC" -ne 0 ] && echo "$OUTPUT" | grep >/dev/null "缺少项目名称"; then
     pass "generate-next-steps: fails without project name"
   else
     fail "generate-next-steps: fails without project name" "rc=$RC got: $OUTPUT"
@@ -1751,10 +1752,10 @@ GNS="$(via_lib generate-next-steps)"
 # Test: cli 入口（无真实路径）→ 回退 $HOME/minus/{name}（完整绝对路径，不用 ~ 简写），不含图片/选文件夹文案。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "cd \"$HOME/minus/竞品分析_SKILL\" && claude" \
-     && ! echo "$OUTPUT" | grep -q 'cd ~/minus' \
-     && ! echo "$OUTPUT" | grep -q '!\[' \
-     && ! echo "$OUTPUT" | grep -q "选择 .*文件夹作为工作目录"; then
+  if echo "$OUTPUT" | grep >/dev/null "cd \"$HOME/minus/竞品分析_SKILL\" && claude" \
+     && ! echo "$OUTPUT" | grep >/dev/null 'cd ~/minus' \
+     && ! echo "$OUTPUT" | grep >/dev/null '!\[' \
+     && ! echo "$OUTPUT" | grep >/dev/null "选择 .*文件夹作为工作目录"; then
     pass "generate-next-steps: cli 无路径 → 回退完整 \$HOME/minus/{name}"
   else
     fail "generate-next-steps: cli 回退文案" "got: $OUTPUT"
@@ -1764,8 +1765,8 @@ GNS="$(via_lib generate-next-steps)"
 # Test: cli 入口（有真实 targetDir）→ cd 用真实绝对路径并加引号，不再硬编码 ~/minus。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=cli bash "$GNS" "竞品分析_SKILL" "/custom/work/竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q 'cd "/custom/work/竞品分析_SKILL" && claude' \
-     && ! echo "$OUTPUT" | grep -q "~/minus"; then
+  if echo "$OUTPUT" | grep >/dev/null 'cd "/custom/work/竞品分析_SKILL" && claude' \
+     && ! echo "$OUTPUT" | grep >/dev/null "~/minus"; then
     pass "generate-next-steps: cli 有 targetDir → cd 真实路径，无 ~/minus 硬编码"
   else
     fail "generate-next-steps: cli 真实路径" "got: $OUTPUT"
@@ -1775,8 +1776,8 @@ GNS="$(via_lib generate-next-steps)"
 # Test: 真实路径在 $HOME 下 → 展示完整绝对路径（不折叠成 ~，与 CLI 分支一致）。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" "$HOME/minus/竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "选择 \`$HOME/minus/竞品分析_SKILL\`" \
-     && ! echo "$OUTPUT" | grep -q "选择 \`~/minus"; then
+  if echo "$OUTPUT" | grep >/dev/null "选择 \`$HOME/minus/竞品分析_SKILL\`" \
+     && ! echo "$OUTPUT" | grep >/dev/null "选择 \`~/minus"; then
     pass "generate-next-steps: \$HOME 下真实路径 → 完整绝对路径，不折叠 ~"
   else
     fail "generate-next-steps: 完整路径不折叠" "got: $OUTPUT"
@@ -1786,8 +1787,8 @@ GNS="$(via_lib generate-next-steps)"
 # Test: Windows 真实路径 → 原样显示，绝不伪造 ~/minus（核心跨平台修复）。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" "C:/Users/wangshu/projects/竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "选择 \`C:/Users/wangshu/projects/竞品分析_SKILL\`" \
-     && ! echo "$OUTPUT" | grep -q "~/minus"; then
+  if echo "$OUTPUT" | grep >/dev/null "选择 \`C:/Users/wangshu/projects/竞品分析_SKILL\`" \
+     && ! echo "$OUTPUT" | grep >/dev/null "~/minus"; then
     pass "generate-next-steps: Windows 真实路径原样显示，不伪造 ~/minus"
   else
     fail "generate-next-steps: Windows 路径" "got: $OUTPUT"
@@ -1797,13 +1798,13 @@ GNS="$(via_lib generate-next-steps)"
 # Test: desktop 入口 → 引导文案 + 两张操作截图外链（markdown 图片），无 cd 命令。
 (
   OUTPUT=$(CLAUDE_CODE_ENTRYPOINT=claude-desktop bash "$GNS" "竞品分析_SKILL" 2>&1)
-  if echo "$OUTPUT" | grep -q "项目已创建" \
-     && echo "$OUTPUT" | grep -q "https://i.postimg.cc/vBBxtGWW/start.png" \
-     && echo "$OUTPUT" | grep -q "https://i.postimg.cc/sxrZtqqq/guide.png" \
-     && echo "$OUTPUT" | grep -q "$HOME/minus/竞品分析_SKILL" \
-     && ! echo "$OUTPUT" | grep -q "~/minus/竞品分析_SKILL" \
+  if echo "$OUTPUT" | grep >/dev/null "项目已创建" \
+     && echo "$OUTPUT" | grep >/dev/null "https://i.postimg.cc/vBBxtGWW/start.png" \
+     && echo "$OUTPUT" | grep >/dev/null "https://i.postimg.cc/sxrZtqqq/guide.png" \
+     && echo "$OUTPUT" | grep >/dev/null "$HOME/minus/竞品分析_SKILL" \
+     && ! echo "$OUTPUT" | grep >/dev/null "~/minus/竞品分析_SKILL" \
      && [ "$(echo "$OUTPUT" | grep -c "点击下图可查看操作示意")" -eq 2 ] \
-     && ! echo "$OUTPUT" | grep -q "cd ~/minus/竞品分析_SKILL && claude"; then
+     && ! echo "$OUTPUT" | grep >/dev/null "cd ~/minus/竞品分析_SKILL && claude"; then
     pass "generate-next-steps: desktop → 文案 + 两张截图外链 + 两处备注，无 cd 命令"
   else
     fail "generate-next-steps: desktop 文案" "got: $OUTPUT"
@@ -2251,7 +2252,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" uname 'echo Darwin'
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"; echo "FEATURE=$VOLTA_FEATURE_PNPM"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$" && echo "$OUTPUT" | grep -q "FEATURE=1"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev$" && echo "$OUTPUT" | grep >/dev/null "FEATURE=1"; then
     pass "start-dev: mac/Linux full → pnpm dev + VOLTA_FEATURE_PNPM=1"
   else
     fail "start-dev: mac/Linux full" "got: $OUTPUT"
@@ -2266,7 +2267,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   echo '{"scripts":{"dev":"legacy-unix-only","dev:win":"minus-dev --port 4001"}}' > "$TMP/package.json"
   OUTPUT=$(cd "$TMP" && VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=run dev:win$"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=run dev:win$"; then
     pass "start-dev: Windows 存量项目（有 dev:win）→ pnpm run dev:win"
   else
     fail "start-dev: Windows legacy full" "got: $OUTPUT"
@@ -2281,7 +2282,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   echo '{"scripts":{"dev":"minus-dev --port 4001"}}' > "$TMP/package.json"
   OUTPUT=$(cd "$TMP" && VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev$"; then
     pass "start-dev: Windows 新模板（无 dev:win）→ pnpm dev"
   else
     fail "start-dev: Windows new-template full" "got: $OUTPUT"
@@ -2295,7 +2296,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" uname 'echo Darwin'
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend$"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev:backend$"; then
     pass "start-dev: backend 模式 → pnpm dev:backend"
   else
     fail "start-dev: backend 模式" "got: $OUTPUT"
@@ -2310,7 +2311,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$VB" pnpm 'echo "FROM=volta-shim PNPM_ARGS=$*"'
   write_stub "$SB" pnpm 'echo "FROM=path"'   # 不应被选中
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "FROM=volta-shim"; then
+  if echo "$OUTPUT" | grep >/dev/null "FROM=volta-shim"; then
     pass "start-dev: 优先 Volta shim 的 pnpm"
   else
     fail "start-dev: 优先 Volta shim" "got: $OUTPUT"
@@ -2338,8 +2339,8 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" curl 'exit 0'   # 端口可达
   write_stub "$SB" pnpm 'echo "PNPM_SHOULD_NOT_RUN"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "ALREADY_RUNNING" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=5188" \
-     && ! echo "$OUTPUT" | grep -q "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "ALREADY_RUNNING" && echo "$OUTPUT" | grep >/dev/null "PREVIEW_PORT=5188" \
+     && ! echo "$OUTPUT" | grep >/dev/null "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
     pass "start-dev: 已有归属 server → ALREADY_RUNNING 不重复启动"
   else
     fail "start-dev: ALREADY_RUNNING" "rc=$RC out=$OUTPUT"
@@ -2356,7 +2357,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" curl 'exit 0'
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev$" && ! echo "$OUTPUT" | grep >/dev/null "ALREADY_RUNNING"; then
     pass "start-dev: MINUS_DEV_RESTART=1 强制重启"
   else
     fail "start-dev: MINUS_DEV_RESTART=1" "got: $OUTPUT"
@@ -2376,7 +2377,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
   if [ -f .minus/cleanup-evidence ] && [ ! -f .minus/dev-ports.json ] \
-     && echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+     && echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev$"; then
     pass "start-dev: 重启先 cleanup（带端口记录）后删文件"
   else
     fail "start-dev: 重启 cleanup 时序" "evidence=$([ -f .minus/cleanup-evidence ] && echo y || echo n) ports=$([ -f .minus/dev-ports.json ] && echo y || echo n) out=$OUTPUT"
@@ -2399,7 +2400,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
     echo '{"frontend":5189}' > .minus/dev-ports.json
     write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
     OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
-    if ! kill -0 "$OLD_SRV" 2>/dev/null && echo "$OUTPUT" | grep -q "PNPM_ARGS=dev$"; then
+    if ! kill -0 "$OLD_SRV" 2>/dev/null && echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev$"; then
       pass "start-dev: 重启杀归属本项目的旧前端监听"
     else
       ALIVE=$(kill -0 "$OLD_SRV" 2>/dev/null && echo y || echo n)
@@ -2442,8 +2443,8 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo \"n\$(pwd)\" ;; esac"
   write_stub "$SB" pnpm 'echo "PNPM_SHOULD_NOT_RUN"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "ALREADY_RUNNING" && echo "$OUTPUT" | grep -q "BACKEND_PORT=4001" \
-     && ! echo "$OUTPUT" | grep -q "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "ALREADY_RUNNING" && echo "$OUTPUT" | grep >/dev/null "BACKEND_PORT=4001" \
+     && ! echo "$OUTPUT" | grep >/dev/null "PNPM_SHOULD_NOT_RUN" && [ "$RC" = "0" ]; then
     pass "start-dev: backend 健康且归属 → ALREADY_RUNNING 复用"
   else
     fail "start-dev: backend ALREADY_RUNNING" "rc=$RC out=$OUTPUT"
@@ -2459,7 +2460,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo 'n/somewhere/else' ;; esac"
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep >/dev/null "ALREADY_RUNNING"; then
     pass "start-dev: backend 端口归属他人 → 不复用照常启动"
   else
     fail "start-dev: backend 归属校验" "got: $OUTPUT"
@@ -2475,7 +2476,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
   write_stub "$SB" lsof 'exit 1'
   write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" backend 2>&1 || true)
-  if echo "$OUTPUT" | grep -q "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep -q "ALREADY_RUNNING"; then
+  if echo "$OUTPUT" | grep >/dev/null "PNPM_ARGS=dev:backend" && ! echo "$OUTPUT" | grep >/dev/null "ALREADY_RUNNING"; then
     pass "start-dev: backend 无旧进程 → 照常启动"
   else
     fail "start-dev: backend 照常启动" "got: $OUTPUT"
@@ -2493,7 +2494,7 @@ CDS="$(via_lib check-dev-server)"
 (
   TMP=$(make_tmp); cd "$TMP"
   if OUTPUT=$(DETECT_PORT_MAX_WAIT=0 bash "$CDS" 2>&1); then RC=0; else RC=$?; fi
-  if echo "$OUTPUT" | grep -q "GATE_FAILED" && [ "$RC" = "1" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_FAILED" && [ "$RC" = "1" ]; then
     pass "check-dev-server: 无 server → GATE_FAILED 退出码 1"
   else
     fail "check-dev-server: 无 server" "rc=$RC out=$OUTPUT"
@@ -2509,7 +2510,7 @@ CDS="$(via_lib check-dev-server)"
   write_stub "$SB" netstat 'echo "  TCP    0.0.0.0:5199     0.0.0.0:0      LISTENING       4321"'
   write_stub "$SB" curl 'exit 0'
   OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=5199" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_PASSED" && echo "$OUTPUT" | grep >/dev/null "PREVIEW_PORT=5199" && [ "$RC" = "0" ]; then
     pass "check-dev-server: server 在跑且归属 → GATE_PASSED"
   else
     fail "check-dev-server: GATE_PASSED" "rc=$RC out=$OUTPUT"
@@ -2526,7 +2527,7 @@ CDS="$(via_lib check-dev-server)"
   write_stub "$SB" lsof 'exit 0'   # Preview 托管进程对 lsof 不可见
   write_stub "$SB" curl 'exit 0'   # 端口可达
   OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "PREVIEW_PORT=50559" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_PASSED" && echo "$OUTPUT" | grep >/dev/null "PREVIEW_PORT=50559" && [ "$RC" = "0" ]; then
     pass "check-dev-server: Preview 托管端口 record 后 → GATE_PASSED"
   else
     fail "check-dev-server: Preview 托管回归" "rc=$RC out=$OUTPUT"
@@ -2542,7 +2543,7 @@ CDS="$(via_lib check-dev-server)"
   write_stub "$SB" lsof 'exit 0'   # trusted 来源走 curl
   write_stub "$SB" curl 'case "$*" in *:4007*) exit 7 ;; *) exit 0 ;; esac'
   if OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); then RC=0; else RC=$?; fi
-  if echo "$OUTPUT" | grep -q "GATE_FAILED" && echo "$OUTPUT" | grep -q "BACKEND_DOWN" && [ "$RC" = "1" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_FAILED" && echo "$OUTPUT" | grep >/dev/null "BACKEND_DOWN" && [ "$RC" = "1" ]; then
     pass "check-dev-server: 后端死 → GATE_FAILED + BACKEND_DOWN"
   else
     fail "check-dev-server: 后端死应拦截" "rc=$RC out=$OUTPUT"
@@ -2558,7 +2559,7 @@ CDS="$(via_lib check-dev-server)"
   write_stub "$SB" lsof 'exit 0'
   write_stub "$SB" curl 'exit 0'
   OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "GATE_PASSED" && echo "$OUTPUT" | grep -q "BACKEND_PORT=4007" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_PASSED" && echo "$OUTPUT" | grep >/dev/null "BACKEND_PORT=4007" && [ "$RC" = "0" ]; then
     pass "check-dev-server: 前后端都活 → GATE_PASSED + BACKEND_PORT"
   else
     fail "check-dev-server: 前后端都活" "rc=$RC out=$OUTPUT"
@@ -2574,7 +2575,7 @@ CDS="$(via_lib check-dev-server)"
   write_stub "$SB" lsof 'exit 0'
   write_stub "$SB" curl 'case "$*" in *:5199*) exit 0 ;; *) exit 7 ;; esac'
   OUTPUT=$(DETECT_PORT_MAX_WAIT=2 PATH="$SB:$PATH" bash "$CDS" 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "GATE_PASSED" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "GATE_PASSED" && [ "$RC" = "0" ]; then
     pass "check-dev-server: 无 backend 字段 → 跳过后端检查"
   else
     fail "check-dev-server: 无 backend 字段" "rc=$RC out=$OUTPUT"
@@ -2626,7 +2627,7 @@ OLDNODE_EXEMPT="bootstrap-env sync-plugin"
   for f in $(grep -lE '(^|[^a-zA-Z_./-])node( |\.exe)? +(-e|-p|--eval)' "$PLUG"/scripts/*.sh "$PLUG"/skills/*/scripts/*.sh 2>/dev/null); do
     name="$(basename "$f" .sh)"
     case " $OLDNODE_EXEMPT " in *" $name "*) continue ;; esac
-    echo "$OLDNODE_SMOKE" | grep -q "^$name|" || MISSING="$MISSING $name"
+    echo "$OLDNODE_SMOKE" | grep >/dev/null "^$name|" || MISSING="$MISSING $name"
   done
   if [ -z "$MISSING" ]; then
     pass "老 node 不变量: 所有裸 node 脚本均已登记 smoke 或豁免"
@@ -2662,7 +2663,7 @@ FAKE
       [ -n "$SM_A2" ] && SM_ARGS+=("$SM_A2")
       if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 MINUS_DEV_RESTART=1 MINUS_NODE_BIN_DIR= \
            PATH="$OLDNODE_SHIM:$PATH" bash "$ML" "$SM_NAME" ${SM_ARGS+"${SM_ARGS[@]}"} 2>&1); then RC=0; else RC=$?; fi
-      if echo "$OUTPUT" | grep -q "SyntaxError"; then
+      if echo "$OUTPUT" | grep >/dev/null "SyntaxError"; then
         fail "老 node 不变量: $SM_NAME" "rc=$RC 出现 SyntaxError: $(echo "$OUTPUT" | head -3)"
       else
         pass "老 node 不变量: $SM_NAME 无 SyntaxError"
@@ -2675,7 +2676,7 @@ FAKE
     TMP=$(make_tmp); mkdir -p "$TMP/proj/.minus"; cd "$TMP/proj"
     echo '{"name":"t","version":"1"}' > .minus/skill.json
     if OUTPUT=$(MINUS_NODE_BIN_DIR= PATH="$OLDNODE_SHIM:$PATH" bash "$ML" update-progress init-design 2>&1); then RC=0; else RC=$?; fi
-    if [ "$RC" = "0" ] && grep -q '"designStage": "input_done"' .minus/progress.json 2>/dev/null; then
+    if [ "$RC" = "0" ] && grep >/dev/null '"designStage": "input_done"' .minus/progress.json 2>/dev/null; then
       pass "老 node 不变量: update-progress 在遮挡下真实成功"
     else
       fail "老 node 不变量: update-progress rc 断言" "rc=$RC out=$OUTPUT"
@@ -2688,7 +2689,7 @@ fi
   TMP=$(make_tmp); mkdir -p "$TMP/proj"
   cd "$TMP/proj"
   if OUTPUT=$(MINUS_NODE_BIN_DIR= PATH="/usr/bin:/bin" bash "$ML" check-project-state 2>&1); then RC=0; else RC=$?; fi
-  if [ "$RC" = "0" ] && echo "$OUTPUT" | grep -q "INITIALIZED="; then
+  if [ "$RC" = "0" ] && echo "$OUTPUT" | grep >/dev/null "INITIALIZED="; then
     pass "minus-lib: node 缺失时不阻断纯 shell 脚本"
   else
     fail "minus-lib: node 缺失不阻断" "rc=$RC out=$OUTPUT"
@@ -2734,9 +2735,9 @@ write_stub() {
 # Test: 版本单源——toolchain.sh 存在且 bootstrap source 了它（不在 bootstrap 内联版本号）
 (
   TC="$(dirname "$BS")/toolchain.sh"
-  if [ -f "$TC" ] && grep -q 'NODE_TARGET=' "$TC" && grep -q 'NODE_FLOOR=' "$TC" \
-     && grep -q 'NODE_RUNTIME_FLOOR=' "$TC" \
-     && grep -q 'toolchain.sh' "$BS" && grep -qE '\.[[:space:]]+"\$TOOLCHAIN_SH"' "$BS"; then
+  if [ -f "$TC" ] && grep >/dev/null 'NODE_TARGET=' "$TC" && grep >/dev/null 'NODE_FLOOR=' "$TC" \
+     && grep >/dev/null 'NODE_RUNTIME_FLOOR=' "$TC" \
+     && grep >/dev/null 'toolchain.sh' "$BS" && grep -E >/dev/null '\.[[:space:]]+"\$TOOLCHAIN_SH"' "$BS"; then
     pass "bootstrap-env: 版本单源于 toolchain.sh 并被 source"
   else
     fail "bootstrap-env: 版本单源 toolchain.sh" "toolchain.sh 缺失/缺字段 或 bootstrap 未 source"
@@ -2766,10 +2767,10 @@ write_stub() {
 (
   BUILD_MJS="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/build.mjs"
   if [ -f "$BUILD_MJS" ] \
-     && grep -q 'toolchain.sh' "$BUILD_MJS" \
-     && grep -q 'NODE_RUNTIME_FLOOR' "$BUILD_MJS" \
-     && grep -q 'NODE_TARGET' "$BUILD_MJS" \
-     && ! grep -qE 'MIN_MAJOR = 1[0-9];' "$BUILD_MJS"; then
+     && grep >/dev/null 'toolchain.sh' "$BUILD_MJS" \
+     && grep >/dev/null 'NODE_RUNTIME_FLOOR' "$BUILD_MJS" \
+     && grep >/dev/null 'NODE_TARGET' "$BUILD_MJS" \
+     && ! grep -E >/dev/null 'MIN_MAJOR = 1[0-9];' "$BUILD_MJS"; then
     pass "build.mjs: banner 版本单源 toolchain.sh，无内联字面量"
   else
     fail "build.mjs: banner 单源" "未读 toolchain.sh 或仍内联 MIN_MAJOR 字面量"
@@ -2875,7 +2876,7 @@ write_stub() {
 # 版本号现单源于 toolchain.sh（PNPM_TARGET），bootstrap 仅引用、不再内联字面量。
 (
   TC="$(dirname "$BS")/toolchain.sh"
-  if grep -qE 'PNPM_TARGET=[0-9]' "$TC" && ! grep -q 'pnpm@latest' "$BS"; then
+  if grep -E >/dev/null 'PNPM_TARGET=[0-9]' "$TC" && ! grep >/dev/null 'pnpm@latest' "$BS"; then
     pass "bootstrap-env: pnpm pin 死版本（单源 toolchain.sh），无 pnpm@latest"
   else
     fail "bootstrap-env: pnpm pin 死版本" "toolchain.sh 缺 PNPM_TARGET 字面量 或 bootstrap 用了 pnpm@latest"
@@ -3117,11 +3118,11 @@ write_stub() {
 # 且 VOLTA_HOME 与 volta shim 目录同源（volta_home_base），不再 LOCALAPPDATA / $HOME/.volta 打架。
 (
   ok=1
-  grep -q 'win_volta_install_dir' "$BS" || ok=0          # 接 winget 落地目录进 PATH
-  grep -q 'volta setup' "$BS" || ok=0                      # 初始化 shim
-  grep -q 'volta_home_base' "$BS" || ok=0                  # VOLTA_HOME 与 bin 目录单源
+  grep >/dev/null 'win_volta_install_dir' "$BS" || ok=0          # 接 winget 落地目录进 PATH
+  grep >/dev/null 'volta setup' "$BS" || ok=0                      # 初始化 shim
+  grep >/dev/null 'volta_home_base' "$BS" || ok=0                  # VOLTA_HOME 与 bin 目录单源
   # volta_on_path 不再写死 $HOME/.volta，改用 volta_home_base
-  grep -qE 'export VOLTA_HOME="\$\(volta_home_base\)"' "$BS" || ok=0
+  grep -E >/dev/null 'export VOLTA_HOME="\$\(volta_home_base\)"' "$BS" || ok=0
   if [ "$ok" -eq 1 ]; then
     pass "bootstrap-env: winget 自举两步 + VOLTA_HOME 单源（volta_home_base）落到源码"
   else
@@ -3134,13 +3135,13 @@ write_stub() {
 (
   ok=1
   # ensure_volta 内不应再出现「windows 直接 return 1」这条硬挡
-  if grep -qE '\[ "\$OS" = "windows" \] && return 1' "$BS"; then ok=0; fi
+  if grep -E >/dev/null '\[ "\$OS" = "windows" \] && return 1' "$BS"; then ok=0; fi
   # volta_bin_dir 处理 Windows shim 布局（家目录单源 volta_home_base + /bin）
-  grep -q 'volta_bin_dir' "$BS" || ok=0
-  grep -qE 'volta_home_base.*/bin|/Volta' "$BS" || ok=0
-  grep -q 'LOCALAPPDATA' "$BS" || ok=0
+  grep >/dev/null 'volta_bin_dir' "$BS" || ok=0
+  grep -E >/dev/null 'volta_home_base.*/bin|/Volta' "$BS" || ok=0
+  grep >/dev/null 'LOCALAPPDATA' "$BS" || ok=0
   # ensure_pnpm 的 Windows npm-g 兜底
-  grep -q 'npm install -g "pnpm@' "$BS" || ok=0
+  grep >/dev/null 'npm install -g "pnpm@' "$BS" || ok=0
   if [ "$ok" -eq 1 ]; then
     pass "bootstrap-env: ensure_volta 跨平台 + volta shim 认 win + ensure_pnpm 有 npm-g 兜底"
   else
@@ -3150,8 +3151,8 @@ write_stub() {
 
 # Test: SKILL.md drives bootstrap via the script, not inline install commands
 (
-  if grep -q "minus-lib bootstrap-env" "$SKILL_MD" 2>/dev/null \
-     && ! grep -qE '`Bash\(pnpm install\)`' "$SKILL_MD" 2>/dev/null; then
+  if grep >/dev/null "minus-lib bootstrap-env" "$SKILL_MD" 2>/dev/null \
+     && ! grep -E >/dev/null '`Bash\(pnpm install\)`' "$SKILL_MD" 2>/dev/null; then
     pass "SKILL.md: env init calls bootstrap-env.sh, no inline 'Bash(pnpm install)'"
   else
     fail "SKILL.md: env init calls bootstrap-env.sh, no inline pnpm install" "still inlines install or missing bootstrap call"
@@ -3162,8 +3163,8 @@ write_stub() {
   # 开机链已单源到 resume-env.sh（内部执行 check-project-state 等确定性步骤），
   # md 只需引用 resume-env；脚本侧验证 resume-env 确实调用了 check-project-state。
   RESUME_ENV="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/resume-env.sh"
-  if grep -q "minus-lib resume-env" "$SKILL_MD" 2>/dev/null \
-     && grep -q "check-project-state" "$RESUME_ENV" 2>/dev/null; then
+  if grep >/dev/null "minus-lib resume-env" "$SKILL_MD" 2>/dev/null \
+     && grep >/dev/null "check-project-state" "$RESUME_ENV" 2>/dev/null; then
     pass "SKILL.md: env init uses resume-env（内含 check-project-state）"
   else
     fail "SKILL.md: env init state check" "md 缺 minus-lib resume-env 或 resume-env.sh 缺 check-project-state"
@@ -3174,8 +3175,8 @@ write_stub() {
 # create-skill 包自身的 volta/npm 全局安装在 bootstrap 之前跑，必须自己接上同一套镜像逻辑。
 (
   RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
-  if grep -q "@minus-ai/create-skill" "$RCS" 2>/dev/null \
-     && grep -q "setup_cn_mirror" "$RCS" 2>/dev/null; then
+  if grep >/dev/null "@minus-ai/create-skill" "$RCS" 2>/dev/null \
+     && grep >/dev/null "setup_cn_mirror" "$RCS" 2>/dev/null; then
     pass "run-create-skill.sh: create-skill 自动安装复用 setup_cn_mirror 镜像源"
   else
     fail "run-create-skill.sh: create-skill 安装走镜像源" "未在 run-create-skill.sh 找到 setup_cn_mirror 调用"
@@ -3296,7 +3297,7 @@ write_stub() {
      && assert_contains "$OUTPUT" "国内镜像源配置" ; then
     # 精确断言 .gitignore 含 .npmrc 与 uv.toml 两行
     GI_LINES=$(printf '%s\n' "$OUTPUT" | sed -n '/--GI--/,$p')
-    if printf '%s\n' "$GI_LINES" | grep -qxF ".npmrc" && printf '%s\n' "$GI_LINES" | grep -qxF "uv.toml"; then
+    if printf '%s\n' "$GI_LINES" | grep -xF >/dev/null ".npmrc" && printf '%s\n' "$GI_LINES" | grep -xF >/dev/null "uv.toml"; then
       pass "bootstrap-env: 默认落盘托管 .npmrc + uv.toml 并自动加入 .gitignore"
     else
       fail "bootstrap-env: 落盘后未正确写入 .gitignore" "out: $OUTPUT"
@@ -3325,10 +3326,10 @@ write_stub() {
   # 文件被删 + .gitignore 里我们的三行（注释+两文件）被回删，但用户的 node_modules/ 保留
   GI_OFF=$(printf '%s\n' "$OUTPUT" | sed -n '/--GI--/,$p')
   if assert_contains "$OUTPUT" "BOTH_GONE" \
-     && printf '%s\n' "$GI_OFF" | grep -qxF "node_modules/" \
-     && ! printf '%s\n' "$GI_OFF" | grep -qxF ".npmrc" \
-     && ! printf '%s\n' "$GI_OFF" | grep -qxF "uv.toml" \
-     && ! printf '%s\n' "$GI_OFF" | grep -qF "国内镜像源配置"; then
+     && printf '%s\n' "$GI_OFF" | grep -xF >/dev/null "node_modules/" \
+     && ! printf '%s\n' "$GI_OFF" | grep -xF >/dev/null ".npmrc" \
+     && ! printf '%s\n' "$GI_OFF" | grep -xF >/dev/null "uv.toml" \
+     && ! printf '%s\n' "$GI_OFF" | grep -F >/dev/null "国内镜像源配置"; then
     pass "bootstrap-env: MINUS_MIRROR=off → 移除托管文件 + 回删 .gitignore 我们的行（保留用户行）"
   else
     fail "bootstrap-env: off 移除托管文件/gitignore" "out: $OUTPUT"
@@ -3422,9 +3423,9 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 # Test: vite template must have server.open = false
 (
   if [ -f "$VITE_TPL" ]; then
-    if grep -q 'open: false' "$VITE_TPL"; then
+    if grep >/dev/null 'open: false' "$VITE_TPL"; then
       pass "vite-template: server.open is false (no auto-open browser)"
-    elif grep -q 'open: true' "$VITE_TPL"; then
+    elif grep >/dev/null 'open: true' "$VITE_TPL"; then
       fail "vite-template: server.open is false" "found open: true — Vite will auto-open Chrome"
     else
       pass "vite-template: no server.open setting (defaults to false)"
@@ -3439,7 +3440,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 
 # Test: SKILL.md preview flow — two branches
 (
-  if grep -q 'ToolSearch.*preview' "$SKILL_MD"; then
+  if grep >/dev/null 'ToolSearch.*preview' "$SKILL_MD"; then
     pass "SKILL.md: step 3 probes Claude_Preview via ToolSearch"
   else
     fail "SKILL.md: step 3 probes Claude_Preview via ToolSearch" "not found"
@@ -3447,7 +3448,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'preview_start.*name.*frontend' "$SKILL_MD"; then
+  if grep >/dev/null 'preview_start.*name.*frontend' "$SKILL_MD"; then
     pass "SKILL.md: branch A calls preview_start with name=frontend"
   else
     fail "SKILL.md: branch A calls preview_start with name=frontend" "not found"
@@ -3455,7 +3456,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'launch\.json' "$SKILL_MD"; then
+  if grep >/dev/null 'launch\.json' "$SKILL_MD"; then
     pass "SKILL.md: branch A creates .claude/launch.json"
   else
     fail "SKILL.md: branch A creates .claude/launch.json" "not found"
@@ -3468,10 +3469,10 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 (
   GLJ="$SKILL_LIB/generate-launch-json.sh"
   RESUME_ENV="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/resume-env.sh"
-  if { grep -q 'minus-lib generate-launch-json' "$SKILL_MD" \
-       || grep -q 'generate-launch-json' "$RESUME_ENV"; } \
-     && grep -q '/bin/pnpm' "$GLJ" && grep -q 'PNPM_BIN' "$GLJ" \
-     && ! grep -qE '"runtimeExecutable": *"pnpm"' "$GLJ"; then
+  if { grep >/dev/null 'minus-lib generate-launch-json' "$SKILL_MD" \
+       || grep >/dev/null 'generate-launch-json' "$RESUME_ENV"; } \
+     && grep >/dev/null '/bin/pnpm' "$GLJ" && grep >/dev/null 'PNPM_BIN' "$GLJ" \
+     && ! grep -E >/dev/null '"runtimeExecutable": *"pnpm"' "$GLJ"; then
     pass "launch.json: skill 调 generate-launch-json.sh，脚本内 runtimeExecutable 绝对路径无裸 pnpm"
   else
     fail "launch.json runtimeExecutable 绝对路径" "skill 未引用脚本，或脚本仍裸 pnpm / 缺 Volta 路径解析"
@@ -3479,7 +3480,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q '自动打开' "$SKILL_MD"; then
+  if grep >/dev/null '自动打开' "$SKILL_MD"; then
     pass "SKILL.md: branch B auto-opens preview via detect-preview-port.sh"
   else
     fail "SKILL.md: branch B auto-opens preview via detect-preview-port.sh" "not found"
@@ -3487,7 +3488,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'CLAUDE_CODE_ENTRYPOINT' "$SKILL_MD"; then
+  if grep >/dev/null 'CLAUDE_CODE_ENTRYPOINT' "$SKILL_MD"; then
     pass "SKILL.md: detects client type via CLAUDE_CODE_ENTRYPOINT"
   else
     fail "SKILL.md: detects client type via CLAUDE_CODE_ENTRYPOINT" "not found"
@@ -3495,7 +3496,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'lsof' "$SKILL_MD"; then
+  if grep >/dev/null 'lsof' "$SKILL_MD"; then
     fail "SKILL.md: no lsof precheck for dev server" "Windows/Git Bash 不保证 lsof，dev cleanup belongs to minus-dev"
   else
     pass "SKILL.md: no lsof precheck for dev server"
@@ -3505,10 +3506,10 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 # 启动逻辑已下沉到 start-dev.sh（CLAUDE.md #3 单源化）。新模板 dev 全平台统一，
 # dev:win 仅作为存量旧项目的 Windows 回退（按 package.json 实际内容判定，不猜模板版本）。
 (
-  if grep -q 'has_script "dev:win"' "$SD_SRC" \
-     && grep -q 'has_script "dev:win:backend"' "$SD_SRC" \
-     && grep -q '"\$PNPM_CMD" dev:backend' "$SD_SRC" \
-     && grep -q '"\$PNPM_CMD" dev' "$SD_SRC" \
+  if grep >/dev/null 'has_script "dev:win"' "$SD_SRC" \
+     && grep >/dev/null 'has_script "dev:win:backend"' "$SD_SRC" \
+     && grep >/dev/null '"\$PNPM_CMD" dev:backend' "$SD_SRC" \
+     && grep >/dev/null '"\$PNPM_CMD" dev' "$SD_SRC" \
      && grep -Fq 'MINGW*|MSYS*|CYGWIN*' "$SD_SRC"; then
     pass "start-dev.sh: dev 全平台统一，dev:win 仅按 package.json 内容做存量回退"
   else
@@ -3517,9 +3518,9 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 )
 
 (
-  if grep -q 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SD_SRC" \
-     && grep -q 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SD_SRC" \
-     && grep -q 'PNPM_CMD="$(command -v pnpm)"' "$SD_SRC"; then
+  if grep >/dev/null 'VOLTA_HOME="${VOLTA_HOME:-$HOME/.volta}"' "$SD_SRC" \
+     && grep >/dev/null 'PNPM_CMD="$VOLTA_HOME/bin/pnpm"' "$SD_SRC" \
+     && grep >/dev/null 'PNPM_CMD="$(command -v pnpm)"' "$SD_SRC"; then
     pass "start-dev.sh: dev server launch resolves pnpm via VOLTA_HOME before PATH"
   else
     fail "start-dev.sh: pnpm resolution for GUI PATH" "missing VOLTA_HOME/PNPM_CMD resolution"
@@ -3528,8 +3529,8 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 
 # SKILL.md 不再内联启动逻辑，只引用 start-dev.sh（单源化）
 (
-  if grep -q 'minus-lib start-dev' "$SKILL_MD" \
-     && ! grep -q '"$PNPM_CMD" run dev:win' "$SKILL_MD"; then
+  if grep >/dev/null 'minus-lib start-dev' "$SKILL_MD" \
+     && ! grep >/dev/null '"$PNPM_CMD" run dev:win' "$SKILL_MD"; then
     pass "SKILL.md: 启动逻辑引用 start-dev.sh，不内联"
   else
     fail "SKILL.md: 启动逻辑应引用 start-dev.sh" "仍内联 pnpm 启动块或未引用脚本"
@@ -3538,8 +3539,8 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 
 # SKILL.md 必须在进入结构设计前调 dev server 门禁
 (
-  if grep -q 'minus-lib check-dev-server' "$SKILL_MD" \
-     && grep -q 'GATE_FAILED' "$SKILL_MD"; then
+  if grep >/dev/null 'minus-lib check-dev-server' "$SKILL_MD" \
+     && grep >/dev/null 'GATE_FAILED' "$SKILL_MD"; then
     pass "SKILL.md: 结构设计前有 check-dev-server.sh 硬门禁"
   else
     fail "SKILL.md: 缺 dev server 门禁" "未引用 check-dev-server.sh 或未处理 GATE_FAILED"
@@ -3548,7 +3549,7 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
 
 # Test: SKILL.md must NOT contain sed patch for vite.config.ts (anti-pattern per CLAUDE.md principle 4)
 (
-  if grep -q "sed.*open.*true.*open.*false" "$SKILL_MD"; then
+  if grep >/dev/null "sed.*open.*true.*open.*false" "$SKILL_MD"; then
     fail "SKILL.md: no sed patch for vite.config.ts" "found sed hack — plugin should not patch user source code"
   else
     pass "SKILL.md: no sed patch for vite.config.ts"
@@ -3559,7 +3560,7 @@ echo "═══ auth fallback prohibition ═══"
 
 # Test: SKILL.md must prohibit manual credential writes when MCP tool unavailable
 (
-  if grep -q "禁止.*手动写入.*credentials" "$SKILL_MD"; then
+  if grep >/dev/null "禁止.*手动写入.*credentials" "$SKILL_MD"; then
     pass "SKILL.md: prohibits manual credentials.json write on auth tool failure"
   else
     fail "SKILL.md: prohibits manual credentials.json write on auth tool failure" "not found"
@@ -3569,8 +3570,8 @@ echo "═══ auth fallback prohibition ═══"
 # Test: 登录检查走 auth_status 工具，不再用 ! 钩子裸读 credentials.json
 # （裸 cat 凭证文件会撞 Auto Mode 敏感分类器被拦、且依赖 PATH 上有 node）
 (
-  if grep -q 'mcp__minus-platform__auth_status' "$SKILL_MD" \
-     && ! grep -q '!`cat ~/.minus/credentials.json' "$SKILL_MD"; then
+  if grep >/dev/null 'mcp__minus-platform__auth_status' "$SKILL_MD" \
+     && ! grep >/dev/null '!`cat ~/.minus/credentials.json' "$SKILL_MD"; then
     pass "SKILL.md: 登录检查走 auth_status，无裸 cat credentials.json 钩子"
   else
     fail "SKILL.md: 登录检查走 auth_status" "still has !cat credentials hook or missing auth_status check"
@@ -3580,9 +3581,9 @@ echo "═══ auth fallback prohibition ═══"
 # Test: create-skill 经 run-create-skill.sh → resolve-node.sh 解析 node 后调用，不裸调（裸调落老 node 崩在 ??）
 (
   RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
-  if grep -q 'run-create-skill.sh' "$SKILL_MD" \
-     && grep -q 'resolve-node.sh' "$RCS" \
-     && grep -q 'node_dir="$(dirname "$NODE_BIN")' "$RCS"; then
+  if grep >/dev/null 'run-create-skill.sh' "$SKILL_MD" \
+     && grep >/dev/null 'resolve-node.sh' "$RCS" \
+     && grep >/dev/null 'node_dir="$(dirname "$NODE_BIN")' "$RCS"; then
     pass "SKILL.md: create-skill 经 run-create-skill.sh/resolve-node.sh 解析 node 后调用"
   else
     fail "SKILL.md: create-skill 解析 node" "still bare create-skill or missing run-create-skill.sh/resolve-node.sh"
@@ -3593,14 +3594,14 @@ echo "═══ auth fallback prohibition ═══"
 # 不能再有 `if ! command -v create-skill` 的"缺了才装"门禁，否则装过一次就永远停在旧版。
 (
   RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
-  if grep -q 'CREATE_SKILL_SPEC="${MINUS_CREATE_SKILL_SPEC:-@minus-ai/create-skill@beta}"' "$RCS" \
-     && grep -q 'install "$CREATE_SKILL_SPEC"' "$RCS" \
-     && grep -q 'CREATE_SKILL_EXPECTED=' "$RCS" \
-     && grep -q 'CREATE_SKILL_INSTALLED=' "$RCS" \
-     && grep -q 'registry.npmjs.org' "$RCS" \
-     && grep -q 'CREATE_SKILL_INSTALLED" != "$CREATE_SKILL_EXPECTED' "$RCS" \
-     && grep -q 'CREATE_SKILL_INSTALL_FAILED' "$RCS" \
-     && ! grep -q 'if ! command -v create-skill' "$RCS"; then
+  if grep >/dev/null 'CREATE_SKILL_SPEC="${MINUS_CREATE_SKILL_SPEC:-@minus-ai/create-skill@beta}"' "$RCS" \
+     && grep >/dev/null 'install "$CREATE_SKILL_SPEC"' "$RCS" \
+     && grep >/dev/null 'CREATE_SKILL_EXPECTED=' "$RCS" \
+     && grep >/dev/null 'CREATE_SKILL_INSTALLED=' "$RCS" \
+     && grep >/dev/null 'registry.npmjs.org' "$RCS" \
+     && grep >/dev/null 'CREATE_SKILL_INSTALLED" != "$CREATE_SKILL_EXPECTED' "$RCS" \
+     && grep >/dev/null 'CREATE_SKILL_INSTALL_FAILED' "$RCS" \
+     && ! grep >/dev/null 'if ! command -v create-skill' "$RCS"; then
     pass "run-create-skill.sh: create-skill 每次对齐官方 @beta，安装后版本硬校验"
   else
     fail "run-create-skill.sh: create-skill 自动对齐 @beta" "expected official version lookup + installed version gate + no missing-only gate"
@@ -3609,13 +3610,13 @@ echo "═══ auth fallback prohibition ═══"
 
 (
   RCS="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/run-create-skill.sh"
-  if grep -q 'MINUS_CREATE_SKILL_SPEC' "$RCS" \
-     && ! grep -q 'MINUS_CREATE_SKILL_BIN' "$RCS" \
-     && ! grep -q 'windows-canary' "$RCS" \
-     && ! grep -q '.npm-global/bin' "$RCS" \
-     && ! grep -q 'installed_version_via_command' "$RCS" \
-     && ! grep -q 'add_npm_global_bin' "$RCS" \
-     && ! grep -q 'command -v create-skill' "$RCS"; then
+  if grep >/dev/null 'MINUS_CREATE_SKILL_SPEC' "$RCS" \
+     && ! grep >/dev/null 'MINUS_CREATE_SKILL_BIN' "$RCS" \
+     && ! grep >/dev/null 'windows-canary' "$RCS" \
+     && ! grep >/dev/null '.npm-global/bin' "$RCS" \
+     && ! grep >/dev/null 'installed_version_via_command' "$RCS" \
+     && ! grep >/dev/null 'add_npm_global_bin' "$RCS" \
+     && ! grep >/dev/null 'command -v create-skill' "$RCS"; then
     pass "run-create-skill.sh: 测试包仅通过 MINUS_CREATE_SKILL_SPEC 显式启用，不写死 canary/link"
   else
     fail "run-create-skill.sh: create-skill spec override" "must support env spec without link/bin/canary hardcode"
@@ -3628,7 +3629,7 @@ MCP_PKG="$REPO_DIR/plugins/claude/minus-creator/mcp-servers/minus-platform/packa
 
 # Test: zod must be declared as a direct dependency (not just a transitive dep)
 (
-  if grep -q '"zod"' "$MCP_PKG"; then
+  if grep >/dev/null '"zod"' "$MCP_PKG"; then
     pass "MCP package.json: zod is a declared dependency"
   else
     fail "MCP package.json: zod is a declared dependency" "missing — will crash after plugin cache copy"
@@ -3648,7 +3649,7 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
   fi
 )
 (
-  if grep -q "/minus" "$INSTALL_SH" && grep -q "重启" "$INSTALL_SH"; then
+  if grep >/dev/null "/minus" "$INSTALL_SH" && grep >/dev/null "重启" "$INSTALL_SH"; then
     pass "install.sh: outputs usage instructions"
   else
     fail "install.sh: outputs usage instructions" "missing usage instructions in output"
@@ -3657,12 +3658,12 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 
 # Test: install.sh node gate 非交互 + 下限单源 toolchain.sh（不再硬编码 NODE_MIN、不再问 Y/n）
 (
-  if grep -q 'source .*scripts/bootstrap-env.sh' "$INSTALL_SH" \
-     && grep -q 'source .*scripts/toolchain.sh' "$INSTALL_SH" \
-     && grep -q 'provision_node_via_volta' "$INSTALL_SH" \
-     && grep -q 'NODE_RUNTIME_FLOOR' "$INSTALL_SH" \
-     && ! grep -q 'NODE_MIN=' "$INSTALL_SH" \
-     && ! grep -q 'read -r ans' "$INSTALL_SH"; then
+  if grep >/dev/null 'source .*scripts/bootstrap-env.sh' "$INSTALL_SH" \
+     && grep >/dev/null 'source .*scripts/toolchain.sh' "$INSTALL_SH" \
+     && grep >/dev/null 'provision_node_via_volta' "$INSTALL_SH" \
+     && grep >/dev/null 'NODE_RUNTIME_FLOOR' "$INSTALL_SH" \
+     && ! grep >/dev/null 'NODE_MIN=' "$INSTALL_SH" \
+     && ! grep >/dev/null 'read -r ans' "$INSTALL_SH"; then
     pass "install.sh: node gate 非交互 + 下限单源 toolchain.sh"
   else
     fail "install.sh: node gate" "应 source toolchain.sh 用 NODE_RUNTIME_FLOOR、自动 provision、无交互 read"
@@ -3671,8 +3672,8 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 
 # Test: install.sh node 文案用单源 NODE_TARGET，不硬编码版本号
 (
-  if grep -q '建议 Node ${NODE_TARGET}' "$INSTALL_SH" \
-     && ! grep -q '建议.*Node 24' "$INSTALL_SH"; then
+  if grep >/dev/null '建议 Node ${NODE_TARGET}' "$INSTALL_SH" \
+     && ! grep >/dev/null '建议.*Node 24' "$INSTALL_SH"; then
     pass "install.sh: node 文案版本号单源 NODE_TARGET"
   else
     fail "install.sh: node 文案" "应引用 \${NODE_TARGET} 而非硬编码 24"
@@ -3682,8 +3683,8 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 # Test: install.sh 产物校验委托单源脚本（dist bundle + launch.cjs 检查在 post-install-check.sh），
 # 且不再跑 npm install --omit=dev
 (
-  if grep -q 'post-install-check.sh" --strict' "$INSTALL_SH" \
-     && ! grep -q 'npm install --omit=dev' "$INSTALL_SH"; then
+  if grep >/dev/null 'post-install-check.sh" --strict' "$INSTALL_SH" \
+     && ! grep >/dev/null 'npm install --omit=dev' "$INSTALL_SH"; then
     pass "install.sh: 产物校验委托 post-install-check.sh，无 npm install --omit=dev"
   else
     fail "install.sh: 产物校验委托" "missing post-install-check.sh --strict call or still uses npm install --omit=dev"
@@ -3693,8 +3694,8 @@ INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
 # Test: post-install-check.sh 校验 bundle + launcher（单源所在处）
 (
   PIC_SH="$REPO_DIR/plugins/claude/minus-creator/scripts/post-install-check.sh"
-  if grep -q 'dist/minus-platform.cjs' "$PIC_SH" && grep -q 'launch.cjs' "$PIC_SH" \
-     && ! grep -q 'launch.sh' "$PIC_SH"; then
+  if grep >/dev/null 'dist/minus-platform.cjs' "$PIC_SH" && grep >/dev/null 'launch.cjs' "$PIC_SH" \
+     && ! grep >/dev/null 'launch.sh' "$PIC_SH"; then
     pass "post-install-check.sh: 校验 dist bundle + launch.cjs（单源）"
   else
     fail "post-install-check.sh: 产物校验单源" "missing dist/launch.cjs checks or stale launch.sh ref"
@@ -3718,12 +3719,12 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 
 # Test: launch.cjs 探测 node（下限单源 toolchain.sh，含 Volta image 真身），再 spawn bundle
 (
-  if grep -q 'NODE_RUNTIME_FLOOR' "$LAUNCH_CJS" \
-     && grep -q 'toolchain.sh' "$LAUNCH_CJS" \
-     && grep -qi 'volta' "$LAUNCH_CJS" \
-     && grep -q 'image' "$LAUNCH_CJS" \
-     && grep -q 'minus-platform.cjs' "$LAUNCH_CJS" \
-     && grep -q 'spawnSync' "$LAUNCH_CJS"; then
+  if grep >/dev/null 'NODE_RUNTIME_FLOOR' "$LAUNCH_CJS" \
+     && grep >/dev/null 'toolchain.sh' "$LAUNCH_CJS" \
+     && grep -i >/dev/null 'volta' "$LAUNCH_CJS" \
+     && grep >/dev/null 'image' "$LAUNCH_CJS" \
+     && grep >/dev/null 'minus-platform.cjs' "$LAUNCH_CJS" \
+     && grep >/dev/null 'spawnSync' "$LAUNCH_CJS"; then
     pass "launch.cjs: 下限单源 toolchain.sh + 探测 Volta image 后 spawn bundle"
   else
     fail "launch.cjs: node 探测/spawn" "missing NODE_RUNTIME_FLOOR/toolchain source/volta image/spawn bundle"
@@ -3732,10 +3733,10 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
 
 # Test: .mcp.json 的 minus-platform 经 node launch.cjs 启动（command==node 且 args 指向 launch.cjs，非裸 bundle）
 (
-  if grep -q '"command": "node"' "$MCP_JSON" \
-     && grep -q 'launch.cjs' "$MCP_JSON" \
-     && ! grep -q 'launch.sh' "$MCP_JSON" \
-     && ! grep -q '/bin/sh' "$MCP_JSON"; then
+  if grep >/dev/null '"command": "node"' "$MCP_JSON" \
+     && grep >/dev/null 'launch.cjs' "$MCP_JSON" \
+     && ! grep >/dev/null 'launch.sh' "$MCP_JSON" \
+     && ! grep >/dev/null '/bin/sh' "$MCP_JSON"; then
     pass ".mcp.json: minus-platform 经 node launch.cjs 启动（跨平台，非 /bin/sh）"
   else
     fail ".mcp.json: 经 node launch.cjs 启动" "command 非 node 或 args 未指向 launch.cjs 或残留 /bin/sh"
@@ -3753,7 +3754,7 @@ MCP_JSON="$REPO_DIR/plugins/claude/minus-creator/.mcp.json"
   printf 'NODE_RUNTIME_FLOOR=999\nNODE_TARGET=24\n' > "$T/scripts/toolchain.sh"
   if OUT=$(node "$T/a/b/launch.cjs" </dev/null 2>&1); then RC=0; else RC=$?; fi
   rm -rf "$T"
-  if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q '建议使用 Node 24'; then
+  if [ "$RC" -ne 0 ] && echo "$OUT" | grep >/dev/null '建议使用 Node 24'; then
     pass "launch.cjs: 无达标 node 时给「建议 Node 24」人话报错并 exit 非 0"
   else
     fail "launch.cjs: 无 node 报错" "rc=$RC out: $OUT"
@@ -3767,10 +3768,10 @@ RESOLVE_NODE="$REPO_DIR/plugins/claude/minus-creator/scripts/resolve-node.sh"
 # Test: resolve-node.sh 存在、下限单源 toolchain.sh、与 launch.cjs 同序探测（含 Volta image）
 (
   if [ -f "$RESOLVE_NODE" ] \
-     && grep -q 'NODE_RUNTIME_FLOOR' "$RESOLVE_NODE" \
-     && grep -q 'toolchain.sh' "$RESOLVE_NODE" \
-     && grep -q '.volta/tools/image/node' "$RESOLVE_NODE" \
-     && grep -q 'Volta/tools/image/node' "$RESOLVE_NODE"; then
+     && grep >/dev/null 'NODE_RUNTIME_FLOOR' "$RESOLVE_NODE" \
+     && grep >/dev/null 'toolchain.sh' "$RESOLVE_NODE" \
+     && grep >/dev/null '.volta/tools/image/node' "$RESOLVE_NODE" \
+     && grep >/dev/null 'Volta/tools/image/node' "$RESOLVE_NODE"; then
     pass "resolve-node.sh: 下限单源 toolchain.sh + 探测 Volta image（unix + Windows LOCALAPPDATA）"
   else
     fail "resolve-node.sh: 探测逻辑" "missing file/NODE_RUNTIME_FLOOR/toolchain source/volta image(unix/win)"
@@ -3821,7 +3822,7 @@ EOF
   SCRIPT_DIR="$(cd "$(dirname "$INSTALL_SH")" && pwd)"
   MARKETPLACE_DIR="$(dirname "$SCRIPT_DIR")"
   if [ -f "$MARKETPLACE_DIR/.claude-plugin/marketplace.json" ] \
-     && ! grep -q 'MARKETPLACE_DIR="\$SCRIPT_DIR/plugins/claude"' "$INSTALL_SH"; then
+     && ! grep >/dev/null 'MARKETPLACE_DIR="\$SCRIPT_DIR/plugins/claude"' "$INSTALL_SH"; then
     pass "install.sh: MARKETPLACE_DIR 指向含 marketplace.json 的目录"
   else
     fail "install.sh: MARKETPLACE_DIR 路径" "未解析到含 marketplace.json 的目录，或仍用 \$SCRIPT_DIR/plugins/claude"
@@ -3830,8 +3831,8 @@ EOF
 
 # Test: install.sh 自迁移——注册前把 marketplace 固化到稳定家目录（防 cache-miss）
 (
-  if grep -q 'minus-creator-marketplace' "$INSTALL_SH" \
-     && grep -q 'MARKETPLACE_DIR="\$STABLE_HOME"' "$INSTALL_SH"; then
+  if grep >/dev/null 'minus-creator-marketplace' "$INSTALL_SH" \
+     && grep >/dev/null 'MARKETPLACE_DIR="\$STABLE_HOME"' "$INSTALL_SH"; then
     pass "install.sh: 自迁移到稳定家目录 minus-creator-marketplace"
   else
     fail "install.sh: 自迁移" "未把 marketplace 固化到 ~/.claude/minus-creator-marketplace 再注册"
@@ -3840,8 +3841,8 @@ EOF
 
 # Test: install.sh 用 remove->add 强制重指（不再用 update，避免旧注册指向死目录）
 (
-  if grep -q 'marketplace remove "\$MARKETPLACE_NAME"' "$INSTALL_SH" \
-     && ! grep -q 'marketplace update "\$MARKETPLACE_NAME"' "$INSTALL_SH"; then
+  if grep >/dev/null 'marketplace remove "\$MARKETPLACE_NAME"' "$INSTALL_SH" \
+     && ! grep >/dev/null 'marketplace update "\$MARKETPLACE_NAME"' "$INSTALL_SH"; then
     pass "install.sh: marketplace remove->add 强制重指（不再用 update）"
   else
     fail "install.sh: marketplace 重指" "仍用 update，旧注册可能指向已死目录"
@@ -3851,11 +3852,11 @@ EOF
 # Test: install.ps1 是引导薄壳——委托 install.sh，不再持有第二份安装逻辑（单源化）
 (
   INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
-  if [ -f "$INSTALL_PS1" ] && grep -q 'install.sh' "$INSTALL_PS1" \
-     && grep -q 'bash' "$INSTALL_PS1" \
-     && ! grep -q 'marketplace add' "$INSTALL_PS1" \
-     && ! grep -q 'plugin install \$PluginId' "$INSTALL_PS1" \
-     && ! grep -q 'Read-Host' "$INSTALL_PS1"; then
+  if [ -f "$INSTALL_PS1" ] && grep >/dev/null 'install.sh' "$INSTALL_PS1" \
+     && grep >/dev/null 'bash' "$INSTALL_PS1" \
+     && ! grep >/dev/null 'marketplace add' "$INSTALL_PS1" \
+     && ! grep >/dev/null 'plugin install \$PluginId' "$INSTALL_PS1" \
+     && ! grep >/dev/null 'Read-Host' "$INSTALL_PS1"; then
     pass "install.ps1: 引导薄壳，委托 install.sh 且非交互"
   else
     fail "install.ps1: 应为引导薄壳" "仍持有 marketplace/install 逻辑副本或交互式 Read-Host"
@@ -3864,8 +3865,8 @@ EOF
 
 # Test: install.sh 装前清残留 plugin cache（防 Windows EPERM rename 撞已存在目标目录）
 (
-  if grep -q 'temp_local_\*' "$INSTALL_SH" \
-     && grep -q '\$CACHE_ROOT/\$MARKETPLACE_NAME/\$PLUGIN_NAME' "$INSTALL_SH"; then
+  if grep >/dev/null 'temp_local_\*' "$INSTALL_SH" \
+     && grep >/dev/null '\$CACHE_ROOT/\$MARKETPLACE_NAME/\$PLUGIN_NAME' "$INSTALL_SH"; then
     pass "install.sh: 装前清残留 plugin cache（temp_local_* + 本插件目标）"
   else
     fail "install.sh: 清残留缓存" "未在 claude plugin install 前清 temp_local_* / 本插件 cache 目标"
@@ -3892,8 +3893,8 @@ EOF
 # Test: install.ps1 确保 Git Bash 存在（插件 hooks 与 install.sh 的运行前置）
 (
   INSTALL_PS1="$REPO_DIR/plugins/claude/minus-creator/install.ps1"
-  if [ -f "$INSTALL_PS1" ] && grep -q 'bash.exe' "$INSTALL_PS1" \
-     && grep -q 'Git.Git' "$INSTALL_PS1"; then
+  if [ -f "$INSTALL_PS1" ] && grep >/dev/null 'bash.exe' "$INSTALL_PS1" \
+     && grep >/dev/null 'Git.Git' "$INSTALL_PS1"; then
     pass "install.ps1: 检测 Git Bash，缺失时 winget 自动安装"
   else
     fail "install.ps1: Git Bash 引导" "未检测 bash.exe 或缺 winget 安装 Git.Git 兜底"
@@ -3902,7 +3903,7 @@ EOF
 
 # Test: bootstrap-env.sh 主流程被 BASH_SOURCE 守卫包住（可被 install.sh 安全 source）
 (
-  if grep -q 'BASH_SOURCE\[0\].*=.*"\$0"' "$BS"; then
+  if grep >/dev/null 'BASH_SOURCE\[0\].*=.*"\$0"' "$BS"; then
     pass "bootstrap-env: 主流程有 BASH_SOURCE 守卫，可被 source 而不触发副作用"
   else
     fail "bootstrap-env: BASH_SOURCE 守卫" "main flow not guarded, sourcing will exit"
@@ -3928,10 +3929,10 @@ SYNC_SH="$LIB_DIR/sync-plugin.sh"
 
 # Test: 安装位置从注册表读，不硬编码 cache 布局；不复制到 ~/.claude/skills（双注册）
 (
-  if grep -q 'installed_plugins.json' "$SYNC_SH" \
-     && grep -q 'installPath' "$SYNC_SH" \
-     && ! grep -q 'CLAUDE_DIR/skills' "$SYNC_SH" \
-     && ! grep -q 'CLAUDE_DIR/agents' "$SYNC_SH"; then
+  if grep >/dev/null 'installed_plugins.json' "$SYNC_SH" \
+     && grep >/dev/null 'installPath' "$SYNC_SH" \
+     && ! grep >/dev/null 'CLAUDE_DIR/skills' "$SYNC_SH" \
+     && ! grep >/dev/null 'CLAUDE_DIR/agents' "$SYNC_SH"; then
     pass "sync-plugin: 从 installed_plugins.json 读 installPath，不写 ~/.claude/skills|agents"
   else
     fail "sync-plugin: 安装位置来源" "应读注册表 installPath，且不得复制到全局 skills/agents"
@@ -3983,8 +3984,8 @@ UNINSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/uninstall.sh"
 
 # Test: data 目录用 glob 清理（覆盖 minus-creator-inline 与 minus-creator-minus-plugin 两种命名）
 (
-  if grep -q 'plugins/data/minus-creator\*' "$UNINSTALL_SH" \
-     && ! grep -q 'plugins/data/minus-creator-inline"' "$UNINSTALL_SH"; then
+  if grep >/dev/null 'plugins/data/minus-creator\*' "$UNINSTALL_SH" \
+     && ! grep >/dev/null 'plugins/data/minus-creator-inline"' "$UNINSTALL_SH"; then
     pass "uninstall.sh: data 目录 glob 清理（不再写死 -inline）"
   else
     fail "uninstall.sh: data glob" "仍写死 minus-creator-inline 或未用 glob"
@@ -3993,7 +3994,7 @@ UNINSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/uninstall.sh"
 
 # Test: uninstall.sh 清理自迁移的稳定家目录 minus-creator-marketplace
 (
-  if grep -q 'minus-creator-marketplace' "$UNINSTALL_SH"; then
+  if grep >/dev/null 'minus-creator-marketplace' "$UNINSTALL_SH"; then
     pass "uninstall.sh: 清理稳定家目录 minus-creator-marketplace"
   else
     fail "uninstall.sh: 清理稳定家目录" "未清理 ~/.claude/minus-creator-marketplace，卸载会残留"
@@ -4002,10 +4003,10 @@ UNINSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/uninstall.sh"
 
 # Test: 清理散落副本 / 解压目录（~/.claude/claude/minus-creator、minus-installer、解压目录）
 (
-  if grep -q '.claude/claude/minus-creator' "$UNINSTALL_SH" \
-     && grep -q '.claude/minus-installer' "$UNINSTALL_SH" \
-     && grep -q '.minus-creator-plugin' "$UNINSTALL_SH" \
-     && grep -q '.claude-plugins/claude' "$UNINSTALL_SH"; then
+  if grep >/dev/null '.claude/claude/minus-creator' "$UNINSTALL_SH" \
+     && grep >/dev/null '.claude/minus-installer' "$UNINSTALL_SH" \
+     && grep >/dev/null '.minus-creator-plugin' "$UNINSTALL_SH" \
+     && grep >/dev/null '.claude-plugins/claude' "$UNINSTALL_SH"; then
     pass "uninstall.sh: 清理散落副本/解压目录"
   else
     fail "uninstall.sh: 散落副本清理" "missing claude/minus-creator / minus-installer / .minus-creator-plugin / .claude-plugins"
@@ -4014,7 +4015,7 @@ UNINSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/uninstall.sh"
 
 # Test: 清理 ~/.claude/plugins/claude 残留解压目录（注册表不引用但物理残留的真实落点）
 (
-  if grep -q '.claude/plugins/claude/minus-creator' "$UNINSTALL_SH"; then
+  if grep >/dev/null '.claude/plugins/claude/minus-creator' "$UNINSTALL_SH"; then
     pass "uninstall.sh: 清理 ~/.claude/plugins/claude 残留"
   else
     fail "uninstall.sh: ~/.claude/plugins/claude 残留" "missing .claude/plugins/claude/minus-creator"
@@ -4051,9 +4052,9 @@ PACK_SH="$LIB_DIR/pack.sh"
 
 # Test: 打包前重建 bundle，且用 >=18 node（老 node 跑不了 ESM build.mjs）
 (
-  if grep -q 'build.mjs' "$PACK_SH" \
-     && grep -q 'VOLTA_HOME' "$PACK_SH" \
-     && grep -q '\-lt 20' "$PACK_SH"; then
+  if grep >/dev/null 'build.mjs' "$PACK_SH" \
+     && grep >/dev/null 'VOLTA_HOME' "$PACK_SH" \
+     && grep >/dev/null '\-lt 20' "$PACK_SH"; then
     pass "pack.sh: 重建 bundle 并解析 >=20 node"
   else
     fail "pack.sh: 重建 bundle + node>=20" "missing build.mjs / Volta 回退 / node 版本判断"
@@ -4062,9 +4063,9 @@ PACK_SH="$LIB_DIR/pack.sh"
 
 # Test: 排除 node_modules，且打包后校验 dist 进包、node_modules 没进包
 (
-  if grep -q 'node_modules' "$PACK_SH" \
-     && grep -q 'dist/minus-platform.cjs' "$PACK_SH" \
-     && grep -q 'grep -c node_modules' "$PACK_SH"; then
+  if grep >/dev/null 'node_modules' "$PACK_SH" \
+     && grep >/dev/null 'dist/minus-platform.cjs' "$PACK_SH" \
+     && grep >/dev/null 'grep -c node_modules' "$PACK_SH"; then
     pass "pack.sh: 排除 node_modules 并校验产物"
   else
     fail "pack.sh: 排除 node_modules + 校验" "missing node_modules 排除或打包后校验"
@@ -4073,7 +4074,7 @@ PACK_SH="$LIB_DIR/pack.sh"
 
 # Test: 排除 .minus 运行时状态（曾随 zip 分发出去污染安装目录）
 (
-  if grep -q '"\*/\.minus/\*"' "$PACK_SH"; then
+  if grep >/dev/null '"\*/\.minus/\*"' "$PACK_SH"; then
     pass "pack.sh: 排除 .minus 运行时状态"
   else
     fail "pack.sh: 应排除 .minus" "zip 会把 session-counter 等运行时状态带给安装者"
@@ -4083,8 +4084,8 @@ PACK_SH="$LIB_DIR/pack.sh"
 # Test: 打包 marketplace 布局——.claude-plugin/marketplace.json 必须进包并校验
 # （install.sh 解压后以解压根做 marketplace add，缺它注册必失败）
 (
-  if grep -q 'zip -rq "\$OUT" "\.claude-plugin"' "$PACK_SH" \
-     && grep -q '\.claude-plugin/marketplace\.json' "$PACK_SH"; then
+  if grep >/dev/null 'zip -rq "\$OUT" "\.claude-plugin"' "$PACK_SH" \
+     && grep >/dev/null '\.claude-plugin/marketplace\.json' "$PACK_SH"; then
     pass "pack.sh: marketplace.json 进包并有打包后校验"
   else
     fail "pack.sh: marketplace.json" "未打包 .claude-plugin 或缺打包后校验，install.sh 注册会失败"
@@ -4279,7 +4280,7 @@ DIAG="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts/diagnose-mcp.s
 
 # Test: 脚本存在、单源 toolchain.sh、始终 exit 0（SKILL.md 原样展示其 stdout）
 (
-  if [ -f "$DIAG" ] && grep -q 'toolchain.sh' "$DIAG"; then
+  if [ -f "$DIAG" ] && grep >/dev/null 'toolchain.sh' "$DIAG"; then
     pass "diagnose-mcp.sh: 存在且下限单源 toolchain.sh"
   else
     fail "diagnose-mcp.sh: 基本结构" "missing file 或未 source toolchain.sh"
@@ -4523,7 +4524,7 @@ MINUS_LIB="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
   OK=1
   for name in step-tracker generate-node-code generate-steps generate-result-design gate; do
     OUT=$(bash "$MINUS_LIB" "$name" --__probe__ 2>&1) || true
-    if echo "$OUT" | grep -q "未找到脚本"; then
+    if echo "$OUT" | grep >/dev/null "未找到脚本"; then
       OK=0
       fail "minus-lib: 找不到 $name" "out: $OUT"
     fi
@@ -4708,8 +4709,8 @@ make_plugin_root() {
 # Test: install.sh 不再内联产物校验，而是调用单源脚本
 (
   INSTALL_SH="$REPO_DIR/plugins/claude/minus-creator/install.sh"
-  if grep -q 'post-install-check.sh" --strict' "$INSTALL_SH" \
-     && ! grep -q 'MCP_DIR/dist/minus-platform.cjs' "$INSTALL_SH"; then
+  if grep >/dev/null 'post-install-check.sh" --strict' "$INSTALL_SH" \
+     && ! grep >/dev/null 'MCP_DIR/dist/minus-platform.cjs' "$INSTALL_SH"; then
     pass "install.sh: 产物校验委托给 post-install-check.sh（单源）"
   else
     fail "install.sh: 产物校验应委托单源脚本" "内联校验未移除或未调用 --strict"
@@ -4727,8 +4728,8 @@ RE="$(via_lib resume-env)"
 (
   TMP=$(make_tmp); cd "$TMP"
   OUTPUT=$(bash "$RE" cli 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "NEED_BOOTSTRAP=1" && echo "$OUTPUT" | grep -q "INITIALIZED=0" \
-     && ! echo "$OUTPUT" | grep -q "ENV=" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "NEED_BOOTSTRAP=1" && echo "$OUTPUT" | grep >/dev/null "INITIALIZED=0" \
+     && ! echo "$OUTPUT" | grep >/dev/null "ENV=" && [ "$RC" = "0" ]; then
     pass "resume-env: 依赖缺失 → NEED_BOOTSTRAP=1 即停"
   else
     fail "resume-env: NEED_BOOTSTRAP" "rc=$RC out=$OUTPUT"
@@ -4757,10 +4758,10 @@ RE="$(via_lib resume-env)"
   echo '{"backend":4001}' > .minus/dev-ports.json
   printf '{"currentStep":1,"steps":{"1":{"name":"步骤1","status":"pending"}},"phase":"developing"}' > .minus/progress.json
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); RC=$?
-  if echo "$OUTPUT" | grep -q "ENV=ready" && echo "$OUTPUT" | grep -q "NEED_PREVIEW_START=1" \
-     && echo "$OUTPUT" | grep -q "BACKEND_PORT=4001" && echo "$OUTPUT" | grep -q "PHASE=developing" \
-     && echo "$OUTPUT" | grep -q "CURRENT_STEP=1" && echo "$OUTPUT" | grep -q "STEPS_TOTAL=1" \
-     && echo "$OUTPUT" | grep -q "STEPS_DONE=0" && echo "$OUTPUT" | grep -q "STEP_STATUS=" && [ "$RC" = "0" ]; then
+  if echo "$OUTPUT" | grep >/dev/null "ENV=ready" && echo "$OUTPUT" | grep >/dev/null "NEED_PREVIEW_START=1" \
+     && echo "$OUTPUT" | grep >/dev/null "BACKEND_PORT=4001" && echo "$OUTPUT" | grep >/dev/null "PHASE=developing" \
+     && echo "$OUTPUT" | grep >/dev/null "CURRENT_STEP=1" && echo "$OUTPUT" | grep >/dev/null "STEPS_TOTAL=1" \
+     && echo "$OUTPUT" | grep >/dev/null "STEPS_DONE=0" && echo "$OUTPUT" | grep >/dev/null "STEP_STATUS=" && [ "$RC" = "0" ]; then
     pass "resume-env: desktop 就绪 → ENV=ready + 进度摘要齐全"
   else
     fail "resume-env: desktop 就绪" "rc=$RC out=$OUTPUT"
@@ -4777,7 +4778,7 @@ RE="$(via_lib resume-env)"
   write_stub "$SB" pnpm 'echo "BACKEND_BOOT_ERROR"; exit 1'
   write_stub "$SB" sleep 'exit 0'  # 跳过 30 次真实等待
   if OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); then RC=0; else RC=$?; fi
-  if echo "$OUTPUT" | grep -q "ENV=failed" && echo "$OUTPUT" | grep -q "FAIL_REASON=BACKEND_START_TIMEOUT" \
+  if echo "$OUTPUT" | grep >/dev/null "ENV=failed" && echo "$OUTPUT" | grep >/dev/null "FAIL_REASON=BACKEND_START_TIMEOUT" \
      && [ "$RC" = "1" ]; then
     pass "resume-env: desktop 后端超时 → ENV=failed + FAIL_REASON"
   else
@@ -4794,7 +4795,7 @@ RE="$(via_lib resume-env)"
   write_stub "$SB" lsof 'exit 1'
   write_stub "$SB" pnpm 'exit 1'
   if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" cli 2>&1); then RC=0; else RC=$?; fi
-  if echo "$OUTPUT" | grep -q "ENV=failed" && echo "$OUTPUT" | grep -q "FAIL_REASON=PREVIEW_DETECT_FAILED" \
+  if echo "$OUTPUT" | grep >/dev/null "ENV=failed" && echo "$OUTPUT" | grep >/dev/null "FAIL_REASON=PREVIEW_DETECT_FAILED" \
      && [ "$RC" = "1" ]; then
     pass "resume-env: cli 检测失败 → ENV=failed + FAIL_REASON"
   else
@@ -4814,8 +4815,8 @@ echo "═══ skill md 运行时规则一致性 ═══"
   SKILLS="$REPO_DIR/plugins/claude/minus-creator/skills"
   PROBLEM=""
   PERSONA_OUT=$(bash "$LIB_DIR/project-detector.sh" persona 2>&1)
-  echo "$PERSONA_OUT" | grep -q "文字工作者" || PROBLEM="${PROBLEM} persona子命令无输出"
-  grep -qF '!`minus-lib project-detector persona`' "$SKILLS/minus/SKILL.md" \
+  echo "$PERSONA_OUT" | grep >/dev/null "文字工作者" || PROBLEM="${PROBLEM} persona子命令无输出"
+  grep -F >/dev/null '!`minus-lib project-detector persona`' "$SKILLS/minus/SKILL.md" \
     || PROBLEM="${PROBLEM} minus/SKILL.md缺动态加载行"
   if grep -rq "文字工作者" "$SKILLS" --include='*.md' 2>/dev/null; then
     PROBLEM="${PROBLEM} skill_md存在静态副本:$(grep -rl '文字工作者' "$SKILLS" --include='*.md' | tr '\n' ' ')"
