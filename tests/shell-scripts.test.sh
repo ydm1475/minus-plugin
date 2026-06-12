@@ -2532,7 +2532,7 @@ write_stub() {
   write_stub "$SB" curl 'exit 1'
   : > "$TMP/npm.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=failed reason=NODE_TOO_OLD" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: Node<24 + Volta 装不上 → NODE_TOO_OLD，不放行旧 Node、不碰 pnpm"
   else
@@ -2548,7 +2548,7 @@ write_stub() {
   write_stub "$SB" pnpm 'echo 11.4.0'
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "Node/npm 已就绪" && ! assert_contains "$OUTPUT" "通过 Volta"; then
     pass "bootstrap-env: 现有 Node>=24 直接放行，不装 Volta"
   else
@@ -2573,7 +2573,7 @@ write_stub() {
   write_stub "$TMP/.volta/bin" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
   : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "Node/npm 已就绪" \
      && ! assert_contains "$OUTPUT" "通过 Volta 安装并选中 Node" \
      && ! assert_contains "$(cat "$TMP/volta.log")" "install node"; then
@@ -2592,7 +2592,7 @@ write_stub() {
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   : > "$TMP/npm.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: all present → ok, skips install (npm not called)"
   else
@@ -2611,7 +2611,7 @@ write_stub() {
   write_stub "$SB" corepack "echo corepack >> $TMP/corepack.log"
   : > "$TMP/npm.log"; : > "$TMP/corepack.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "reason=NODE_TOO_OLD" && [ ! -s "$TMP/npm.log" ] && [ ! -s "$TMP/corepack.log" ]; then
     pass "bootstrap-env: Node18 升级失败即停，绝不碰 pnpm / corepack"
   else
@@ -2640,7 +2640,7 @@ write_stub() {
   write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
   : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "切换到 pin 版本" && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0"; then
     pass "bootstrap-env: pnpm 版本不符 → 经 Volta 切到 pin 版本"
   else
@@ -2660,7 +2660,7 @@ write_stub() {
   write_stub "$TMP/.volta/bin" volta "echo \"volta \$*\" >> $TMP/volta.log; case \"\$1 \$2\" in \"install pnpm@11.4.0\") touch $TMP/pnpm-installed;; esac"
   : > "$TMP/npm.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
      && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: Volta 装了不在 PATH + npm 不可写 → 经 Volta 成功，npm 未被调用"
@@ -2686,7 +2686,7 @@ write_stub() {
   : > "$TMP/npm.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
   # 关键：~/.volta/bin 已在 PATH 中，但排在 $USRLOCAL 之后
-  OUTPUT=$(HOME="$TMP" PATH="$USRLOCAL:$SB:/usr/bin:/bin:$TMP/.volta/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$USRLOCAL:$SB:/usr/bin:/bin:$TMP/.volta/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
      && assert_contains "$OUTPUT" "pnpm 已就绪（11.4.0" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: Volta 排在陈旧 /usr/local/bin 之后 → 强制提前，旧 pnpm 不再 shadow"
@@ -2705,7 +2705,7 @@ write_stub() {
   write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; case \"\$1 \$2\" in \"install pnpm@11.4.0\") touch $TMP/pnpm-installed;; esac"
   : > "$TMP/npm.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: 已装 Volta 时优先 Volta，不碰 npm"
   else
@@ -2737,7 +2737,7 @@ write_stub() {
   write_stub "$SB" volta "echo \"volta \$*\" >> $TMP/volta.log; exit 0"
   : > "$TMP/npm.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   # 期望：识别为已就绪、整体 ok，且没触发任何 pnpm 重装（volta install pnpm 未被调用）
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
      && assert_contains "$OUTPUT" "pnpm 已就绪（11.4.0" \
@@ -2760,7 +2760,7 @@ write_stub() {
   write_stub "$SB" curl "echo curl >> $TMP/curl.log; mkdir -p $TMP/.volta/bin; printf '#!/bin/bash\necho \"volta \$*\" >> %s\ncase \"\$1 \$2\" in \"install pnpm@11.4.0\") touch %s;; esac\n' $TMP/volta.log $TMP/pnpm-installed > $TMP/.volta/bin/volta; chmod +x $TMP/.volta/bin/volta"
   : > "$TMP/npm.log"; : > "$TMP/curl.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
      && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0" && [ ! -s "$TMP/npm.log" ]; then
     pass "bootstrap-env: npm 可写也统一走 Volta，绝不调用 npm -g"
@@ -2780,7 +2780,7 @@ write_stub() {
   write_stub "$SB" curl "echo curl >> $TMP/curl.log; mkdir -p $TMP/.volta/bin; printf '#!/bin/bash\necho \"volta \$*\" >> %s\ncase \"\$1 \$2\" in \"install pnpm@11.4.0\") touch %s;; esac\n' $TMP/volta.log $TMP/pnpm-installed > $TMP/.volta/bin/volta; chmod +x $TMP/.volta/bin/volta"
   : > "$TMP/npm.log"; : > "$TMP/curl.log"; : > "$TMP/volta.log"
   cd "$TMP/proj"
-  OUTPUT=$(HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+  OUTPUT=$(HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok" \
      && [ -s "$TMP/curl.log" ] && assert_contains "$(cat "$TMP/volta.log")" "install pnpm@11.4.0"; then
     pass "bootstrap-env: 无 Volta + npm 失败 → 自动装 Volta 兜底成功"
@@ -3119,7 +3119,7 @@ write_stub() {
   write_stub "$SB" uv 'echo "uv 0.5.0"'
   cd "$TMP/proj"
   OUTPUT=$(env -u npm_config_registry -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u MINUS_MIRROR \
-    HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+    HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "回退官方 npm 源重试" \
      && assert_contains "$OUTPUT" "前端依赖安装完成（官方源）" \
      && assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok"; then
@@ -3145,7 +3145,7 @@ write_stub() {
     *) echo ok;; esac'
   cd "$TMP/proj"
   OUTPUT=$(env -u npm_config_registry -u UV_DEFAULT_INDEX -u UV_INDEX_URL -u MINUS_MIRROR \
-    HOME="$TMP" PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
+    HOME="$TMP" BOOTSTRAP_OS=mac PATH="$SB:/usr/bin:/bin" bash "$BS" 2>&1)
   if assert_contains "$OUTPUT" "回退官方 PyPI 重试" \
      && assert_contains "$OUTPUT" "后端依赖安装完成（官方源）" \
      && assert_contains "$OUTPUT" "BOOTSTRAP_RESULT=ok"; then
@@ -3847,11 +3847,14 @@ echo "═══ marketplace.json ═══"
 # Test: 仓库根 marketplace.json 存在、合法，source 指向真实插件目录且 name 与 plugin.json 一致
 (
   MP_JSON="$REPO_DIR/.claude-plugin/marketplace.json"
+  # 原生 node 读不了嵌在 JS 字符串里的 MSYS 路径（/d/a/…），cygpath -m 归一化
+  REPO_JS="$REPO_DIR"; MP_JS="$MP_JSON"
+  if command -v cygpath >/dev/null 2>&1; then REPO_JS=$(cygpath -m "$REPO_DIR"); MP_JS=$(cygpath -m "$MP_JSON"); fi
   if [ -f "$MP_JSON" ] && node -e "
-    const mp = require('$MP_JSON');
+    const mp = require('$MP_JS');
     const p = mp.plugins.find(x => x.name === 'minus-creator');
     if (!p) process.exit(1);
-    const path = require('path').join('$REPO_DIR', p.source);
+    const path = require('path').join('$REPO_JS', p.source);
     const pj = require(path + '/.claude-plugin/plugin.json');
     process.exit(pj.name === p.name ? 0 : 1);
   " 2>/dev/null; then
@@ -3901,7 +3904,7 @@ printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'
 printf '#!/bin/bash\necho \"create-skill \$*\" >> $TMP/cs.log\n' > '$VB/create-skill'
 chmod +x '$VB/create-skill'"
   : > "$TMP/volta.log"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if ! assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" \
      && [ -f "$TMP/cs.log" ] && assert_contains "$(cat "$TMP/cs.log")" "my-skill"; then
     pass "run-create-skill: Volta happy path → 执行 create-skill"
@@ -3922,7 +3925,7 @@ case \"\$2\" in
   *) printf '{\"version\":\"0.0.1\"}' > '$IMG/package.json';;
 esac"
   : > "$TMP/volta.log"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if assert_contains "$OUTPUT" "改用官方 npm 源重试" \
      && ! assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" \
      && [ -f "$TMP/cs.log" ]; then
@@ -3942,7 +3945,7 @@ esac"
 mkdir -p '$IMG'
 printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'"
   : > "$TMP/volta.log"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if assert_contains "$OUTPUT" "CREATE_SKILL_INSTALL_FAILED" && [ ! -f "$TMP/cs.log" ]; then
     pass "run-create-skill: 版本符但 bin 缺失 → INSTALL_FAILED，不执行不存在文件"
   else
@@ -3954,7 +3957,7 @@ printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'"
 (
   TMP=$(make_tmp); setup_rcs "$TMP"
   write_stub "$TMP/lib" resolve-node.sh 'exit 0'   # 不输出任何路径
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if assert_contains "$OUTPUT" "NO_GOOD_NODE"; then
     pass "run-create-skill: 无合格 node → NO_GOOD_NODE"
   else
@@ -3965,7 +3968,7 @@ printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'"
 # Test: 缺项目名 → CREATE_SKILL_MISSING_NAME
 (
   TMP=$(make_tmp); setup_rcs "$TMP"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" 2>&1)
   if assert_contains "$OUTPUT" "CREATE_SKILL_MISSING_NAME"; then
     pass "run-create-skill: 缺项目名 → CREATE_SKILL_MISSING_NAME"
   else
@@ -3987,7 +3990,7 @@ provision_node_via_volta() { mkdir -p '$TMP/.volta/tools/image/node/24.16.0'; ec
 printf '{\"version\":\"1.2.3\"}' > '$IMG/package.json'
 printf '#!/bin/bash\necho \"create-skill \$*\" >> $TMP/cs.log\n' > '$VB/create-skill'
 chmod +x '$VB/create-skill'"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if [ -f "$TMP/provision.log" ] \
      && ! assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" \
      && [ -f "$TMP/cs.log" ]; then
@@ -4010,7 +4013,7 @@ provision_node_via_volta() { return 1; }'
   # 即便 create-skill bin 摆在那，也不该被执行
   write_stub "$VB" volta 'exit 0'
   write_stub "$VB" create-skill "echo \"create-skill \$*\" >> $TMP/cs.log"
-  OUTPUT=$(HOME="$TMP" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
+  OUTPUT=$(HOME="$TMP" VOLTA_HOME="$TMP/.volta" PATH="$TMP/sb:/usr/bin:/bin" bash "$TMP/lib/run-create-skill.sh" my-skill 2>&1)
   if assert_contains "$OUTPUT" "NODE24_PROVISION_FAILED" && [ ! -f "$TMP/cs.log" ]; then
     pass "run-create-skill: provision 失败 → 固定标记，不跑 create-skill"
   else
