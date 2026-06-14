@@ -141,6 +141,39 @@ export function stepImplemented(projectDir, step) {
   return meaningful.length >= 3;
 }
 
+// 结果页设计完成检测：两维度（摘要/下载）均已确认，且结果页代码已生成。
+// 标记落在 .minus/dev-progress/result_{summary,download}_confirmed（generate-result-design confirm 写）；
+// 代码标志：FlowApp 的 renderCompletion / CompletionPanel（结果页只能放这里，见 platform frontend-guide）。
+export function resultComplete(projectDir) {
+  const dir = path.join(projectDir, ".minus", "dev-progress");
+  const summary = fs.existsSync(path.join(dir, "result_summary_confirmed"));
+  const download = fs.existsSync(path.join(dir, "result_download_confirmed"));
+  return summary && download && resultRendered(projectDir);
+}
+
+function resultRendered(projectDir) {
+  const main = path.join(projectDir, "frontend", "src", "main.tsx");
+  try {
+    return /renderCompletion|CompletionPanel/.test(fs.readFileSync(main, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+// R 系列：结果呈现设计阶段断言（两维度确认 + 代码生成 + 写代码门禁）
+export function assertResult(report, projectDir, genResultPath) {
+  const dir = path.join(projectDir, ".minus", "dev-progress");
+  const summary = fs.existsSync(path.join(dir, "result_summary_confirmed"));
+  const download = fs.existsSync(path.join(dir, "result_download_confirmed"));
+  report.add("R1", "结果页两维度（摘要/下载）均已确认", summary && download,
+    `summary=${summary} download=${download}`);
+  report.add("R2", "结果页代码已生成（renderCompletion/CompletionPanel）", resultRendered(projectDir),
+    resultRendered(projectDir) ? "" : "frontend/src/main.tsx 未见结果页渲染");
+  const res = sh(projectDir, genResultPath, ["check"]);
+  const gated = res.ok && res.out.includes("RESULT_DESIGN_COMPLETE");
+  report.add("R3", "结果页写代码门禁 RESULT_DESIGN_COMPLETE", gated, gated ? "" : res.out.slice(0, 300));
+}
+
 // 节点 / 终验输出 payload 字段检查（宽松子串匹配，忽略大小写）
 export function assertPayloadContains(report, id, label, payload, needles) {
   const text = JSON.stringify(payload ?? {}).toLowerCase();

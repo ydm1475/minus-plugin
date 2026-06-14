@@ -20,6 +20,8 @@ import {
   assertGate,
   assertIsLast,
   assertStepImplemented,
+  assertResult,
+  resultComplete,
   assertPayloadContains,
   countPipelineSteps,
   stepImplemented,
@@ -51,6 +53,7 @@ if (DESKTOP) {
 
 const TRACKER = path.join(PLUGIN_DIR, "skills/minus-step/scripts/step-tracker.sh");
 const GEN_NODE = path.join(PLUGIN_DIR, "skills/minus-step/scripts/generate-node-code.sh");
+const GEN_RESULT = path.join(PLUGIN_DIR, "skills/minus-structure/scripts/generate-result-design.sh");
 
 function required(name) {
   const v = process.env[name];
@@ -144,6 +147,7 @@ const phaseState = {
   stepAsserted: Object.fromEntries(
     Array.from({ length: scenario.steps }, (_, i) => [i + 1, false])
   ),
+  resultAsserted: false,
 };
 
 let devServerHandle = null;
@@ -209,6 +213,16 @@ async function checkPhaseTransitions() {
     }
     phaseState.stepAsserted[n] = true;
   }
+  // 结果呈现设计阶段：所有步骤完成后，等结果页两维度确认 + 代码生成，再断言
+  if (
+    !phaseState.resultAsserted &&
+    Object.values(phaseState.stepAsserted).every(Boolean) &&
+    resultComplete(PROJECT_DIR)
+  ) {
+    console.log("\n═══ 阶段断言：结果呈现设计 ═══");
+    assertResult(report, PROJECT_DIR, GEN_RESULT);
+    phaseState.resultAsserted = true;
+  }
 }
 
 async function runNodeVerification(n) {
@@ -246,10 +260,14 @@ function currentPhase() {
   return "result";
 }
 
+// 全流程完成 = 结构 + 所有 pipeline 步骤 + 结果呈现设计。
+// ⚠ 不能只看 pipeline 步骤就退出对话——否则结果页 Q&A 跑半句就被掐断，
+// answers.result 永不被用、结果页从不生成/断言（2026-06-14 复盘：对话提前终止缺陷）。
 function allStepsDone() {
   return (
     phaseState.structureAsserted &&
-    Object.values(phaseState.stepAsserted).every(Boolean)
+    Object.values(phaseState.stepAsserted).every(Boolean) &&
+    phaseState.resultAsserted
   );
 }
 
@@ -344,9 +362,9 @@ async function main() {
   if (!allStepsDone()) {
     report.add(
       "H0",
-      `对话在 ${MAX_ROUNDS} 轮内完成全部节点开发`,
+      `对话在 ${MAX_ROUNDS} 轮内完成全部节点开发 + 结果页`,
       false,
-      `结构: ${phaseState.structureAsserted}，节点: ${JSON.stringify(phaseState.stepAsserted)}`
+      `结构: ${phaseState.structureAsserted}，节点: ${JSON.stringify(phaseState.stepAsserted)}，结果页: ${phaseState.resultAsserted}`
     );
     await behaviorJudge();
     finish(1);
