@@ -190,7 +190,7 @@ function stopMockPreview() {
   } catch {}
 }
 
-async function checkPhaseTransitions() {
+async function checkPhaseTransitions(forceResult = false) {
   if (!phaseState.structureAsserted && countPipelineSteps(PROJECT_DIR) >= scenario.steps) {
     console.log("\n═══ 阶段断言：结构设计 ═══");
     assertStructure(report, PROJECT_DIR, scenario.steps);
@@ -213,11 +213,16 @@ async function checkPhaseTransitions() {
     }
     phaseState.stepAsserted[n] = true;
   }
-  // 结果呈现设计阶段：所有步骤完成后，等结果页两维度确认 + 代码生成，再断言
+  // 结果呈现设计阶段：所有步骤完成后触发结果页断言。
+  // 触发条件二选一（任一即评判，避免死锁）：
+  //   1. resultComplete：两维度确认标记 + 结果页代码都齐（Agent 走完正常流程）
+  //   2. forceResult：对话已停滞（Agent 连续多轮不再提问，自认为做完了）——
+  //      此时若 Agent 漏跑 generate-result-design confirm，R1/R3 会如实判失败，
+  //      而不是让循环空转到 MAX_ROUNDS。教训同 confirmedKey：退出不依赖 Agent 记得跑跟踪命令。
   if (
     !phaseState.resultAsserted &&
     Object.values(phaseState.stepAsserted).every(Boolean) &&
-    resultComplete(PROJECT_DIR)
+    (resultComplete(PROJECT_DIR) || forceResult)
   ) {
     console.log("\n═══ 阶段断言：结果呈现设计 ═══");
     assertResult(report, PROJECT_DIR, GEN_RESULT);
@@ -342,8 +347,13 @@ async function main() {
   let agentText = await claudeSend(scenario.brief.trim());
   record("agent", agentText);
 
+  // 停滞计数：Agent 输出不含问句即 +1，提问则归零。连续 STALL_LIMIT 轮无提问 →
+  // 视为 Agent 自认为做完（常见为退化成"再见/谢谢"循环），强制评判结果页并退出。
+  const STALL_LIMIT = 3;
+  let idleRounds = /[?？]/.test(agentText) ? 0 : 1;
+
   while (round < MAX_ROUNDS) {
-    await checkPhaseTransitions();
+    await checkPhaseTransitions(idleRounds >= STALL_LIMIT);
     if (allStepsDone()) break;
 
     let userReply;
@@ -356,9 +366,10 @@ async function main() {
     record("user", userReply);
     agentText = await claudeSend(userReply);
     record("agent", agentText);
+    idleRounds = /[?？]/.test(agentText) ? 0 : idleRounds + 1;
   }
 
-  await checkPhaseTransitions();
+  await checkPhaseTransitions(true);
   if (!allStepsDone()) {
     report.add(
       "H0",
