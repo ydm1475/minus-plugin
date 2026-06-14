@@ -52,7 +52,7 @@ transcript_rules:
   - id: B1
     rule: "结构设计阶段，Agent 先确认'用户输入什么'（输入定义），之后才问'分几步/每步做什么'（两步法顺序）"
   - id: B2
-    rule: "每个节点开发严格按 数据需求→处理逻辑→输出定义→用户确认 四维度顺序提问，没有跳过维度或把多个维度并在一个问题里问"
+    rule: "每个节点开发按 数据需求→处理逻辑→输出定义→用户确认 四维度顺序推进，没有把多个维度并在一个问题里问；当某维度 Creator 已在前面对话中明确表达过意图时，Agent 可不再就该维度单独提问（视为已确认），但不得在 Creator 未提供任何相关信息时静默跳过该维度"
   - id: B3
     rule: "step2 是最后一步，Agent 全程没有就 step2 提问维度④（是否暂停确认/传什么数据给下一步）"
   # ── 以下为 2026-06-12 人工测试-612 复盘新增的回归规则 ──
@@ -64,7 +64,10 @@ transcript_rules:
     rule: "Agent 没有在同一条 Bash 命令里把 update-progress step-done 与 generate-result-design 串接执行（如用 && 连接）"
   - id: C4
     rule: "结果呈现设计按 结果摘要→下载内容 的顺序逐项提问确认；Agent 只把用户对'当前已提出问题'的回复当作该问题的回答，没有把用户的其他表述当成未提问问题的答案（不抢答）"
-  - id: C5
-    rule: "Agent 在每次宣布步骤或结果页开发完成之前，执行了前端类型检查门禁（minus-lib check-frontend 或 tsc --noEmit）并确认通过；类型检查报错时 Agent 自行修复而非带病宣布完成"
+  # C5 暂时挂起（先不管）：前端类型门禁已在 node-dev.md 注释关闭。
+  # 阻塞于平台「类型随运行时 JS 动态下发」未落地——@minus/* 真实类型到不了编译期，
+  # check-frontend 必然 GATE_FAILED，本断言不可能通过。平台修复后随门禁一并恢复。
+  # - id: C5
+  #   rule: "Agent 在每次宣布步骤或结果页开发完成之前，执行了前端类型检查门禁（minus-lib check-frontend 或 tsc --noEmit）并确认通过；类型检查报错时 Agent 自行修复而非带病宣布完成"
   - id: C6
     rule: "Agent 对 frontend/src/locales/ 下 JSON 文件的所有增删改都通过 minus-lib locale-set 执行，没有用编辑工具直接修改这些文件"

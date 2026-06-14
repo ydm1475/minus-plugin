@@ -218,11 +218,18 @@ minus-lib locale-set rm  frontend/src/locales/zh-CN.json "{key}"
 ### 代码生成后
 
 1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
+
+<!-- TODO（暂时注释，先不管）：前端类型检查门禁。
+     当前 `@minus/*` 真实类型到不了编译期（兜底桩 `declare module '@minus/*';` 让类型塌成 any），
+     check-frontend 在任何真实项目上都过不了，硬门禁会死锁流程。
+     待平台「类型随运行时 JS 动态下发」落地（详见项目根目录 CLAUDE.md「@minus/* SDK 类型契约」章节）后恢复：
+
 2. 执行前端类型检查硬门禁（输出 `FRONTEND_OK` 才能继续；`GATE_FAILED` 时 Agent 必须自己修到通过，包括 tsconfig 配置错误——配置错误意味着类型检查整体失效，不是可忽略的小报错）：
 
 ```bash
 minus-lib check-frontend
 ```
+-->
 
 3. 执行 Python 依赖一致性检查：
 

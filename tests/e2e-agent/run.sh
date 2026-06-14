@@ -75,6 +75,7 @@ fi
 echo "→ 项目已创建: $PROJECT_DIR"
 
 cleanup() {
+  RC=$?  # 必须第一行：捕获触发退出的状态码（成功才删项目，失败保留现场供排查）
   # 脏端口模式：回收"邻居项目"占位进程
   if [ -n "${DIRTY_PID:-}" ]; then
     kill "$DIRTY_PID" 2>/dev/null || true
@@ -87,11 +88,40 @@ cleanup() {
       for (const v of Object.values(s)) { try { process.kill(v.pid); } catch {} }
     " 2>/dev/null || true
   fi
+  # dev server 回收：Agent 起的 dev server（concurrently + vite + uvicorn）记在 .minus/dev.pid，
+  # driver 的 stopDevServer 只认 run-skill 自己 spawn 的句柄（复用 Agent 实例时为 null），
+  # 这个进程组没人杀。不先杀就 rm -rf 会与 vite 写 node_modules/.vite 抢跑 → 残留空壳目录、
+  # 孤儿进程占端口污染下次 run。故删之前：先杀、再等进程真死、删完校验。
+  if [ -n "${PROJECT_DIR:-}" ] && [ -d "$PROJECT_DIR" ]; then
+    if [ -f "$PROJECT_DIR/.minus/dev.pid" ]; then
+      DEV_PID=$(cat "$PROJECT_DIR/.minus/dev.pid" 2>/dev/null | tr -dc '0-9')
+      if [ -n "$DEV_PID" ]; then
+        kill -- "-$DEV_PID" 2>/dev/null || kill "$DEV_PID" 2>/dev/null || true
+      fi
+    fi
+    # 兜底：杀任何命令行/cwd 指向本项目的残留进程（临时路径唯一，不会误伤）
+    pkill -f "$PROJECT_DIR" 2>/dev/null || true
+    # 等进程真正退出（最多 ~5s），避免与 rm 抢跑
+    for _ in $(seq 1 10); do
+      pgrep -f "$PROJECT_DIR" >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+  fi
+  # 进程已回收。是否删项目目录：成功(RC=0)且非 KEEP 才删；失败一律保留现场供排查。
   if [ "$KEEP" = "1" ]; then
     echo "→ E2E_KEEP=1，保留项目: $PROJECT_DIR"
+  elif [ "${RC:-1}" != "0" ]; then
+    echo "→ 运行失败（exit $RC），保留项目供排查: $PROJECT_DIR" >&2
+    echo "  排查完成后手动删除：rm -rf \"$PROJECT_DIR\"" >&2
   else
     rm -rf "$PROJECT_DIR" 2>/dev/null || true
-    echo "→ 已清理临时项目"
+    [ -e "$PROJECT_DIR" ] && rm -rf "$PROJECT_DIR" 2>/dev/null  # vite 残留 temp 偶发，再删一次
+    # 校验真删干净再报告，不假报告（项目原则：状态检测必须验证结果）
+    if [ -e "$PROJECT_DIR" ]; then
+      echo "⚠ 清理未完成，残留: $PROJECT_DIR（可能仍有进程占用）" >&2
+    else
+      echo "→ 已清理临时项目"
+    fi
   fi
 }
 trap cleanup EXIT
