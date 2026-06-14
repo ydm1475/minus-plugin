@@ -2170,7 +2170,10 @@ EOF
   OUTPUT=$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=0 bash "$DPP" 2>&1 || true)
   END=$(date +%s)
   ELAPSED=$((END - START))
-  if [ "$ELAPSED" -lt 3 ]; then
+  # 门槛取 8s：MAX_WAIT=0 跳过轮询后仍会走方法3扫端口（Windows Git Bash 下每次
+  # verify_port 调 netstat -ano，8 个端口累加可达 ~3s）。只需证明「没轮询」——
+  # 若轮询未跳过会多花 ~15s，故 <8 足以区分，又不会被 Windows netstat 扫描误判。
+  if [ "$ELAPSED" -lt 8 ]; then
     pass "detect-preview-port: MAX_WAIT=0 skips polling"
   else
     fail "detect-preview-port: MAX_WAIT=0 skips polling" "took ${ELAPSED}s"
