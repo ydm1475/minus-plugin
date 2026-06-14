@@ -12,7 +12,7 @@ import childProcess from "node:child_process";
 import { parseYaml, loadScenario } from "./scenario.mjs";
 import { buildSimPrompt } from "./simulate-user.mjs";
 import { buildJudgePrompt, parseVerdicts } from "./judge.mjs";
-import { parseSseChunk, resolveEntryParams, buildConfirmData } from "./run-skill.mjs";
+import { parseSseChunk, resolveEntryParams, buildConfirmData, detectConfirmedKeys } from "./run-skill.mjs";
 import { Report, stepImplemented, countPipelineSteps } from "./assert.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -164,6 +164,28 @@ test("buildConfirmData: $select:N 从候选行取前 N 行", () => {
   const out = buildConfirmData({ selectedKeywords: "$select:2", note: "x" }, payload);
   assert.deepEqual(out.selectedKeywords, [{ keyword: "a" }, { keyword: "b" }]);
   assert.equal(out.note, "x");
+});
+
+test("buildConfirmData: actualKey 改写 $select 落键（剧本占位 key 忽略）", () => {
+  const payload = { data: { rows: [{ keyword: "a" }, { keyword: "b" }, { keyword: "c" }] } };
+  // 剧本写死 selectedKeywords，生成代码实际用 selectedRows → 按真实 key 落
+  const out = buildConfirmData({ selectedKeywords: "$select:2", note: "x" }, payload, "selectedRows");
+  assert.deepEqual(out.selectedRows, [{ keyword: "a" }, { keyword: "b" }]);
+  assert.equal(out.selectedKeywords, undefined);
+  assert.equal(out.note, "x"); // 非 $select 字面字段不受影响
+});
+
+test("detectConfirmedKeys: 按源码顺序提取前端 confirmedKey", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-keys-"));
+  fs.mkdirSync(path.join(dir, "frontend/src"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "frontend/src/main.tsx"),
+    `defineWidgetStep({ confirmedKey: 'selectedRows' });\n` +
+      `defineWidgetStep({ confirmedKey: "selectedAsins" });\n`
+  );
+  assert.deepEqual(detectConfirmedKeys(dir), ["selectedRows", "selectedAsins"]);
+  // 缺文件时返回空数组，不抛
+  assert.deepEqual(detectConfirmedKeys(path.join(dir, "nope")), []);
 });
 
 // ── assert.mjs ──

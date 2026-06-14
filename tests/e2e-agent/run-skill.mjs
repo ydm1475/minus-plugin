@@ -216,15 +216,31 @@ export function parseSseChunk(chunk) {
   }
 }
 
+// 从生成的前端 main.tsx 按源码顺序提取所有 confirmedKey。
+// 契约（node-dev.md）只要求前后端 confirmedKey 一致、用 camelCase，不规定具体名字——
+// Agent 自由命名（selectedRows / selectedAsins / ...）。剧本无法预知，故运行时从代码探测，
+// 与 "$select:N" 不写死行数据同一哲学（项目原则 #6 系统化工程化，别在剧本里钉死实现细节）。
+// 返回数组按 step 顺序（第 N 个 input_required step 对应第 N 个 confirmedKey）。
+export function detectConfirmedKeys(projectDir) {
+  try {
+    const src = fs.readFileSync(path.join(projectDir, "frontend/src/main.tsx"), "utf8");
+    return [...src.matchAll(/confirmedKey:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+  } catch {
+    return [];
+  }
+}
+
 // 确认数据支持魔法值 "$select:N"：从 input_required payload 的第一个数组字段里取前 N 行。
 // 真实用户就是在 widget 展示的候选行里勾选，写死数据反而和生成代码的行结构对不上。
-export function buildConfirmData(confirmSpec, payload) {
+// actualKey：从生成代码探测到的真实 confirmedKey；"$select:N" 条目按它落键（剧本里的占位 key 忽略），
+// 这样 Agent 取任何名字都不会假阴性。非 $select 的字面字段仍按剧本原 key 透传。
+export function buildConfirmData(confirmSpec, payload, actualKey) {
   const out = {};
   for (const [k, v] of Object.entries(confirmSpec || {})) {
     const m = typeof v === "string" && v.match(/^\$select:(\d+)$/);
     if (m) {
       const rows = firstArray(payload?.data);
-      out[k] = rows.slice(0, parseInt(m[1], 10));
+      out[actualKey || k] = rows.slice(0, parseInt(m[1], 10));
     } else {
       out[k] = v;
     }
@@ -270,6 +286,9 @@ export async function runPipeline(projectDir, logDir, entryParams, opts = {}) {
   if (ska) headers["X-Skill-Api-Key"] = ska;
 
   const backend = server.ports.backend;
+  // 探测生成代码里的真实 confirmedKey（按 step 顺序），每推进一次 input_required 取下一个
+  const confirmedKeys = detectConfirmedKeys(projectDir);
+  let confirmIdx = 0;
   const all = [];
   let lastEventId = null;
   const isTerminal = (m) => {
@@ -302,7 +321,7 @@ export async function runPipeline(projectDir, logDir, entryParams, opts = {}) {
       if (hit.messageType === "step_input_required" && targetStep === null) {
         // 终验：用剧本数据推进确认，继续流
         const step = hit.payload?.stepNumber;
-        await confirmStep(backend, sessionId, headers, step, buildConfirmData(confirmData, hit.payload));
+        await confirmStep(backend, sessionId, headers, step, buildConfirmData(confirmData, hit.payload, confirmedKeys[confirmIdx++]));
         continue;
       }
       return { sessionId, messages: all, terminal: hit, server };
@@ -313,7 +332,7 @@ export async function runPipeline(projectDir, logDir, entryParams, opts = {}) {
       if (targetStep !== null && last.payload?.stepNumber === targetStep) {
         return { sessionId, messages: all, terminal: last, server };
       }
-      await confirmStep(backend, sessionId, headers, last.payload?.stepNumber, buildConfirmData(confirmData, last.payload));
+      await confirmStep(backend, sessionId, headers, last.payload?.stepNumber, buildConfirmData(confirmData, last.payload, confirmedKeys[confirmIdx++]));
       continue;
     }
     await sleep(1500);
