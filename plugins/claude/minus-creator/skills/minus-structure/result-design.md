@@ -16,3 +16,4 @@ minus-lib generate-result-design
 
 ⛔ 禁止跳过脚本直接引导 Creator，门禁检查是硬性的。
 ⛔ 最后一步的 `generate-node-code.sh` 会提示调用此脚本，不要忽略。
+⛔ 即使某个步骤已经包含摘要（如步骤内的大模型分析），也必须向 Creator 确认结果页是否还需要单独的总结摘要。禁止自行判断"步骤里有了就不需要了"而跳过摘要维度。
