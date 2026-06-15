@@ -183,14 +183,13 @@ minus-lib generate-node-code {step_number}
 
 根据门禁输出的 `LOGIC_MODE`、`LLM_REQUIRED`、`CONFIRM_MODE` 和收集到的意图一次性生成所有代码。`LLM_REQUIRED=YES` 时，后端必须使用 SDK 内置 LLM 能力。
 
-### 步骤摘要与 finalize 规则
+### 步骤摘要规则
 
 步骤摘要必须来自后端 payload，不能只在前端临时拼接。这样摘要会随步骤结果持久化，用户回放时不会丢失。
 
-- 如果摘要不依赖用户确认结果：直接在当前步骤输出摘要。
-- 如果摘要依赖用户最终确认的数据：在用户确认后追加一个隐藏 finalize 步骤，让后端基于最终确认结果生成并持久化摘要。Creator 定义的模板和 SDK 内置 LLM 摘要都走这条规则，例如"供选择 n 个关键词"里的 `n` 必须基于最终确认后的实际数据计算。
-- 具体前端配置、回挂位置、运行态表现和示例代码，统一以前端 SDK 开发手册（frontend-guide.md）为准。Plugin 只负责判断什么时候该用这条平台能力，⛔ 不要在这里重复定义 UI 契约或手写摘要 wrapper。
-- ⛔ 禁止修改 Python SDK，禁止把 finalize 当成新的业务步骤向 Creator 展示。
+- 步骤同时有数据展示和 LLM 摘要生成时，用 `STEP_PARTIAL_DETAIL` 让数据立即上屏、LLM 跑完再 complete 带 summary。具体写法见前端 SDK 手册（frontend-guide.md）「数据先行、摘要后到」章节。
+- ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
+- ⛔ 禁止修改 Python SDK。
 
 ### 写代码前：必须查 API 文档（硬性前置步骤）
 

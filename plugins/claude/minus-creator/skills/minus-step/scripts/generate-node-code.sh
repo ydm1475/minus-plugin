@@ -110,8 +110,7 @@ FRONTEND_TEMPLATE=interactive
 #
 # 后端必须使用 StepOutcome.input_required(payload={...})
 #
-# 如果本步骤摘要依赖用户最终确认的数据，查前端 SDK 开发手册（frontend-guide.md）
-# 使用“确认后隐藏 finalize 摘要”这条平台能力。Plugin 只负责触发条件，不在这里重复定义 UI 契约。
+# 步骤摘要见前端 SDK 手册（frontend-guide.md）「数据先行、摘要后到」章节。
 # 禁止在确认前提前生成摘要，禁止只在前端临时拼接摘要，禁止修改 Python SDK。
 TEMPLATE
 elif [ "$CONFIRM_MODE" = "auto" ]; then
