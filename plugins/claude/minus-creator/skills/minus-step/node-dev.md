@@ -187,7 +187,7 @@ minus-lib generate-node-code {step_number}
 
 步骤摘要必须来自后端 payload，不能只在前端临时拼接。这样摘要会随步骤结果持久化，用户回放时不会丢失。
 
-- 步骤同时有数据展示和 LLM 摘要生成时，用 `STEP_PARTIAL_DETAIL` 让数据立即上屏、LLM 跑完再 complete 带 summary。具体写法见前端 SDK 手册（frontend-guide.md）「数据先行、摘要后到」章节。
+- 摘要的时序写法（什么时候用 `STEP_PARTIAL_DETAIL`、什么时候直接随终态下发）见前端 SDK 手册（frontend-guide.md）「步骤摘要（LLM summary）的三种时序」章节，按 `CONFIRM_MODE` 和摘要分析对象选择对应时序。
 - ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
 - ⛔ 禁止修改 Python SDK。
 
