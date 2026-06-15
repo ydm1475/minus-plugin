@@ -193,7 +193,7 @@ minus-lib generate-node-code {step_number}
 
 ### 写代码前：必须查 API 文档（硬性前置步骤）
 
-⛔ **禁止凭记忆或推测写 API 调用代码。** 每个 `ctx.sif.request(...)` 调用前，必须先用 MCP 工具查接口文档确认以下三项：
+⛔ **禁止凭记忆或推测写 API 调用代码。** 每个 `ctx.sif.request(...)` 调用前，检查当前对话中是否已有该接口的 `get_endpoint_details` 返回结果（维度 ① 查过的接口会在上文出现完整的参数和响应定义——有则直接使用，不需要重新查询）。只有维度 ① 未涉及的新接口才需要调用 MCP 查询。需确认以下三项：
 
 1. **HTTP 方法和参数名**：用 `get_endpoint_details` 查端点详情，确认 method（GET/POST）、参数名（如 `keywords` 不是 `searchKeyword`）、参数类型（数组/字符串）、参数位置（body/query）
 2. **响应结构**：确认返回数据的嵌套层级和字段名（如数据在 `list` 还是 `dataList`，ASIN 详情在 `asinDetail` 子对象还是扁平字段）
@@ -226,9 +226,9 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 ### 后端代码（pipeline.py）
 
-写后端代码前，先读项目 CLAUDE.md 中列出的后端 SDK 开发手册（如 THIRD_PARTY_SKILL_GUIDE.md），确认 `PipelineContext` 各字段的行为、`StepOutcome` 的用法、跨步骤数据传递机制。SDK 形态以手册为准——凭记忆写出来的 API 经常是不存在的版本。
+写后端代码前，检查 `generate-node-code` 的输出（紧接在门禁通过之后）——它包含 SDK 属性列表和数据契约。如果输出中已有本步骤需要的方法名和字段名，直接使用。如果缺少需要的**方法签名**（如需要 ctx.llm.chat 但输出中只有方法名没有参数结构），再读项目 CLAUDE.md 中列出的后端 SDK 开发手册。
 
-如果本步骤确认使用 LLM，先在后端 SDK 开发手册中查到 SDK 内置 LLM 调用方式（方法名、参数结构、返回结构、错误处理和超时/重试约定）再写代码。手册查不到就告诉 Creator 并停下——凭记忆拼 `ctx.llm` / `ctx.ai` / `openai` 等调用都是错的。
+凭记忆拼 `ctx.llm` / `ctx.ai` / `openai` 等调用都是错的——上下文中没有对应方法签名时必须查手册，手册也查不到就告诉 Creator 并停下。
 
 ### 前端代码（frontend/src/main.tsx）
 
@@ -236,9 +236,14 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 项目 `CLAUDE.md` 中的前端 SDK 文档使用远程 `${platformUrl}/runtime/...` 稳定地址。文档不可达时，明确告诉 Creator 并停止写前端代码——文档是唯一可靠来源，遍历用户目录、找本地 runtime 包或解析 minified CDN JS 得到的"API"不可信。
 
-#### ⛔ 使用 `@minus/*` 能力前必须读源码注释（硬性前置步骤）
+#### ⛔ 使用 `@minus/*` 能力前必须查 `${platformUrl}/runtime/` 文档确认 props
 
-前端 SDK 手册不一定覆盖所有 `@minus/*` 的行为和组件。**使用任何 `@minus/widget-framework` 或 `@minus/platform-widgets` 的能力前，必须先读对应源码文件**，确认行为、props 和 JSDoc 注释——源码里的 interface + 注释就是权威文档。
+`${platformUrl}/runtime/` 是 `@minus/*` 的权威文档和运行时来源：
+
+- `${platformUrl}/runtime/frontend-guide/doc.md` — 前端 SDK 手册（步骤 ⑤ 已读取），覆盖 defineWidgetStep、常用组件用法、时序模式等
+- `${platformUrl}/runtime/platform-widgets/docs.md` — platform-widgets 组件文档（Chart、SelectableTable 等完整 props）
+
+如果步骤 ⑤ 读取的前端 SDK 手册中已有该组件的完整 props 示例和行为说明，直接使用。手册未覆盖的组件，查 `${platformUrl}/runtime/` 下对应包的文档。文档仍不够时，再去读 platform 仓库源码确认：
 
 ```bash
 # 源码位置（在 platform 仓库，不在项目 .venv 里）
@@ -246,7 +251,7 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 # platform-widgets: packages/platform-widgets/src/    （Chart、EChart、SelectableTable、CompletionPanel 等组件）
 ```
 
-⛔ 禁止凭记忆写 props 或假设框架行为。遇到展示效果不符预期时，**先回去读源码的 props interface 和 JSDoc**，检查是否有现成 prop 或框架内置行为能解决，再考虑手写。高层组件有现成 prop 能解决的问题（如 Chart 的 `colorByData`），降级到底层组件手写 option 是反模式。
+⛔ 禁止凭记忆写 props 或假设框架行为。遇到展示效果不符预期时，**先查 `${platformUrl}/runtime/` 下的文档，文档不够再读源码的 props interface 和 JSDoc**，检查是否有现成 prop 或框架内置行为能解决，再考虑手写。高层组件有现成 prop 能解决的问题（如 Chart 的 `colorByData`），降级到底层组件手写 option 是反模式。
 
 #### ⛔ 步骤摘要由框架自动展示，禁止在 render 里重复渲染
 

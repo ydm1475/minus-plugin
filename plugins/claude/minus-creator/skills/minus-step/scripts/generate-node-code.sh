@@ -96,60 +96,28 @@ fi
 if [ "$CONFIRM_MODE" = "interactive" ]; then
   cat << 'TEMPLATE'
 FRONTEND_TEMPLATE=interactive
-# defineWidgetStep<SelectableTableProps, SelectableRow[]>({
-#   widget: SelectableTableWidget,
-#   props: ({ data }) => ({
-#     dataSource: (data.xxx as SelectableRow[]) ?? [],
-#     columns: [...],
-#   }),
-#   interactiveProps: () => ({
-#     primaryAction: { label: t('...confirm...') },
-#   }),
-#   confirmedKey: 'selectedXxx',
-# }),
-#
-# 后端必须使用 StepOutcome.input_required(payload={...})
-#
-# 步骤摘要见前端 SDK 手册（frontend-guide.md）「数据先行、摘要后到」章节。
-# 禁止在确认前提前生成摘要，禁止只在前端临时拼接摘要，禁止修改 Python SDK。
+后端使用 StepOutcome.input_required(payload={...})
+前端代码模式见前端 SDK 手册（frontend-guide.md）「通用确认机制：defineWidgetStep」章节。
+只渲染 Creator 在输出定义阶段明确确认的展示内容。
 TEMPLATE
 elif [ "$CONFIRM_MODE" = "auto" ]; then
   cat << 'TEMPLATE'
 FRONTEND_TEMPLATE=display
-# 纯展示步骤（auto-complete）使用普通 render 函数：
-#
-# {
-#   render: ({ data }) => (
-#     <组件 props={...} />
-#   ),
-# },
-#
-# 只渲染 Creator 在输出定义阶段明确确认的展示内容。
-# 接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容。
-# Creator 未明确要求概览、摘要、统计卡片或顶部汇总时，禁止生成这类 UI。
-#
-# 查 SDK 文档了解可用的 display widget。
-# 后端使用 StepOutcome.complete(payload={...})
+纯展示步骤（auto-complete）使用普通 render 函数。
+后端使用 StepOutcome.complete(payload={...})
+前端代码模式见前端 SDK 手册（frontend-guide.md）。
+只渲染 Creator 在输出定义阶段明确确认的展示内容。
+Creator 未明确要求概览、摘要、统计卡片或顶部汇总时，禁止生成这类 UI。
 TEMPLATE
 fi
 
-# ── 前端组件源码查阅提醒 ──
-
-cat << 'WIDGET_DOC'
-
-═══ @minus/* 能力：必须先读源码注释 ═══
-使用 @minus/widget-framework 或 @minus/platform-widgets 的任何能力前，
-先读对应源码 interface + JSDoc：
-  widget-framework → platform 仓库 packages/widget-framework/src/
-  platform-widgets → platform 仓库 packages/platform-widgets/src/
-⛔ 禁止凭记忆写 props 或假设框架行为。
+cat << 'WIDGET_TRAP'
 
 ⚠️ 高频陷阱——步骤摘要会出现两份：
   后端 payload 带 summary 字段时，框架自动在步骤卡片上展示该摘要。
   ⛔ 禁止在 StepConfig.render 里再手动渲染步骤摘要，否则同一段摘要出现两份。
-  此限制仅影响步骤内渲染，结果页的 CompletionPanel 不受影响。
   详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
-WIDGET_DOC
+WIDGET_TRAP
 
 # ── 数据契约：各步骤的 payload 字段 ──
 

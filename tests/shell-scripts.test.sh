@@ -1121,7 +1121,6 @@ bless_dim() {
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
   OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
-     && assert_contains "$OUTPUT" "数据先行、摘要后到" \
      && assert_contains "$OUTPUT" "用户确认后的步骤摘要"; then
     pass "generate-node-code: interactive template points summary finalize to platform docs"
   else
@@ -1829,7 +1828,6 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 (
   CONTENT=$(cat "$STEP_LIB/generate-node-code.sh")
   if assert_contains "$CONTENT" "只渲染 Creator 在输出定义阶段明确确认的展示内容" \
-     && assert_contains "$CONTENT" "接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容" \
      && assert_contains "$CONTENT" "Creator 未明确要求概览、摘要、统计卡片或顶部汇总时"; then
     pass "generate-node-code: display template prohibits unrequested overview cards"
   else
