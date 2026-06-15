@@ -145,9 +145,11 @@ cat << 'WIDGET_DOC'
   platform-widgets → platform 仓库 packages/platform-widgets/src/
 ⛔ 禁止凭记忆写 props 或假设框架行为。
 
-⚠️ 高频陷阱：data.summary 由 widget-framework 的 Timeline 自动渲染。
-  后端 payload 里有 summary 字段时，框架会自动展示。
-  ⛔ 禁止在前端 render 里再手动渲染 data.summary，否则摘要出现两份。
+⚠️ 高频陷阱——步骤摘要会出现两份：
+  后端 payload 带 summary 字段时，框架自动在步骤卡片上展示该摘要。
+  ⛔ 禁止在 StepConfig.render 里再手动渲染步骤摘要，否则同一段摘要出现两份。
+  此限制仅影响步骤内渲染，结果页的 CompletionPanel 不受影响。
+  详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
 WIDGET_DOC
 
 # ── 数据契约：各步骤的 payload 字段 ──

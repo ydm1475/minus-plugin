@@ -249,13 +249,9 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 ⛔ 禁止凭记忆写 props 或假设框架行为。遇到展示效果不符预期时，**先回去读源码的 props interface 和 JSDoc**，检查是否有现成 prop 或框架内置行为能解决，再考虑手写。高层组件有现成 prop 能解决的问题（如 Chart 的 `colorByData`），降级到底层组件手写 option 是反模式。
 
-#### ⛔ 步骤摘要：`data.summary` 由框架自动渲染，禁止手动重复渲染
+#### ⛔ 步骤摘要由框架自动展示，禁止在 render 里重复渲染
 
-`widget-framework` 的 `Timeline` 组件会自动读取每个步骤 `record.data.summary` 字段并渲染为步骤摘要文本。这意味着：
-
-- 后端 `StepOutcome.complete(payload={"summary": "...", ...})` 中的 `summary` 字段会被框架**自动**展示在步骤卡片上
-- ⛔ **禁止在前端 `render` 函数里再手动渲染 `data.summary`**——否则摘要会出现两份（框架一份 + 手动一份）
-- 需要自定义摘要样式时，用 `hidden` 步骤 + `attachSummaryToPreviousStep` 机制（见 frontend-guide），不要在 render 里直接写
+后端 payload 中带 `summary` 字段时，框架会自动在步骤卡片上展示该摘要。**禁止在 `StepConfig.render` 里再手动渲染步骤摘要**——否则同一段摘要会出现两份。详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
 
 需要在默认确认值之外向下一步追加字段时，使用前端 SDK 手册里的 `extendConfirmed`；`mapConfirmed` 是完全自定义 payload 的高级能力，使用不当会导致 readonly 回放丢失用户选择。
 
