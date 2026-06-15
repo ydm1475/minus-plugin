@@ -2,12 +2,13 @@
 # step-tracker.sh
 # 跟踪节点开发四维度的完成状态
 # 用法:
-#   step-tracker.sh status <step_number>          — 查看某步骤四维度状态
-#   step-tracker.sh complete <step_number> <dim> [mode] — 标记某维度完成（logic: deterministic|llm；confirm: auto|interactive）
-#   step-tracker.sh check <step_number>            — 检查四维度是否全部完成
-#   step-tracker.sh reset <step_number>            — 重置某步骤的状态
-#   step-tracker.sh is-last <step_number>            — 判断是否为最后一步（YES/NO）
-#   step-tracker.sh list                           — 列出所有步骤状态
+#   step-tracker.sh status <step_number>                    — 查看某步骤四维度状态
+#   step-tracker.sh ask <step_number> <dim> [<dim2>...]    — 输出该维度引导话术，写 _asked 盖章前置标记
+#   step-tracker.sh complete <step_number> <dim> [mode]    — 标记某维度完成（需先 ask 并等真实用户回复）
+#   step-tracker.sh check <step_number>                    — 检查四维度是否全部完成
+#   step-tracker.sh reset <step_number>                    — 重置某步骤的状态
+#   step-tracker.sh is-last <step_number>                  — 判断是否为最后一步（YES/NO）
+#   step-tracker.sh list                                   — 列出所有步骤状态
 
 set -euo pipefail
 
@@ -25,7 +26,6 @@ total_steps() {
   if [ -f ".minus/total-steps" ]; then
     cat ".minus/total-steps"
   elif [ -f "pipeline.py" ]; then
-    # grep -c 无匹配时自己输出 0 且退出码 1，用 || true 防 set -e，不能再 echo 0（会输出两行）
     grep -c 'async def step_[0-9]' "pipeline.py" 2>/dev/null || true
   else
     echo ""
@@ -45,49 +45,33 @@ is_last_step() {
   fi
 }
 
-# 维度完成后输出下一步引导话术（Agent 原样转达「」内的行，每行独立）
-emit_next_prompt() {
-  local STEP="$1" DIM="$2"
+# 维度话术（ask 子命令的单源输出）
+dim_prompt() {
+  local DIM="$1"
   case "$DIM" in
     data)
-      echo "NEXT_DIM=logic"
-      echo "── 原样转达给 Creator（每行独立；若 Creator 已表达过处理意图，跳过转达直接标记 logic）──"
+      echo "「数据获取已就绪，准备确认。」"
+      echo ""
+      echo "「这一步能拿到以下数据——[在此填入接口发现的数据字段]。这些数据够用吗？还是需要补充？」"
+      ;;
+    logic)
       echo "「数据获取确认完毕。」"
       echo ""
       echo "「下一个问题：拿到这些数据之后，怎么处理？」"
       echo ""
       echo "「比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？」"
       ;;
-    logic)
-      echo "NEXT_DIM=output"
-      echo "── 原样转达给 Creator（每行独立；若 Creator 已表达过展示意图，跳过转达直接标记 output）──"
+    output)
       echo "「处理逻辑确认完毕。」"
       echo ""
       echo "「下一个问题：这一步要展示什么给用户看？」"
       echo ""
-      echo "「比如一个数据表格、一段文字摘要、一个评分卡片……」"
-      ;;
-    output)
-      if [ "$(is_last_step "$STEP")" = "YES" ]; then
-        # 最后一步没有"用户确认后传给下一步"，硬编码跳过维度④
-        touch "$TRACKER_DIR/step_${STEP}_confirm"
-        echo "auto" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
-        echo "✓ 最后一步无需用户确认设置，已自动标记 confirm (auto)"
-        echo "NEXT=GENERATE"
-        echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
-      else
-        echo "NEXT_DIM=confirm"
-        echo "── 原样转达给 Creator（每行独立）──"
-        echo "「展示内容确认完毕。」"
-        echo ""
-        echo "「下一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？」"
-        echo ""
-        echo "「还是自动往下走？」"
-      fi
+      echo "「比如：一个数据表格、一段文字摘要、一个评分卡片……」"
       ;;
     confirm)
-      echo "NEXT=GENERATE"
-      echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
+      echo "「展示内容确认完毕。」"
+      echo ""
+      echo "「下一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？还是自动往下走？」"
       ;;
   esac
 }
@@ -112,6 +96,45 @@ case "${1:-}" in
     done
     ;;
 
+  ask)
+    STEP="${2:?用法: step-tracker.sh ask <step_number> <dim> [<dim2>...]}"
+    shift 2
+    DIMS_TO_ASK=("$@")
+    if [ "${#DIMS_TO_ASK[@]}" -eq 0 ]; then
+      echo "错误：必须指定至少一个维度（data|logic|output|confirm）" >&2
+      exit 1
+    fi
+    ensure_dir
+
+    # 校验所有维度合法
+    for DIM in "${DIMS_TO_ASK[@]}"; do
+      VALID=false
+      for d in "${DIMS[@]}"; do
+        [ "$DIM" = "$d" ] && VALID=true
+      done
+      if [ "$VALID" = false ]; then
+        echo "错误：无效的维度 '$DIM'，可选：data|logic|output|confirm" >&2
+        exit 1
+      fi
+    done
+
+    # 写 _asked 标记（盖章前置）
+    for DIM in "${DIMS_TO_ASK[@]}"; do
+      touch "$TRACKER_DIR/step_${STEP}_${DIM}_asked"
+    done
+
+    # 单维度：输出对应话术
+    # 多维度：输出合并确认提示（Agent 基于已收集的意图动态拼合并句）
+    echo "── 原样转达给 Creator（每行独立）──"
+    if [ "${#DIMS_TO_ASK[@]}" -eq 1 ]; then
+      dim_prompt "${DIMS_TO_ASK[0]}"
+    else
+      echo "「我理解这一步的意图是：[在此用通俗语言逐项复述各维度已明确表达的内容]。这样对吗？」"
+    fi
+    echo ""
+    echo "⛔ 本轮到此结束，转达后停止，等待 Creator 回复后再执行 complete。"
+    ;;
+
   complete)
     STEP="${2:?用法: step-tracker.sh complete <step_number> <dim>}"
     DIM="${3:?用法: step-tracker.sh complete <step_number> <dim>（dim: data|logic|output|confirm）}"
@@ -123,6 +146,12 @@ case "${1:-}" in
     done
     if [ "$VALID" = false ]; then
       echo "错误：无效的维度 '$DIM'，可选：data|logic|output|confirm" >&2
+      exit 1
+    fi
+
+    # 硬门禁：必须有 _replied 才能 complete（即 ask 之后发生过真实用户轮次）
+    if [ ! -f "$TRACKER_DIR/step_${STEP}_${DIM}_replied" ]; then
+      echo "⛔ 还没等 Creator 回复就标记完成 — 先执行 minus-lib step-tracker ask ${STEP} ${DIM}，转达后停止，等 Creator 回复后再 complete。" >&2
       exit 1
     fi
 
@@ -166,8 +195,42 @@ case "${1:-}" in
     elif [ "$DIM" = "confirm" ]; then
       echo "$MODE" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
     fi
-    echo "✓ 步骤 $STEP — ${DIM} 已确认${MODE:+ (模式: $MODE)}"
-    emit_next_prompt "$STEP" "$DIM"
+
+    # 清掉本维度盖章文件（避免陈旧 _replied 被后续误用）
+    rm -f "$TRACKER_DIR/step_${STEP}_${DIM}_asked" \
+          "$TRACKER_DIR/step_${STEP}_${DIM}_replied"
+
+    MODE_DISPLAY="${4:-}"
+    echo "✓ 步骤 $STEP — ${DIM} 已确认${MODE_DISPLAY:+ (模式: $MODE_DISPLAY)}"
+
+    # 输出下一步操作指引（不再附带话术，话术单源在 ask 子命令）
+    case "$DIM" in
+      data)
+        echo "NEXT_DIM=logic"
+        echo "执行：minus-lib step-tracker ask ${STEP} logic，转达后停止等回复。"
+        ;;
+      logic)
+        echo "NEXT_DIM=output"
+        echo "执行：minus-lib step-tracker ask ${STEP} output，转达后停止等回复。"
+        ;;
+      output)
+        if [ "$(is_last_step "$STEP")" = "YES" ]; then
+          # 最后一步没有"用户确认后传给下一步"，硬编码跳过维度④
+          touch "$TRACKER_DIR/step_${STEP}_confirm"
+          echo "auto" > "$TRACKER_DIR/step_${STEP}_confirm_mode"
+          echo "✓ 最后一步无需用户确认设置，已自动标记 confirm (auto)"
+          echo "NEXT=GENERATE"
+          echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
+        else
+          echo "NEXT_DIM=confirm"
+          echo "执行：minus-lib step-tracker ask ${STEP} confirm，转达后停止等回复。"
+        fi
+        ;;
+      confirm)
+        echo "NEXT=GENERATE"
+        echo "四维度已全部确认。接下来执行：minus-lib generate-node-code ${STEP}"
+        ;;
+    esac
     ;;
 
   check)
@@ -216,7 +279,6 @@ case "${1:-}" in
       exit 0
     fi
 
-    # 找出所有步骤编号
     STEPS=$(ls "$TRACKER_DIR" 2>/dev/null | grep -o 'step_[0-9]*' | sort -u | sed 's/step_//')
     for STEP in $STEPS; do
       DONE=0
@@ -235,7 +297,7 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "用法: step-tracker.sh <status|complete|check|reset|is-last|list> [args]"
+    echo "用法: step-tracker.sh <status|ask|complete|check|reset|is-last|list> [args]"
     exit 1
     ;;
 esac

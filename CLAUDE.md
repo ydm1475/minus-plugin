@@ -94,6 +94,16 @@ node --test tests/integration.test.js            # 集成测试
 bash tests/shell-scripts.test.sh                 # Shell 脚本测试
 ```
 
+## 打包可分发安装包
+
+用户要"插件安装包"时，**必须用现成脚本 `minus-lib pack`（即 `plugins/claude/minus-creator/scripts/pack.sh`），不要手搓 tar/zip**。
+
+```bash
+minus-lib pack [输出目录]    # 默认输出 ~/Desktop/minus-creator-v<版本>.zip
+```
+
+脚本已封装全部正确逻辑：解析 Node>=20 → 重建自包含 MCP bundle（依赖内联，包内无需 node_modules）→ 按 `.claude-plugin/plugin.json` 版本号命名 → 打 marketplace 布局（`.claude-plugin/marketplace.json` + `minus-creator/`，排除 node_modules/.git/.DS_Store/.minus）→ 三道打包后自检（marketplace.json 进包、dist/minus-platform.cjs 进包、node_modules 没混入）。产物是 **.zip**，不是 tgz。
+
 ## 项目结构
 
 - `plugins/claude/minus-creator/` — 插件主目录

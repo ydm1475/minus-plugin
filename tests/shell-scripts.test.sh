@@ -820,6 +820,15 @@ echo "═══ step-tracker.sh ═══"
 # ══════════════════════════════════════════════════════
 
 ST="$(via_lib step-tracker)"
+BLESS_SCRIPT="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
+
+# 测试辅助：为指定步骤+维度预置 _replied（模拟 ask→Stop 盖章已完成）
+bless_dim() {
+  local step="$1" dim="$2"
+  mkdir -p .minus/dev-progress
+  touch ".minus/dev-progress/step_${step}_${dim}_asked"
+  bash "$BLESS_SCRIPT"
+}
 
 # Test: fails without arguments
 (
@@ -836,6 +845,7 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
   OUTPUT=$(bash "$ST" status 1 2>&1)
   if assert_contains "$OUTPUT" "✓ 数据需求"; then
@@ -845,11 +855,12 @@ ST="$(via_lib step-tracker)"
   fi
 )
 
-# Test: must complete in order
+# Test: must complete in order（先 bless logic 绕过 _replied 检查，让顺序门禁生效）
 (
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 logic
   OUTPUT=$(bash "$ST" complete 1 logic 2>&1 || true)
   if assert_contains "$OUTPUT" "还未完成"; then
     pass "step-tracker: enforces dimension order"
@@ -863,6 +874,7 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
   OUTPUT=$(bash "$ST" check 1 2>&1 || true)
   if assert_contains "$OUTPUT" "INCOMPLETE"; then
@@ -877,9 +889,13 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic >/dev/null 2>&1
+  bless_dim 1 output
   bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   OUTPUT=$(bash "$ST" check 1 2>&1)
   if assert_contains "$OUTPUT" "COMPLETE"; then
@@ -894,6 +910,7 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
   bash "$ST" reset 1 >/dev/null 2>&1
   OUTPUT=$(bash "$ST" check 1 2>&1 || true)
@@ -909,7 +926,9 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic >/dev/null 2>&1
   MODE=$(cat .minus/dev-progress/step_1_logic_mode)
   if [ "$MODE" = "deterministic" ]; then
@@ -924,7 +943,9 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
   OUTPUT=$(bash "$ST" status 1 2>&1)
   if [ "$(cat .minus/dev-progress/step_1_logic_mode)" = "llm" ] \
@@ -935,12 +956,13 @@ ST="$(via_lib step-tracker)"
   fi
 )
 
-# Test: invalid logic mode is rejected
+# Test: invalid logic mode is rejected（bless data、complete data；再 bless logic 让 mode 校验生效）
 (
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
-  bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 data;  bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   OUTPUT=$(bash "$ST" complete 1 logic auto 2>&1 || true)
   if assert_contains "$OUTPUT" "logic 模式必须是 deterministic 或 llm"; then
     pass "step-tracker: rejects invalid logic mode"
@@ -954,7 +976,9 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
   bash "$ST" reset 1 >/dev/null 2>&1
   if [ ! -f .minus/dev-progress/step_1_logic_mode ]; then
@@ -969,10 +993,15 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic >/dev/null 2>&1
+  bless_dim 1 output
   bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
+  bless_dim 2 data
   bash "$ST" complete 2 data >/dev/null 2>&1
   OUTPUT=$(bash "$ST" list 2>&1)
   if assert_contains "$OUTPUT" "✓ 步骤 1" && assert_contains "$OUTPUT" "◐ 步骤 2"; then
@@ -987,11 +1016,12 @@ ST="$(via_lib step-tracker)"
   TMP=$(make_tmp)
   cd "$TMP"
   mkdir -p .minus
+  bless_dim 1 data
   OUTPUT=$(bash "$ST" complete 1 data 2>&1)
-  if assert_contains "$OUTPUT" "NEXT_DIM=logic" && assert_contains "$OUTPUT" "数据获取确认完毕"; then
-    pass "step-tracker: complete data emits next-dimension prompt"
+  if assert_contains "$OUTPUT" "NEXT_DIM=logic" && assert_contains "$OUTPUT" "step-tracker ask"; then
+    pass "step-tracker: complete data emits ask instruction for next dim"
   else
-    fail "step-tracker: complete data emits next-dimension prompt" "got: $OUTPUT"
+    fail "step-tracker: complete data emits ask instruction" "got: $OUTPUT"
   fi
 )
 
@@ -1001,13 +1031,15 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 3 > .minus/total-steps
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bash "$ST" complete 1 logic >/dev/null 2>&1
+  bless_dim 1 data;   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic;  bash "$ST" complete 1 logic >/dev/null 2>&1
+  bless_dim 1 output
   OUTPUT=$(bash "$ST" complete 1 output 2>&1)
-  if assert_contains "$OUTPUT" "NEXT_DIM=confirm" && assert_contains "$OUTPUT" "需要暂停让用户确认数据"; then
-    pass "step-tracker: complete output (non-last) prompts confirm dimension"
+  if assert_contains "$OUTPUT" "NEXT_DIM=confirm" && assert_contains "$OUTPUT" "step-tracker ask"; then
+    pass "step-tracker: complete output (non-last) emits confirm ask instruction"
   else
     fail "step-tracker: complete output (non-last) prompts confirm dimension" "got: $OUTPUT"
+
   fi
 )
 
@@ -1017,8 +1049,9 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 2 > .minus/total-steps
-  bash "$ST" complete 2 data >/dev/null 2>&1
-  bash "$ST" complete 2 logic >/dev/null 2>&1
+  bless_dim 2 data;  bash "$ST" complete 2 data >/dev/null 2>&1
+  bless_dim 2 logic; bash "$ST" complete 2 logic >/dev/null 2>&1
+  bless_dim 2 output
   OUTPUT=$(bash "$ST" complete 2 output 2>&1)
   MODE=$(cat .minus/dev-progress/step_2_confirm_mode 2>/dev/null || echo MISSING)
   if assert_contains "$OUTPUT" "NEXT=GENERATE" && [ "$MODE" = "auto" ] && bash "$ST" check 2 >/dev/null 2>&1; then
@@ -1034,9 +1067,12 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 3 > .minus/total-steps
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic >/dev/null 2>&1
-  bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 output; bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   OUTPUT=$(bash "$ST" complete 1 confirm interactive 2>&1)
   if assert_contains "$OUTPUT" "NEXT=GENERATE" && assert_contains "$OUTPUT" "generate-node-code 1"; then
     pass "step-tracker: complete confirm emits NEXT=GENERATE"
@@ -1051,9 +1087,13 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 1 > .minus/total-steps
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic llm >/dev/null 2>&1
+  bless_dim 1 output
   bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
@@ -1071,9 +1111,13 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 2 > .minus/total-steps
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
+  bless_dim 1 output
   bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
   OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
@@ -1091,9 +1135,13 @@ ST="$(via_lib step-tracker)"
   cd "$TMP"
   mkdir -p .minus
   echo 1 > .minus/total-steps
+  bless_dim 1 data
   bash "$ST" complete 1 data >/dev/null 2>&1
+  bless_dim 1 logic
   bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
+  bless_dim 1 output
   bash "$ST" complete 1 output >/dev/null 2>&1
+  bless_dim 1 confirm
   bash "$ST" complete 1 confirm auto >/dev/null 2>&1
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
   OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
@@ -1103,6 +1151,128 @@ ST="$(via_lib step-tracker)"
     pass "generate-node-code: emits data-contract completeness checks"
   else
     fail "generate-node-code: data-contract completeness checks" "got: $OUTPUT"
+  fi
+)
+# Test: ask 子命令写 _asked 标记并输出话术
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  OUTPUT=$(bash "$ST" ask 1 logic 2>&1)
+  if [ -f .minus/dev-progress/step_1_logic_asked ] \
+     && assert_contains "$OUTPUT" "本轮到此结束" \
+     && assert_contains "$OUTPUT" "数据获取确认完毕"; then
+    pass "step-tracker: ask writes _asked and emits prompt"
+  else
+    fail "step-tracker: ask writes _asked and emits prompt" "got: $OUTPUT / files: $(ls .minus/dev-progress/ 2>/dev/null)"
+  fi
+)
+
+# Test: ask 多维度写多个 _asked
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  bash "$ST" ask 1 output confirm >/dev/null 2>&1
+  if [ -f .minus/dev-progress/step_1_output_asked ] \
+     && [ -f .minus/dev-progress/step_1_confirm_asked ]; then
+    pass "step-tracker: ask multi-dim writes multiple _asked"
+  else
+    fail "step-tracker: ask multi-dim writes multiple _asked" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
+  fi
+)
+
+# Test: complete 缺 _replied 时被硬门禁拒绝
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  OUTPUT=$(bash "$ST" complete 1 data 2>&1 || true)
+  if assert_contains "$OUTPUT" "还没等 Creator 回复就标记完成"; then
+    pass "step-tracker: complete blocked without _replied"
+  else
+    fail "step-tracker: complete blocked without _replied" "got: $OUTPUT"
+  fi
+)
+
+# Test: bless-replies.sh 把 _asked 升级为 _replied
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus/dev-progress
+  touch .minus/dev-progress/step_1_data_asked
+  touch .minus/dev-progress/step_2_logic_asked
+  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
+  bash "$BLESS" 2>&1
+  if [ -f .minus/dev-progress/step_1_data_replied ] \
+     && [ -f .minus/dev-progress/step_2_logic_replied ]; then
+    pass "bless-replies: converts _asked to _replied"
+  else
+    fail "bless-replies: converts _asked to _replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
+  fi
+)
+
+# Test: bless-replies.sh 无 .minus 时 no-op 不报错
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
+  if bash "$BLESS" >/dev/null 2>&1; then
+    pass "bless-replies: no-op when no .minus/dev-progress"
+  else
+    fail "bless-replies: should exit 0 without .minus/dev-progress" ""
+  fi
+)
+
+# Test: ask → bless → complete 正常流程放行
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus
+  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
+  bash "$ST" ask 1 data >/dev/null 2>&1
+  bash "$BLESS" >/dev/null 2>&1   # 模拟 Stop 事件盖章
+  OUTPUT=$(bash "$ST" complete 1 data 2>&1)
+  if assert_contains "$OUTPUT" "✓ 步骤 1 — data 已确认" \
+     && [ ! -f .minus/dev-progress/step_1_data_asked ] \
+     && [ ! -f .minus/dev-progress/step_1_data_replied ]; then
+    pass "step-tracker: ask→bless→complete succeeds and cleans up"
+  else
+    fail "step-tracker: ask→bless→complete flow" "got: $OUTPUT / files: $(ls .minus/dev-progress/ 2>/dev/null)"
+  fi
+)
+
+# Test: complete 成功后清掉 _asked/_replied（防陈旧盖章）
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus/dev-progress
+  touch .minus/dev-progress/step_1_data_asked
+  touch .minus/dev-progress/step_1_data_replied
+  bash "$ST" complete 1 data >/dev/null 2>&1
+  if [ ! -f .minus/dev-progress/step_1_data_asked ] \
+     && [ ! -f .minus/dev-progress/step_1_data_replied ]; then
+    pass "step-tracker: complete cleans up _asked/_replied"
+  else
+    fail "step-tracker: complete should clean _asked/_replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
+  fi
+)
+
+# Test: reset 同时清掉 _asked/_replied
+(
+  TMP=$(make_tmp)
+  cd "$TMP"
+  mkdir -p .minus/dev-progress
+  touch .minus/dev-progress/step_1_data_asked
+  touch .minus/dev-progress/step_1_data_replied
+  touch .minus/dev-progress/step_1_data
+  bash "$ST" reset 1 >/dev/null 2>&1
+  if [ ! -f .minus/dev-progress/step_1_data_asked ] \
+     && [ ! -f .minus/dev-progress/step_1_data_replied ] \
+     && [ ! -f .minus/dev-progress/step_1_data ]; then
+    pass "step-tracker: reset clears _asked/_replied too"
+  else
+    fail "step-tracker: reset should clear _asked/_replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
   fi
 )
 

@@ -26,6 +26,16 @@ RESOLVED_NODE="$(sh "$PLUGIN_DIR/scripts/resolve-node.sh" 2>/dev/null || true)"
 [ -n "$RESOLVED_NODE" ] && export MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"  # 预填分发器缓存
 ML_BIN="$PLUGIN_DIR/bin/minus-lib"
 
+# ── 盖章驱动：复刻真实 ask→Stop→complete 流程 ──
+# step-tracker complete 有硬门禁：必须存在 _replied（ask 之后发生过真实用户轮次）才放行。
+# 真实会话里 _replied 由 Stop hook(bless-replies) 在 Agent 让渡轮次时盖出；e2e 回放无真实
+# Stop 事件，故每次 complete 前显式 ask + 跑 bless-replies 模拟那次盖章。
+st_complete() {  # <step> <dim> [mode]
+  bash "$ML_BIN" step-tracker ask "$1" "$2" >/dev/null 2>&1
+  bash "$ML_BIN" bless-replies >/dev/null 2>&1
+  bash "$ML_BIN" step-tracker complete "$@"
+}
+
 # ── Test Framework ──
 
 RESULTS_FILE=$(mktemp)
@@ -117,7 +127,7 @@ fi
 
 # TC-R02: 维度① — Creator 确认数据接口后标记 data 完成
 # 对应 conversation 第 260 行：用户说"可以了"确认以词拓词接口
-bash "$ML_BIN" step-tracker complete 1 data > /dev/null 2>&1
+st_complete 1 data > /dev/null 2>&1
 STATUS_1=$(bash "$ML_BIN" step-tracker status 1 2>&1)
 if echo "$STATUS_1" | grep -q "✓ 数据需求"; then
   pass "维度① data 标记完成"
@@ -127,7 +137,7 @@ fi
 
 # TC-R03: 维度② — Creator 说"做聚合排序按照搜索量对词进行排序"
 # 对应 conversation 第 338 行
-bash "$ML_BIN" step-tracker complete 1 logic > /dev/null 2>&1
+st_complete 1 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last 判断是否最后一步
 # 传递数据的问题已移到维度④之后，维度③只问展示内容
@@ -150,7 +160,7 @@ fi
 
 # TC-R04: 维度③ — Creator 说"一个数据表格"
 # 对应 conversation 第 349 行
-bash "$ML_BIN" step-tracker complete 1 output > /dev/null 2>&1
+st_complete 1 output > /dev/null 2>&1
 
 # TC-R05: 维度④ — Creator 说"需要暂停让用户确认数据再继续"
 # 对应 conversation 第 492 行
@@ -162,7 +172,7 @@ else
   fail "维度④未完成前应 INCOMPLETE" "INCOMPLETE" "$CHECK_BEFORE_CONFIRM"
 fi
 
-bash "$ML_BIN" step-tracker complete 1 confirm interactive > /dev/null 2>&1
+st_complete 1 confirm interactive > /dev/null 2>&1
 CHECK_AFTER_CONFIRM=$(bash "$ML_BIN" step-tracker check 1 2>&1)
 if echo "$CHECK_AFTER_CONFIRM" | grep -q "COMPLETE"; then
   pass "第 1 步四维度全部完成 → COMPLETE"
@@ -195,10 +205,10 @@ else
 fi
 
 # TC-R08: 维度① — Creator 确认接口
-bash "$ML_BIN" step-tracker complete 2 data > /dev/null 2>&1
+st_complete 2 data > /dev/null 2>&1
 
 # TC-R09: 维度② — Creator 说"做聚合排"
-bash "$ML_BIN" step-tracker complete 2 logic > /dev/null 2>&1
+st_complete 2 logic > /dev/null 2>&1
 
 # 按新流程，维度②完成后 Agent 应调 is-last → YES
 # 维度③提问不应包含"需要传什么数据给下一步"
@@ -211,7 +221,7 @@ fi
 
 # TC-R10: 维度③ — Creator 说"一个表格列出热销"（最后一步展示）
 # 对应 conversation 第 782 行
-OUTPUT_DONE=$(bash "$ML_BIN" step-tracker complete 2 output 2>&1)
+OUTPUT_DONE=$(st_complete 2 output 2>&1)
 
 # TC-R11: 最后一步 → 维度④自动跳过（已硬编码进 step-tracker.sh，不靠 md 指令）
 # complete output 时脚本检测 is-last=YES → 自动标记 confirm(auto) 并输出 NEXT=GENERATE
@@ -273,7 +283,7 @@ else
 fi
 
 # TC-R17: step-tracker 允许非最后一步使用 auto 模式（最终用户不用确认）
-AUTO_RESULT=$(bash "$ML_BIN" step-tracker complete 1 confirm auto 2>&1 || true)
+AUTO_RESULT=$(st_complete 1 confirm auto 2>&1 || true)
 if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
   pass "硬编码门禁：非最后一步 confirm auto 被允许"
 else
@@ -282,7 +292,7 @@ fi
 
 # TC-R18: generate-node-code.sh 门禁 — 维度未全部完成时拒绝生成
 bash "$ML_BIN" step-tracker reset 1 > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 1 data > /dev/null 2>&1
+st_complete 1 data > /dev/null 2>&1
 GATE_RESULT=$(bash "$ML_BIN" generate-node-code 1 2>&1 || true)
 if echo "$GATE_RESULT" | grep -q "四维度未全部完成"; then
   pass "硬编码门禁：维度未完成时 generate-node-code.sh 拒绝生成"
@@ -291,9 +301,9 @@ else
 fi
 
 # TC-R19: generate-node-code.sh 门禁 — 全部完成时输出 GATE_PASSED + 模板
-bash "$ML_BIN" step-tracker complete 1 logic > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 1 output > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 1 confirm interactive > /dev/null 2>&1
+st_complete 1 logic > /dev/null 2>&1
+st_complete 1 output > /dev/null 2>&1
+st_complete 1 confirm interactive > /dev/null 2>&1
 GATE_RESULT2=$(bash "$ML_BIN" generate-node-code 1 2>&1)
 if echo "$GATE_RESULT2" | grep -q "GATE_PASSED" \
    && echo "$GATE_RESULT2" | grep -q "LOGIC_MODE=deterministic" \
@@ -312,10 +322,10 @@ fi
 
 # TC-R21: Creator 明确要求大模型自动生成结论 → 节点状态和门禁保留 LLM 意图
 bash "$ML_BIN" step-tracker reset 2 > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 2 data > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 2 logic llm > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 2 output > /dev/null 2>&1
-bash "$ML_BIN" step-tracker complete 2 confirm auto > /dev/null 2>&1
+st_complete 2 data > /dev/null 2>&1
+st_complete 2 logic llm > /dev/null 2>&1
+st_complete 2 output > /dev/null 2>&1
+st_complete 2 confirm auto > /dev/null 2>&1
 GATE_RESULT3=$(bash "$ML_BIN" generate-node-code 2 2>&1)
 if echo "$GATE_RESULT3" | grep -q "LOGIC_MODE=llm" && echo "$GATE_RESULT3" | grep -q "LLM_REQUIRED=YES"; then
   pass "LLM 意图持久化：大模型自动生成结论 → LOGIC_MODE=llm + LLM_REQUIRED=YES"

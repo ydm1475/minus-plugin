@@ -12,11 +12,28 @@
 
 ⛔ 核心规则：
 
-- 每个维度的业务意图必须得到 Creator 确认后才能进入下一个
+- 每个维度的业务意图必须得到 Creator **明确**确认后才能进入下一个
+- **明确确认** = Creator 清楚说出了该维度的具体内容（如"表格""排序""自动继续"）；Agent 推断、联想、从技能名猜测出来的**不算明确表达**
 - **四个维度的问答阶段只收集意图，不写任何代码**
 - **所有维度全部确认后，一次性生成 pipeline.py + main.tsx 代码**
-- 如果 Creator 的一句话覆盖了多个维度意图，可以合并推进，不需要逐个追问已回答的维度
-- Creator 没表达过的意图，不能替 Creator 决定
+- **禁止抢答**：Creator 的回复只有在你已执行 `ask` 并输出该维度问题之后，才算该维度的回答。不确定 Creator 在回答哪个维度时，先复述理解请 Creator 确认，禁止自行判断并标记完成
+
+## 每个维度的标准流程
+
+```
+1. 执行 minus-lib step-tracker ask <step> <dim>  → 输出话术，转达，停止等回复
+2. 等待 Creator 明确回复
+3. 执行 minus-lib step-tracker complete <step> <dim> [mode]
+```
+
+若 Creator 一句话**明确**覆盖了多个维度（如同时说清楚了处理方式和展示内容），可合并：
+
+```
+minus-lib step-tracker ask <step> output confirm  → 输出合并确认句，停止等回复
+Creator 确认后 → complete output，complete confirm <mode>
+```
+
+合并的前提是各维度内容均已**明确**说出，不是 Agent 推断的。
 
 ## 阶段一：逐维度收集意图
 
@@ -30,19 +47,23 @@
 1. 调用 `ToolSearch("mcp__")` 发现当前会话中可用的 MCP 工具（这些工具来自插件 `.mcp.json` 中配置的 MCP 服务，会话启动时已自动注册）。排除 `mcp__plugin_minus-creator_minus-platform__` 开头的（那是平台管理工具），剩下的就是数据服务商的工具。工具列表和参数 schema 只能通过 ToolSearch 获取（`.mcp.json` 里只有启动配置，没有这些信息）。
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
 3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**（只看第一个结果就决定经常选错）
-4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），Creator 确认后标记完成
+4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），接口确认后执行 ask
 
 ⛔ P0：写进确认内容的接口必须来自上述 MCP 发现流程的真实结果。找不到合适接口时，如实告诉 Creator 这一步取不到数据并讨论调整——不读本地 SDK 源码猜接口，不用 mock 数据顶替。
 
 **重要：MCP 只用于开发阶段发现 API。生成的代码通过 SDK 调用 API（如 SIF 数据源用 `ctx.sif.*`），不依赖 MCP。具体用哪个 SDK 方法，参考 MCP 返回的接口文档。**
 
-Creator 确认后，执行：
+接口发现完成后，执行：
+
+```bash
+minus-lib step-tracker ask {step_number} data
+```
+
+脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后执行：
 
 ```bash
 minus-lib step-tracker complete {step_number} data
 ```
-
-脚本会输出下一个维度的引导话术，按脚本输出行事：原样转达「」内的行（每行独立，不合并）；若 Creator 之前的回复已覆盖下一维度意图，跳过转达直接继续。
 
 ### ② 处理逻辑
 
@@ -61,13 +82,13 @@ minus-lib step-tracker complete {step_number} data
 2. Creator 回答后，用通俗语言归纳大模型将生成什么、重点关注什么、有哪些边界，并询问「这样可以吗？」
 3. 只有 Creator 明确确认后，才能记录 `logic llm` 并进入下一维度。
 
-例如：
-「好的，这一步会用大模型根据实际数据生成分析结论。结合当前数据，你希望它重点关注哪些内容？」
+执行：
 
-Creator 回答后：
-「明白了。这一步会重点生成：{根据 Creator 回答动态归纳的内容}。这样可以吗？」
+```bash
+minus-lib step-tracker ask {step_number} logic
+```
 
-Creator 确认后，根据处理方式执行其中一个命令：
+脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后，根据处理方式执行其中一个命令：
 
 ```bash
 # 排序、筛选、聚合、格式化等确定性处理
@@ -77,8 +98,6 @@ minus-lib step-tracker complete {step_number} logic deterministic
 minus-lib step-tracker complete {step_number} logic llm
 ```
 
-脚本会输出维度 ③ 的引导话术，按维度 ① 末尾的同一规则转达。
-
 ### ③ 输出定义
 
 只收集展示意图（不写代码）：
@@ -87,7 +106,13 @@ minus-lib step-tracker complete {step_number} logic llm
 - 传给下一步的数据在维度 ④ 确认后再问
 - ⛔ **禁止自动补展示内容**：代码只能渲染 Creator 在输出定义阶段明确确认的展示内容。接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容。Creator 只说"表格"就只生成表格；只有 Creator 明确要求"概览/摘要/统计卡片/顶部汇总"时，才可以添加这类 UI。
 
-Creator 确认后，执行：
+执行：
+
+```bash
+minus-lib step-tracker ask {step_number} output
+```
+
+脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后执行：
 
 ```bash
 minus-lib step-tracker complete {step_number} output
@@ -96,13 +121,21 @@ minus-lib step-tracker complete {step_number} output
 脚本会自动判断是否为最后一步：
 
 - **最后一步**：脚本自动标记 `confirm (auto)` 并输出 `NEXT=GENERATE`——直接进入「阶段二：一次性生成代码」，维度 ④ 不存在于最后一步
-- **非最后一步**：脚本输出维度 ④ 的引导话术，原样转达后进入维度 ④
+- **非最后一步**：脚本提示执行 `ask <step> confirm`，执行后停止等回复
 
 ### ④ 用户确认 + 传递数据
 
-本维度只在脚本输出了维度 ④ 话术时进入（最后一步已由脚本自动跳过）。
+本维度只在脚本提示执行 `ask <step> confirm` 时进入（最后一步已由脚本自动跳过）。
 
 确认模式必须由 Creator 亲口选择，按字面映射：说"需要确认"→ interactive；说"自动继续"或"用户不用确认"→ auto（"不用确认"是 auto 的同义表达，不是 interactive）。
+
+执行：
+
+```bash
+minus-lib step-tracker ask {step_number} confirm
+```
+
+脚本输出话术后**停止，等 Creator 回复**。
 
 **分两轮收集：**
 
@@ -155,7 +188,7 @@ minus-lib generate-node-code {step_number}
 步骤摘要必须来自后端 payload，不能只在前端临时拼接。这样摘要会随步骤结果持久化，用户回放时不会丢失。
 
 - 如果摘要不依赖用户确认结果：直接在当前步骤输出摘要。
-- 如果摘要依赖用户最终确认的数据：在用户确认后追加一个隐藏 finalize 步骤，让后端基于最终确认结果生成并持久化摘要。Creator 定义的模板和 SDK 内置 LLM 摘要都走这条规则，例如“供选择 n 个关键词”里的 `n` 必须基于最终确认后的实际数据计算。
+- 如果摘要依赖用户最终确认的数据：在用户确认后追加一个隐藏 finalize 步骤，让后端基于最终确认结果生成并持久化摘要。Creator 定义的模板和 SDK 内置 LLM 摘要都走这条规则，例如"供选择 n 个关键词"里的 `n` 必须基于最终确认后的实际数据计算。
 - 具体前端配置、回挂位置、运行态表现和示例代码，统一以前端 SDK 开发手册（frontend-guide.md）为准。Plugin 只负责判断什么时候该用这条平台能力，⛔ 不要在这里重复定义 UI 契约或手写摘要 wrapper。
 - ⛔ 禁止修改 Python SDK，禁止把 finalize 当成新的业务步骤向 Creator 展示。
 
@@ -275,7 +308,7 @@ async function executeStep(input, context) {
 }
 ```
 
-原则：能用确定性代码解决的不用 LLM。 6. 等待 Creator 回答后再继续后续流程
+原则：能用确定性代码解决的不用 LLM。
 
 ## 交互规则
 
