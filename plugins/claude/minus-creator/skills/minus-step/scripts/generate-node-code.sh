@@ -58,6 +58,27 @@ echo ""
 echo "⛔ 代码写完并通过依赖检查后，必须执行：minus-lib update-progress step-done $STEP"
 echo "   （自动标记本步骤完成并推进进度；最后一步会自动进入待测试阶段）"
 
+# ── logic_mode 与代码一致性检查 ──
+
+if [ "$LOGIC_MODE" = "deterministic" ] && [ -f "pipeline.py" ]; then
+  # 检查该步骤函数体里是否已有 LLM 调用
+  STEP_HAS_LLM=$(python3 -c "
+import re, sys
+code = open('pipeline.py').read()
+m = re.search(r'async def step_${STEP}\b.*?(?=\n    async def step_|\Z)', code, re.DOTALL)
+if m and re.search(r'ctx\.llm\.', m.group(0)):
+    print('YES')
+else:
+    print('NO')
+" 2>/dev/null || echo "NO")
+  if [ "$STEP_HAS_LLM" = "YES" ]; then
+    echo "⛔ 步骤 $STEP 的 logic_mode 是 deterministic，但代码中已有 ctx.llm 调用。" >&2
+    echo "   必须先重过 logic 维度：minus-lib step-tracker ask $STEP logic → complete $STEP logic llm" >&2
+    echo "   然后重新执行本门禁。" >&2
+    exit 1
+  fi
+fi
+
 # ── LLM 处理约束 ──
 
 if [ "$LOGIC_MODE" = "llm" ]; then
@@ -112,6 +133,22 @@ FRONTEND_TEMPLATE=display
 # 后端使用 StepOutcome.complete(payload={...})
 TEMPLATE
 fi
+
+# ── 前端组件源码查阅提醒 ──
+
+cat << 'WIDGET_DOC'
+
+═══ @minus/* 能力：必须先读源码注释 ═══
+使用 @minus/widget-framework 或 @minus/platform-widgets 的任何能力前，
+先读对应源码 interface + JSDoc：
+  widget-framework → platform 仓库 packages/widget-framework/src/
+  platform-widgets → platform 仓库 packages/platform-widgets/src/
+⛔ 禁止凭记忆写 props 或假设框架行为。
+
+⚠️ 高频陷阱：data.summary 由 widget-framework 的 Timeline 自动渲染。
+  后端 payload 里有 summary 字段时，框架会自动展示。
+  ⛔ 禁止在前端 render 里再手动渲染 data.summary，否则摘要出现两份。
+WIDGET_DOC
 
 # ── 数据契约：各步骤的 payload 字段 ──
 

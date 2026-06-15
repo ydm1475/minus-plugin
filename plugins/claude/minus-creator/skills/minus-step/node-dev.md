@@ -237,6 +237,26 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 项目 `CLAUDE.md` 中的前端 SDK 文档使用远程 `${platformUrl}/runtime/...` 稳定地址。文档不可达时，明确告诉 Creator 并停止写前端代码——文档是唯一可靠来源，遍历用户目录、找本地 runtime 包或解析 minified CDN JS 得到的"API"不可信。
 
+#### ⛔ 使用 `@minus/*` 能力前必须读源码注释（硬性前置步骤）
+
+前端 SDK 手册不一定覆盖所有 `@minus/*` 的行为和组件。**使用任何 `@minus/widget-framework` 或 `@minus/platform-widgets` 的能力前，必须先读对应源码文件**，确认行为、props 和 JSDoc 注释——源码里的 interface + 注释就是权威文档。
+
+```bash
+# 源码位置（在 platform 仓库，不在项目 .venv 里）
+# widget-framework: packages/widget-framework/src/    （FlowApp、Timeline、defineWidgetStep 等框架行为）
+# platform-widgets: packages/platform-widgets/src/    （Chart、EChart、SelectableTable、CompletionPanel 等组件）
+```
+
+⛔ 禁止凭记忆写 props 或假设框架行为。遇到展示效果不符预期时，**先回去读源码的 props interface 和 JSDoc**，检查是否有现成 prop 或框架内置行为能解决，再考虑手写。高层组件有现成 prop 能解决的问题（如 Chart 的 `colorByData`），降级到底层组件手写 option 是反模式。
+
+#### ⛔ 步骤摘要：`data.summary` 由框架自动渲染，禁止手动重复渲染
+
+`widget-framework` 的 `Timeline` 组件会自动读取每个步骤 `record.data.summary` 字段并渲染为步骤摘要文本。这意味着：
+
+- 后端 `StepOutcome.complete(payload={"summary": "...", ...})` 中的 `summary` 字段会被框架**自动**展示在步骤卡片上
+- ⛔ **禁止在前端 `render` 函数里再手动渲染 `data.summary`**——否则摘要会出现两份（框架一份 + 手动一份）
+- 需要自定义摘要样式时，用 `hidden` 步骤 + `attachSummaryToPreviousStep` 机制（见 frontend-guide），不要在 render 里直接写
+
 需要在默认确认值之外向下一步追加字段时，使用前端 SDK 手册里的 `extendConfirmed`；`mapConfirmed` 是完全自定义 payload 的高级能力，使用不当会导致 readonly 回放丢失用户选择。
 
 ### locale 文件
@@ -279,6 +299,21 @@ minus-lib check-python-deps
 6. 脚本会输出测试邀请话术（单源在脚本里）：原样转达「」内的行（每行独立），然后**停止，等 Creator 回复**。
    - ⛔ 禁止把 step-done 与其他流程命令（如 generate-result-design）串在一条命令里执行
    - 最后一步：Creator 确认整体测试通过后，先执行 `minus-lib update-progress confirm-test`，再进入结果呈现设计（其门禁会校验该确认）
+
+### 修改已完成步骤的处理逻辑
+
+Creator 可能在步骤完成后要求追加功能（如"加一个大模型摘要"）。如果追加的功能**改变了该步骤的处理模式**（例如原本是 deterministic 排序，现在要加 `ctx.llm.chat` 调用），必须重新标记 logic 维度：
+
+```bash
+# 重置 logic 维度并重新确认
+minus-lib step-tracker ask <step> logic
+# Creator 确认后
+minus-lib step-tracker complete <step> logic <新模式>
+# 然后重新执行 generate-node-code 门禁
+minus-lib generate-node-code <step>
+```
+
+⛔ 禁止在 logic_mode=deterministic 的步骤里直接加 LLM 调用而不更新 logic_mode。元数据和代码不一致会导致后续门禁和流程路由判断错误。
 
 ### 测试期间的代码修改保护
 
