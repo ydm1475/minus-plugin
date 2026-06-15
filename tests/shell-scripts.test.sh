@@ -1121,8 +1121,8 @@ bless_dim() {
   bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
   OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
   if assert_contains "$OUTPUT" "frontend-guide.md" \
-     && assert_contains "$OUTPUT" "隐藏 finalize 摘要" \
-     && assert_contains "$OUTPUT" "不在这里重复定义 UI 契约"; then
+     && assert_contains "$OUTPUT" "数据先行、摘要后到" \
+     && assert_contains "$OUTPUT" "用户确认后的步骤摘要"; then
     pass "generate-node-code: interactive template points summary finalize to platform docs"
   else
     fail "generate-node-code: summary finalize docs pointer" "got: $OUTPUT"
