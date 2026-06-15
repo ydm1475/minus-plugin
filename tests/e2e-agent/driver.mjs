@@ -20,6 +20,7 @@ import {
   assertGate,
   assertIsLast,
   assertStepImplemented,
+  assertNoHiddenSteps,
   assertResult,
   resultComplete,
   assertPayloadContains,
@@ -147,6 +148,7 @@ const phaseState = {
   stepAsserted: Object.fromEntries(
     Array.from({ length: scenario.steps }, (_, i) => [i + 1, false])
   ),
+  hiddenStepsAsserted: false,
   resultAsserted: false,
 };
 
@@ -212,6 +214,15 @@ async function checkPhaseTransitions(forceResult = false) {
       await runNodeVerification(n);
     }
     phaseState.stepAsserted[n] = true;
+  }
+  // H6：所有步骤代码生成后，检查 pipeline.py 无隐藏步骤
+  if (
+    !phaseState.hiddenStepsAsserted &&
+    Object.values(phaseState.stepAsserted).every(Boolean)
+  ) {
+    console.log("\n═══ 阶段断言：无隐藏步骤 ═══");
+    assertNoHiddenSteps(report, PROJECT_DIR, scenario.steps);
+    phaseState.hiddenStepsAsserted = true;
   }
   // 结果呈现设计阶段：所有步骤完成后触发结果页断言。
   // 触发条件二选一（任一即评判，避免死锁）：

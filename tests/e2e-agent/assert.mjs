@@ -141,6 +141,24 @@ export function stepImplemented(projectDir, step) {
   return meaningful.length >= 3;
 }
 
+// H6：pipeline.py 的 step 函数数量 = Creator 定义的步骤数（无隐藏步骤）
+export function assertNoHiddenSteps(report, projectDir, expectedSteps) {
+  const pipelineFile = path.join(projectDir, "pipeline.py");
+  if (!fs.existsSync(pipelineFile)) {
+    return report.add("H6", "无隐藏步骤", false, "pipeline.py 不存在");
+  }
+  const code = fs.readFileSync(pipelineFile, "utf8");
+  const actual = new Set(
+    [...code.matchAll(/async def step_(\d+)\(/g)].map((m) => m[1])
+  ).size;
+  return report.add(
+    "H6",
+    `pipeline.py step 函数数 = Creator 定义步骤数（${expectedSteps}）`,
+    actual === expectedSteps,
+    `实际 ${actual} 个 step 函数`
+  );
+}
+
 // 结果页设计完成检测：两维度（摘要/下载）均已确认，且结果页代码已生成。
 // 标记落在 .minus/dev-progress/result_{summary,download}_confirmed（generate-result-design confirm 写）；
 // 代码标志：FlowApp 的 renderCompletion / CompletionPanel（结果页只能放这里，见 platform frontend-guide）。
