@@ -189,6 +189,14 @@ Creator 确认下载内容后，执行：
   0. 执行写代码门禁（输出 RESULT_DESIGN_COMPLETE 才能动代码）：
      minus-lib generate-result-design check
   1. 生成结果页面代码（查 SDK 文档了解 CompletionPanel 用法）
+     ⛔ 如果结果页需要大模型生成摘要或导出文件，必须新增一个 hidden finalize 步骤：
+       - 后端：新增 step_N+1 函数，通过 ctx.previous_outputs 读取前序步骤数据，
+         在该步骤内完成 LLM 摘要 + 文件导出 + 上传，返回 complete(payload={...})
+       - 前端：在 getSteps 数组末尾添加 { hidden: true, render: () => null }
+       - 禁止把结果页的 LLM 摘要或文件导出逻辑塞进最后一个可见步骤——
+         否则该步骤会卡在"处理中"直到 LLM 跑完，用户已看到数据却无法操作
+       - 同步更新 .minus/total-steps（+1）和 skill.json 的 steps 数组（追加 hidden 步骤声明）
+     详见前端 SDK 手册（frontend-guide.md）「结果页摘要 + 文件导出（hidden finalize 步骤）」章节。
   2. 执行 Python 依赖一致性检查：minus-lib check-python-deps
      - 如果输出 DEPENDENCIES_OK → 继续
      - 如果报缺失依赖 → Agent 必须自己更新 pyproject.toml，执行 uv pip install -e .，然后重新检查；通过前不要让 Creator 测试
