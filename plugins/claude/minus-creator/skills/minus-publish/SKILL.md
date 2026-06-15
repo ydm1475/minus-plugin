@@ -1,8 +1,9 @@
 ---
 name: minus-publish
 description: >
-  发布 Skill 到 Minus 平台。当用户说"帮我发布"、"发布上线"、
-  "publish"、"上线"、"部署"等意图时触发。
+  将当前 Minus Skill 项目发布到 Minus 平台。在 Minus 项目目录（存在 .minus/skill.json）中，
+  用户说"帮我发布"、"发布上线"、"publish"、"上线"、"提交"等意图时触发。
+  不在 Minus 项目目录中时不触发。
 when_to_use: >
   用户想要发布当前 Skill 到 Minus 平台时
 allowed-tools: Read Write Edit Bash Agent mcp__*

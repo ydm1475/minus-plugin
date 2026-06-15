@@ -2,8 +2,8 @@
 name: minus-auth
 description: >
   管理 Minus 平台的账号会话：登录、退出登录、切换账号、查看当前登录状态。
-  例如"登录 Minus"、"退出登录"、"换个账号"、"我现在登录的是哪个账号"。
-  登录完成后若用户带着开发意图而来，由 minus 总入口或对应子 skill 继续。
+  例如"登录 Minus"、"退出登录"、"换个账号"、"我现在登录的是哪个账号"、
+  "我登录了吗"。不处理账号注册——注册请到 Minus 官网完成。
 when_to_use: >
   用户想登录/登出 Minus 平台、切换账号或查看当前登录状态时
 allowed-tools: Read Bash mcp__*

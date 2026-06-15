@@ -4,7 +4,7 @@
 #
 # 用法：
 #   bash tests/e2e-agent/run.sh <scenario>           # 如 keyword-to-asin
-#   E2E_KEEP=1 bash tests/e2e-agent/run.sh <scenario>   # 保留临时项目
+#   E2E_KEEP=0 bash tests/e2e-agent/run.sh <scenario>   # 跑完后清理临时项目（默认保留）
 #   E2E_SKIP_RUN=1 ...                                # 跳过真实运行（只测对话流程）
 #   E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus ...        # 覆盖默认参数
 #   E2E_DESKTOP=1 ...                                 # Desktop 模式：注入 ENTRYPOINT + mock Claude_Preview，
@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 WORKSPACE="${E2E_WORKSPACE:-$HOME/minus}"
-KEEP="${E2E_KEEP:-0}"
+KEEP="${E2E_KEEP:-1}"
 
 SCENARIO_NAME="${1:?用法: run.sh <scenario>（scenarios/ 下的文件名，不带扩展名）}"
 SCENARIO_FILE="$SCRIPT_DIR/scenarios/$SCENARIO_NAME.yaml"
@@ -87,6 +87,11 @@ cleanup() {
       const s = JSON.parse(require('fs').readFileSync('$PROJECT_DIR/.minus/mock-preview-state.json','utf8'));
       for (const v of Object.values(s)) { try { process.kill(v.pid); } catch {} }
     " 2>/dev/null || true
+  fi
+  # KEEP 且成功时：保留 dev server 活着，供人工验证
+  if [ "$KEEP" = "1" ] && [ "${RC:-1}" = "0" ]; then
+    echo "→ 保留项目及 dev server: $PROJECT_DIR"
+    return
   fi
   # dev server 回收：Agent 起的 dev server（concurrently + vite + uvicorn）记在 .minus/dev.pid，
   # driver 的 stopDevServer 只认 run-skill 自己 spawn 的句柄（复用 Agent 实例时为 null），
@@ -206,4 +211,21 @@ fi
 
 echo ""
 echo "→ 完整日志: $LOG_DIR"
+
+# 测试通过且保留项目时，输出预览链接
+if [ "$EXIT_CODE" = "0" ] && [ "$KEEP" = "1" ] && [ -d "$PROJECT_DIR" ]; then
+  echo ""
+  echo "→ 项目目录: $PROJECT_DIR"
+  # 读 dev-ports.json 获取前端端口
+  if [ -f "$PROJECT_DIR/.minus/dev-ports.json" ]; then
+    FE_PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PROJECT_DIR/.minus/dev-ports.json','utf8')).frontend||'')" 2>/dev/null)
+  fi
+  if [ -n "${FE_PORT:-}" ]; then
+    echo "→ 预览链接: http://localhost:${FE_PORT}/preview"
+  else
+    echo "→ dev server 未运行，手动启动: cd \"$PROJECT_DIR\" && npm run dev"
+  fi
+  echo "→ 清理命令: rm -rf \"$PROJECT_DIR\""
+fi
+
 exit $EXIT_CODE
