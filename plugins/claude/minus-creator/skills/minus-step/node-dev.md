@@ -43,7 +43,9 @@ Creator 确认后 → complete output，complete confirm <mode>
 
 **数据接口发现流程：**
 
-0. 先确认当前步骤的**用户输入是什么**。读 `frontend/src/main.tsx` 和 `frontend/src/locales/zh-CN.json`，找到 Home 组件的输入表单（placeholder、字段名、onStart 传参），以用户实际输入的类型（关键词？ASIN？类目 ID？）作为后续搜索接口的依据（Skill 名称或步骤名推断的输入类型经常与表单不一致）。
+0. 先确认当前步骤的**输入数据是什么**。
+   - **第 1 步**：读 `frontend/src/main.tsx` 和 `frontend/src/locales/zh-CN.json`，找到 Home 组件的输入表单（placeholder、字段名、onStart 传参），以用户实际输入的类型（关键词？ASIN？类目 ID？）作为后续搜索接口的依据。
+   - **第 2 步及之后**：先读 `pipeline.py`，找到前序步骤的 `step_N` 方法，确认它的 `StepOutcome.data` 里传了哪些字段给当前步骤。上一步已经传过来的数据直接用，不需要重新调 API 获取。只有上一步没提供、当前步骤确实需要额外获取的数据，才进入下面的接口发现流程。
 1. 调用 `ToolSearch("mcp__")` 发现当前会话中可用的 MCP 工具（这些工具来自插件 `.mcp.json` 中配置的 MCP 服务，会话启动时已自动注册）。排除 `mcp__plugin_minus-creator_minus-platform__` 开头的（那是平台管理工具），剩下的就是数据服务商的工具。工具列表和参数 schema 只能通过 ToolSearch 获取（`.mcp.json` 里只有启动配置，没有这些信息）。
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
 3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**（只看第一个结果就决定经常选错）
