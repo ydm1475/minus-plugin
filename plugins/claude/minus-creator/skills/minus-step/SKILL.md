@@ -14,13 +14,15 @@ model: inherit
 effort: high
 ---
 
-## 门禁
-
-先执行：`minus-lib gate`
-
-- `GATE=ok` → 继续
-- `GATE=fail` → 按输出的 HINT 行执行补救（补救指引单源于 gate.sh），完成后重跑 gate，再继续用户原本的意图
-
 ## 执行
 
-Read [node-dev.md](node-dev.md)，针对用户指定的步骤，严格按其中四维度流程执行。
+Read [node-dev.md](node-dev.md)。
+
+先判断用户指定的步骤是**新开发**还是**修改已完成步骤**：
+
+```bash
+minus-lib step-tracker status <step_number>
+```
+
+- **四维度均未完成** → 新开发：先跑门禁（`minus-lib gate`，`GATE=fail` 时按 HINT 补救后重跑），然后按 node-dev.md 四维度流程执行
+- **四维度已全部或部分完成** → 修改场景：跳过门禁，按 node-dev.md「修改已完成步骤的处理逻辑」执行

@@ -256,10 +256,19 @@ case "${1:-}" in
     ;;
 
   reset)
-    STEP="${2:?用法: step-tracker.sh reset <step_number>}"
+    STEP="${2:?用法: step-tracker.sh reset <step_number> [dim1] [dim2] ...}"
+    shift 2
+    RESET_DIMS=("$@")
     ensure_dir
-    rm -f "$TRACKER_DIR/step_${STEP}_"*
-    echo "步骤 $STEP 状态已重置"
+    if [ "${#RESET_DIMS[@]}" -eq 0 ]; then
+      rm -f "$TRACKER_DIR/step_${STEP}_"*
+      echo "步骤 $STEP 状态已重置（全部维度）"
+    else
+      for DIM in "${RESET_DIMS[@]}"; do
+        rm -f "$TRACKER_DIR/step_${STEP}_${DIM}" "$TRACKER_DIR/step_${STEP}_${DIM}_asked" "$TRACKER_DIR/step_${STEP}_${DIM}_mode"
+        echo "  ✓ 已重置维度: $DIM"
+      done
+    fi
     ;;
 
   is-last)

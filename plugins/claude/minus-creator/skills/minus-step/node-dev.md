@@ -8,6 +8,8 @@
 
 ## 任务
 
+进入步骤开发时，**先执行 `minus-lib step-tracker status <step>`**，从未完成的维度继续。不要靠对话记忆判断进度——对话可能被压缩，磁盘状态才是唯一真值源。
+
 引导 Creator 按顺序确认当前 pipeline 节点的四个维度意图，**全部确认后一次性生成代码**。
 
 ⛔ 核心规则：
@@ -306,18 +308,42 @@ minus-lib check-python-deps
 
 ### 修改已完成步骤的处理逻辑
 
-Creator 可能在步骤完成后要求追加功能（如"加一个大模型摘要"）。如果追加的功能**改变了该步骤的处理模式**（例如原本是 deterministic 排序，现在要加 `ctx.llm.chat` 调用），必须重新标记 logic 维度：
+当 `step-tracker status` 显示步骤已有维度完成时，进入修改流程。先区分修改类型：
+
+**Bug 修复**（Creator 说"有 bug"/"不对"/"没生效"/"报错"等故障症状）：不重走任何维度，直接读代码和后端日志定位问题并修复。意图没变，只是代码写错了。
+
+**功能修改**（Creator 说"加一列"/"换接口"/"改成手动确认"等功能调整）：**不重走全部四维度**，只重走受影响的维度。
+
+**第一步：判断修改影响了哪些维度**
+
+根据 Creator 的修改意图对照：
+
+| 修改内容 | 受影响维度 |
+|---------|----------|
+| 换数据接口 / 改数据来源 | ① data |
+| 改排序、过滤、聚合逻辑 | ② logic |
+| 加 LLM 分析 / 改处理模式 | ② logic |
+| 改展示字段、表格列、卡片内容 | ③ output |
+| 改确认方式（自动/手动） | ④ confirm |
+
+一次修改可能影响多个维度（如"换接口并改展示字段" → ① + ③）。
+
+**第二步：只重走受影响的维度**
 
 ```bash
-# 重置 logic 维度并重新确认
-minus-lib step-tracker ask <step> logic
-# Creator 确认后
-minus-lib step-tracker complete <step> logic <新模式>
-# 然后重新执行 generate-node-code 门禁
+# 重置受影响维度
+minus-lib step-tracker ask <step> <affected_dim1> [<affected_dim2> ...]
+# Creator 确认后逐个 complete
+minus-lib step-tracker complete <step> <dim> [mode]
+# 全部受影响维度确认完毕后，重新执行门禁并生成代码
 minus-lib generate-node-code <step>
 ```
 
+**未受影响的维度保留原状，不重新询问。**
+
 ⛔ 禁止在 logic_mode=deterministic 的步骤里直接加 LLM 调用而不更新 logic_mode。元数据和代码不一致会导致后续门禁和流程路由判断错误。
+
+⛔ 判断不清哪些维度受影响时，向 Creator 简要说明修改涉及的维度并确认，不要默认全部重走。
 
 ### 测试期间的代码修改保护
 
