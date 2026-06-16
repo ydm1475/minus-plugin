@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 新进程会被旧进程的清理逻辑 SIGTERM（实测后台任务报 exit 143，英文报错直怼用户）。
 # 已有归属本项目的 server 在跑 → 输出 ALREADY_RUNNING 并成功退出，复用旧 server。
 # restart 场景（版本恢复/用户要求重启）用 MINUS_DEV_RESTART=1 跳过自检。
-if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" != "backend" ]; then
+if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" != "backend" ] && [ "$MODE" != "restart" ]; then
   GATE_OUT="$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 bash "$SCRIPT_DIR/check-dev-server.sh" 2>/dev/null || true)"
   if printf '%s\n' "$GATE_OUT" | grep -q '^GATE_PASSED$'; then
     echo "ALREADY_RUNNING"
@@ -150,6 +150,16 @@ has_script() {
 }
 
 case "$MODE" in
+  restart)
+    # 重启模式：自动选 backend/full，与 resume-env.sh 的 Desktop/CLI 判定同源。
+    # env-init.md / minus-diagnose 的重启模板统一用 `start-dev restart`，
+    # 不再写死 full——Desktop 模式下 full 会多起 vite 与 preview_start 冲突。
+    export MINUS_DEV_RESTART=1
+    case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+      claude-desktop|vscode|jetbrains) exec bash "$0" backend ;;
+      *) exec bash "$0" full ;;
+    esac
+    ;;
   backend)
     if [ "$is_windows" = true ] && has_script "dev:win:backend"; then
       exec "$PNPM_CMD" run dev:win:backend
@@ -165,7 +175,7 @@ case "$MODE" in
     fi
     ;;
   *)
-    echo "用法: start-dev.sh [full|backend]" >&2
+    echo "用法: start-dev.sh [full|backend|restart]" >&2
     exit 2
     ;;
 esac

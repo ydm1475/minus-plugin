@@ -39,12 +39,19 @@ effort: high
 | DIAGNOSE | 含义 | 行动 |
 |----------|------|------|
 | `NOT_LOGGED_IN` / `NO_PROJECT` / `ENV_NOT_READY` | 前置条件缺失 | 按透传的 HINT 行执行补救（指引单源于 gate.sh）。例外：`NO_PROJECT` 仅当确认用户在做 Minus 开发才补救，否则回到第 0 步的不适用处理 |
-| `DEV_SERVER_DOWN` | dev server 未运行 | 自动执行 `MINUS_DEV_RESTART=1 minus-lib start-dev full`；仍失败则读尾部日志自行修复 |
+| `DEV_SERVER_DOWN` | dev server 未运行 | 自动执行 `minus-lib start-dev restart`；仍失败则读尾部日志自行修复 |
 | `BACKEND_DOWN` | 前端在跑、后端无响应 | 同上：固定重启脚本，仍失败读后端日志自行修复 |
 | `PYTHON_DEPS_MISSING` | pipeline 依赖缺失 | 自动修：把缺失包写进 pyproject.toml 并用项目 venv 安装（`uv pip install -e .`），不用系统 python |
 | `clean` | 环境全部正常 | 问题在业务代码层：读后端/前端日志定位到具体步骤，路由到 minus-step（指明步骤号）；若是结构层问题路由到 minus-structure |
 
 补救完成后重跑 `minus-lib diagnose` 确认 `DIAGNOSE=clean`，再回到用户原本想做的事。
+
+## 3.5 日志行号不匹配 = 运行时代码过期
+
+dev.log 报错指向某文件第 N 行，但磁盘上该文件第 N 行内容不匹配（已修改或行数偏移）——说明运行中的进程加载的是旧代码，hot reload 未生效。此时：
+- **不能以"旧日志"为由忽略**——行号不匹配是 stale runtime 的确定性信号
+- 必须确认 reload 成功（日志中出现 "WatchFiles detected changes" + 新 server process started 且无报错），或执行 `minus-lib start-dev restart` 重启
+- 确认新代码已加载后再判断问题是否仍存在
 
 ## 4. 交互原则
 

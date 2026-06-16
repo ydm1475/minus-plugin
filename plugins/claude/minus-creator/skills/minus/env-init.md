@@ -58,7 +58,7 @@ resume-env 的输出已带路由所需全部字段（`INITIALIZED=` / `PHASE=` /
 如果用户反馈预览打不开或 dev server 有问题：
 - 执行下面的固定重启命令（用 `Bash` 的 `run_in_background` 后台运行；`MINUS_DEV_RESTART=1` 会先清掉归属本项目的残留进程和旧端口记录，再强制重启）：
   ```bash
-  MINUS_DEV_RESTART=1 minus-lib start-dev full
+  minus-lib start-dev restart
   ```
 - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口。重启时的旧进程清理由 start-dev 脚本硬编码处理（带归属校验），Agent 自己永远不许 kill
 
