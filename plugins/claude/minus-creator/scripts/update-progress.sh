@@ -5,6 +5,8 @@
 #   update-progress.sh init-design                  — 初始化（phase=designing, designStage=input_done）
 #   update-progress.sh design-done <名1> <名2> ...  — 写入步骤列表，phase=developing
 #   update-progress.sh append-steps <名1> ...       — 追加新步骤（pending）
+#   update-progress.sh rename-step <N> <新名称>     — 重命名步骤 N
+#   update-progress.sh swap-steps <A> <B>           — 交换步骤 A 和 B 的名称与状态
 #   update-progress.sh step-done <N>                — 标记步骤 N 完成并推进；最后一步自动 phase=testing
 #   update-progress.sh confirm-test                 — 记录 Creator 已确认最后一步测试通过（结果设计的前置门禁）
 #   update-progress.sh set-phase <phase>            — 设置 phase（designing|developing|testing|ready）
@@ -58,6 +60,16 @@ apply() {
         max += 1;
         p.steps[String(max)] = { name, status: "pending" };
       });
+    } else if (op === "rename-step") {
+      const n = process.env.STEP_NUM;
+      const newName = names[0];
+      if (p.steps[n]) p.steps[n].name = newName;
+      else p.steps[n] = { name: newName, status: "pending" };
+    } else if (op === "swap-steps") {
+      const a = process.env.STEP_A, b = process.env.STEP_B;
+      const tmp = p.steps[a];
+      p.steps[a] = p.steps[b] || { name: "步骤" + a, status: "pending" };
+      p.steps[b] = tmp || { name: "步骤" + b, status: "pending" };
     } else if (op === "step-done") {
       const n = Number(process.env.STEP_NUM);
       const total = Number(process.env.TOTAL_STEPS);
@@ -119,6 +131,21 @@ case "$ACTION" in
     STEP_NAMES=$(printf '%s\n' "$@")
     PROGRESS_OP=append-steps STEP_NAMES="$STEP_NAMES" apply
     echo "✓ 进度已追加 $# 个步骤"
+    ;;
+
+  rename-step)
+    STEP_NUM="${1:?rename-step requires step_number and name}"
+    NEW_NAME="${2:?rename-step requires step_number and name}"
+    STEP_NAMES="$NEW_NAME"
+    PROGRESS_OP=rename-step STEP_NUM="$STEP_NUM" STEP_NAMES="$STEP_NAMES" apply
+    echo "✓ 步骤 ${STEP_NUM} 已重命名为 ${NEW_NAME}"
+    ;;
+
+  swap-steps)
+    STEP_A="${1:?用法: update-progress.sh swap-steps <step_a> <step_b>}"
+    STEP_B="${2:?用法: update-progress.sh swap-steps <step_a> <step_b>}"
+    PROGRESS_OP=swap-steps STEP_A="$STEP_A" STEP_B="$STEP_B" apply
+    echo "✓ 步骤 $STEP_A 和步骤 $STEP_B 已交换"
     ;;
 
   step-done)

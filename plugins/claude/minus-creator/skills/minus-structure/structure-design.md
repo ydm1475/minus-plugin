@@ -158,6 +158,17 @@ minus-lib generate-steps --append "新步骤名称"
 
 进度（`.minus/progress.json`）已由 generate-steps 自动写入，无需手动操作。
 
+**如果新步骤需要插在 hidden finalize 步骤前面**（即需要重排步骤顺序），在代码中对调步骤内容后，必须同步 progress.json：
+
+```bash
+# 交换步骤 3 和步骤 4 的名称与状态
+minus-lib update-progress swap-steps 3 4
+# 或者重命名单个步骤
+minus-lib update-progress rename-step 3 "新步骤名称"
+```
+
+⛔ 禁止重排步骤代码后不同步 progress.json——会导致步骤名和状态错位。
+
 ⛔ 禁止：对已有步骤的项目使用不带 `--append` 的 `generate-steps.sh`，这会覆盖所有已实现的代码。
 ⛔ 禁止：手写 pipeline.py 和 main.tsx 的步骤结构。必须用 generate-steps.sh 生成骨架，只在骨架基础上填充逻辑。
 
