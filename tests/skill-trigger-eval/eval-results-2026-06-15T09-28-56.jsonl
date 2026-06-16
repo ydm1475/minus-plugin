@@ -1,0 +1,7 @@
+{"case_id":"auth-login-01","input":"登录 Minus","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"auth-login-02","input":"登录一下","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"auth-logout-01","input":"退出登录","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"auth-switch-01","input":"换个账号","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"auth-status-01","input":"我现在登录的是哪个账号","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"auth-status-02","input":"我登录了吗","expected":"minus-auth","acceptable":null,"responses":["minus"],"accuracy":0,"pass":false}
+{"case_id":"combo-auth-before-pub-01","input":"发布前先登录","expected":"minus-auth","acceptable":["minus-auth","minus-publish"],"responses":["minus"],"accuracy":0,"pass":false}

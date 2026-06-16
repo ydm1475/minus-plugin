@@ -1,0 +1,61 @@
+{"case_id":"minus-open-01","input":"打开 Minus","expected":"minus","acceptable":null,"responses":["minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-open-02","input":"进入 Minus","expected":"minus","acceptable":null,"responses":["minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-open-03","input":"我要开发一个 Skill","expected":"minus","acceptable":null,"responses":["minus","minus","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"minus-open-04","input":"minus","expected":"minus","acceptable":null,"responses":["minus","minus","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"minus-continue-01","input":"继续","expected":"minus","acceptable":null,"responses":["minus","minus","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"minus-continue-02","input":"接着做","expected":"minus","acceptable":null,"responses":["error","minus","minus"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"minus-continue-03","input":"开始吧","expected":"minus","acceptable":null,"responses":["error","minus","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"minus-progress-01","input":"做到哪了","expected":"minus","acceptable":null,"responses":["minus","error","minus"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"minus-progress-02","input":"现在什么状态","expected":"minus","acceptable":null,"responses":["error","minus","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"auth-login-01","input":"登录 Minus","expected":"minus-auth","acceptable":null,"responses":["error","minus-auth","minus-auth"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"auth-login-02","input":"登录一下","expected":"minus-auth","acceptable":null,"responses":["error","error","error"],"accuracy":0,"pass":false}
+{"case_id":"auth-logout-01","input":"退出登录","expected":"minus-auth","acceptable":null,"responses":["error","minus-auth","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"auth-switch-01","input":"换个账号","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-status-01","input":"我现在登录的是哪个账号","expected":"minus-auth","acceptable":null,"responses":["minus-auth","error","minus-auth"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"auth-status-02","input":"我登录了吗","expected":"minus-auth","acceptable":null,"responses":["minus","minus","parse-error"],"accuracy":0,"pass":false}
+{"case_id":"diagnose-error-01","input":"报错了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-error-02","input":"出错了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","error","minus-diagnose"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"diagnose-white-01","input":"白屏了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","error","minus-diagnose"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"diagnose-broken-01","input":"坏了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"diagnose-preview-01","input":"预览打不开","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-stuck-01","input":"卡住了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-stuck-02","input":"怎么不动了","expected":"minus-diagnose","acceptable":null,"responses":["error","minus-diagnose","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"diagnose-run-01","input":"跑不起来","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","none"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"step-dev-01","input":"开发步骤 2","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"step-dev-02","input":"改下第二步","expected":"minus-step","acceptable":null,"responses":["minus","minus-step","minus-step"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"step-ui-01","input":"第三步的界面调一下","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"step-data-01","input":"第 1 步的数据来源换成 XX 接口","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-bug-01","input":"第 2 步有 bug","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-bug-02","input":"第三步有问题","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-dev-03","input":"步骤一的代码不对","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"structure-split-01","input":"我想重新拆一下步骤","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"structure-add-01","input":"帮我加一个步骤","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","minus-structure"],"accuracy":1,"pass":true}
+{"case_id":"structure-merge-01","input":"第 2 步和第 3 步合并","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"structure-input-01","input":"输入项多收集一个城市","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus","minus-structure"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"structure-result-01","input":"结果页加个图表","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","minus-structure"],"accuracy":1,"pass":true}
+{"case_id":"structure-result-02","input":"改一下结果页的摘要","expected":"minus-structure","acceptable":null,"responses":["minus-structure","error","minus-structure"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"structure-delete-01","input":"把第三步删掉","expected":"minus-structure","acceptable":null,"responses":["error","error","minus-structure"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"structure-reorder-01","input":"步骤顺序调一下","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"publish-01","input":"帮我发布","expected":"minus-publish","acceptable":null,"responses":["minus-publish","error","minus-publish"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"publish-02","input":"发布上线","expected":"minus-publish","acceptable":null,"responses":["minus-publish","minus-publish","minus-publish"],"accuracy":1,"pass":true}
+{"case_id":"publish-03","input":"publish","expected":"minus-publish","acceptable":null,"responses":["minus-publish","error","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"publish-04","input":"上线","expected":"minus-publish","acceptable":null,"responses":["minus-publish","error","minus-publish"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"publish-05","input":"提交","expected":"minus-publish","acceptable":null,"responses":["minus-publish","minus-publish","minus-publish"],"accuracy":1,"pass":true}
+{"case_id":"combo-step-continue-01","input":"继续开发步骤 2","expected":"minus-step","acceptable":["minus-step","minus"],"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"combo-auth-before-pub-01","input":"发布前先登录","expected":"minus-auth","acceptable":["minus-auth","minus-publish"],"responses":["minus-publish","error","minus"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"combo-step-structure-01","input":"第 2 步改一下逻辑，然后把第 3 步删掉","expected":"minus-step","acceptable":["minus-step","minus-structure"],"responses":["error","error","error"],"accuracy":0,"pass":false}
+{"case_id":"combo-diagnose-step-01","input":"第二步报错了","expected":"minus-step","acceptable":["minus-step","minus-diagnose"],"responses":["minus-diagnose","minus-diagnose","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"combo-structure-result-01","input":"结果页的图表换成表格，再加个下载按钮","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","minus-structure"],"accuracy":1,"pass":true}
+{"case_id":"hard-neg-minus-publish","input":"帮我发布","expected":"minus-publish","acceptable":null,"responses":["error","minus-publish","minus-publish"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"hard-neg-step-for-diagnose","input":"第 2 步有 bug","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"hard-neg-structure-for-step","input":"帮我加一个步骤","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","minus"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"hard-neg-minus-for-step","input":"继续开发","expected":"minus","acceptable":null,"responses":["none","minus","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"hard-neg-register","input":"帮我注册一个 Minus 账号","expected":"none","acceptable":null,"responses":["minus-auth","minus-auth","minus"],"accuracy":0,"pass":false}
+{"case_id":"hard-neg-deploy","input":"部署到测试环境","expected":"none","acceptable":null,"responses":["minus-publish","error","minus-publish"],"accuracy":0,"pass":false}
+{"case_id":"no-project-continue","input":"继续","expected":"none","acceptable":["none","minus"],"responses":["minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"no-project-publish","input":"帮我发布","expected":"none","acceptable":null,"responses":["minus","none","error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"no-project-step","input":"开发第 2 步","expected":"none","acceptable":["none","minus-step"],"responses":["minus-step","minus-step","error"],"accuracy":0.6666666666666666,"pass":false}
+{"case_id":"none-weather","input":"今天天气怎么样","expected":"none","acceptable":null,"responses":["minus","minus","minus"],"accuracy":0,"pass":false}
+{"case_id":"none-python","input":"帮我写一段 Python","expected":"none","acceptable":null,"responses":["none","minus","parse-error"],"accuracy":0.3333333333333333,"pass":false}
+{"case_id":"none-explain","input":"这段代码什么意思","expected":"none","acceptable":null,"responses":["parse-error","minus","minus"],"accuracy":0,"pass":false}
+{"case_id":"none-git","input":"帮我提交代码","expected":"none","acceptable":null,"responses":["error","minus-publish","minus-publish"],"accuracy":0,"pass":false}

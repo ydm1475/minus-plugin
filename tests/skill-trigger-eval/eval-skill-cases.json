@@ -1,0 +1,74 @@
+{
+  "cases": [
+    { "id": "minus-open-01", "input": "打开 Minus", "expected": "minus", "context": {} },
+    { "id": "minus-open-02", "input": "进入 Minus", "expected": "minus", "context": {} },
+    { "id": "minus-open-03", "input": "我要开发一个 Skill", "expected": "minus", "context": {} },
+    { "id": "minus-open-04", "input": "minus", "expected": "minus", "context": {} },
+    { "id": "minus-continue-01", "input": "继续", "expected": "minus", "context": { "in_project": true } },
+    { "id": "minus-continue-02", "input": "接着做", "expected": "minus", "context": { "in_project": true } },
+    { "id": "minus-continue-03", "input": "开始吧", "expected": "minus", "context": { "in_project": true } },
+    { "id": "minus-progress-01", "input": "做到哪了", "expected": "minus", "context": { "in_project": true } },
+    { "id": "minus-progress-02", "input": "现在什么状态", "expected": "minus", "context": { "in_project": true } },
+
+    { "id": "auth-login-01", "input": "登录 Minus", "expected": "minus-auth", "context": { "in_project": false, "logged_in": false } },
+    { "id": "auth-login-02", "input": "登录一下", "expected": "minus-auth", "context": { "logged_in": false } },
+    { "id": "auth-logout-01", "input": "退出登录", "expected": "minus-auth", "context": {} },
+    { "id": "auth-switch-01", "input": "换个账号", "expected": "minus-auth", "context": {} },
+    { "id": "auth-status-01", "input": "我现在登录的是哪个账号", "expected": "minus-auth", "context": {} },
+    { "id": "auth-status-02", "input": "我登录了吗", "expected": "minus-auth", "context": {} },
+
+    { "id": "diagnose-error-01", "input": "报错了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-error-02", "input": "出错了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-white-01", "input": "白屏了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-broken-01", "input": "坏了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-preview-01", "input": "预览打不开", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-stuck-01", "input": "卡住了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-stuck-02", "input": "怎么不动了", "expected": "minus-diagnose", "context": { "in_project": true } },
+    { "id": "diagnose-run-01", "input": "跑不起来", "expected": "minus-diagnose", "context": { "in_project": true } },
+
+    { "id": "step-dev-01", "input": "开发步骤 2", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-dev-02", "input": "改下第二步", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-ui-01", "input": "第三步的界面调一下", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-data-01", "input": "第 1 步的数据来源换成 XX 接口", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-bug-01", "input": "第 2 步有 bug", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-bug-02", "input": "第三步有问题", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "step-dev-03", "input": "步骤一的代码不对", "expected": "minus-step", "context": { "in_project": true } },
+
+    { "id": "structure-split-01", "input": "我想重新拆一下步骤", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-add-01", "input": "帮我加一个步骤", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-merge-01", "input": "第 2 步和第 3 步合并", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-input-01", "input": "输入项多收集一个城市", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-result-01", "input": "结果页加个图表", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-result-02", "input": "改一下结果页的摘要", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-delete-01", "input": "把第三步删掉", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "structure-reorder-01", "input": "步骤顺序调一下", "expected": "minus-structure", "context": { "in_project": true } },
+
+    { "id": "publish-01", "input": "帮我发布", "expected": "minus-publish", "context": { "in_project": true } },
+    { "id": "publish-02", "input": "发布上线", "expected": "minus-publish", "context": { "in_project": true } },
+    { "id": "publish-03", "input": "publish", "expected": "minus-publish", "context": { "in_project": true } },
+    { "id": "publish-04", "input": "上线", "expected": "minus-publish", "context": { "in_project": true } },
+    { "id": "publish-05", "input": "提交", "expected": "minus-publish", "context": { "in_project": true } },
+
+    { "id": "combo-step-continue-01", "input": "继续开发步骤 2", "expected": "minus-step", "acceptable": ["minus-step", "minus"], "context": { "in_project": true } },
+    { "id": "combo-auth-before-pub-01", "input": "发布前先登录", "expected": "minus-auth", "acceptable": ["minus-auth", "minus-publish"], "context": { "in_project": true } },
+    { "id": "combo-step-structure-01", "input": "第 2 步改一下逻辑，然后把第 3 步删掉", "expected": "minus-step", "acceptable": ["minus-step", "minus-structure"], "context": { "in_project": true } },
+    { "id": "combo-diagnose-step-01", "input": "第二步报错了", "expected": "minus-step", "acceptable": ["minus-step", "minus-diagnose"], "context": { "in_project": true } },
+    { "id": "combo-structure-result-01", "input": "结果页的图表换成表格，再加个下载按钮", "expected": "minus-structure", "context": { "in_project": true } },
+
+    { "id": "hard-neg-minus-publish", "input": "帮我发布", "expected": "minus-publish", "context": { "in_project": true } },
+    { "id": "hard-neg-step-for-diagnose", "input": "第 2 步有 bug", "expected": "minus-step", "context": { "in_project": true } },
+    { "id": "hard-neg-structure-for-step", "input": "帮我加一个步骤", "expected": "minus-structure", "context": { "in_project": true } },
+    { "id": "hard-neg-minus-for-step", "input": "继续开发", "expected": "minus", "context": { "in_project": true } },
+    { "id": "hard-neg-register", "input": "帮我注册一个 Minus 账号", "expected": "none", "context": {} },
+    { "id": "hard-neg-deploy", "input": "部署到测试环境", "expected": "none", "context": { "in_project": true } },
+
+    { "id": "no-project-continue", "input": "继续", "expected": "none", "acceptable": ["none", "minus"], "context": { "in_project": false } },
+    { "id": "no-project-publish", "input": "帮我发布", "expected": "none", "context": { "in_project": false } },
+    { "id": "no-project-step", "input": "开发第 2 步", "expected": "none", "acceptable": ["none", "minus-step"], "context": { "in_project": false } },
+
+    { "id": "none-weather", "input": "今天天气怎么样", "expected": "none", "context": {} },
+    { "id": "none-python", "input": "帮我写一段 Python", "expected": "none", "context": {} },
+    { "id": "none-explain", "input": "这段代码什么意思", "expected": "none", "context": {} },
+    { "id": "none-git", "input": "帮我提交代码", "expected": "none", "context": { "in_project": true } }
+  ]
+}
