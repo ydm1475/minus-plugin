@@ -70,6 +70,18 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 - 工具保留，等 Platform 侧"类型与运行时 JS 同源、同版本、动态下发"落地、tsc 能拿到真实类型之后，再把它接成硬门禁。
 - 原因、Platform 修复方向与判断标准（为什么本地钉死的类型快照都会漂移）→ 详见项目根目录 `CONTRACT.md` 的「`@minus/*` SDK 类型契约」章节，本处不复制。
 
+### 8. 跨平台兼容（Windows + macOS）
+
+插件必须同时在 Windows（MSYS2/Git Bash）和 macOS 上正常工作。所有 Shell 脚本和代码生成都要遵守：
+
+- **路径分隔符**：Shell 脚本中用 `/`（两个系统都认）；Node.js 代码用 `path.join()`，不要硬编码分隔符
+- **Shell 语法**：避免 Bash 4+ 特性（关联数组、`${var,,}` 等），Windows Git Bash 只有 Bash 3.2；用 `$(command)` 不用反引号
+- **行尾符**：生成的脚本文件用 LF（`\n`），不要 CRLF——MSYS2 的 bash 不认 `\r`
+- **命令差异**：`sed -i` 在 macOS 需要 `sed -i ''`，在 Linux/MSYS 不需要；优先用 Node.js 脚本替代 sed 操作
+- **路径长度**：Windows 有 260 字符路径限制，避免深嵌套目录结构
+- **大小写敏感**：Windows 文件系统不区分大小写，不要靠文件名大小写区分不同文件
+- **shebang**：用 `#!/usr/bin/env bash`，不要 `#!/bin/bash`——Windows MSYS2 的 bash 不在 `/bin/`
+
 ## 开发规范
 
 ### 测试要求
