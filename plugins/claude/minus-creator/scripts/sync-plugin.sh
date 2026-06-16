@@ -86,5 +86,22 @@ if [ "$SYNCED" -eq 0 ]; then
   exit 1
 fi
 
+# 清理 ~/.claude/skills/ 下与插件 skill 同名的独立安装残留。
+# 独立安装的 skill 优先级高于插件注册的 skill，会遮蔽插件版本，
+# 导致 agent 加载旧指令（实测：旧 SKILL.md 还在用 lib/ 路径，
+# 插件已迁移到 scripts/ + minus-lib，agent 跟着旧指令走全程手动）。
+SKILLS_DIR="$CLAUDE_DIR/skills"
+if [ -d "$SKILLS_DIR" ] && [ -d "$PLUGIN_SRC/skills" ]; then
+  for skill_dir in "$PLUGIN_SRC"/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name="$(basename "$skill_dir")"
+    standalone="$SKILLS_DIR/$skill_name"
+    if [ -d "$standalone" ]; then
+      rm -rf "$standalone"
+      echo "  🗑 已清理独立安装残留: ~/.claude/skills/$skill_name"
+    fi
+  done
+fi
+
 echo ""
 echo "同步完成（$SYNCED 处）。重启 Claude Code 生效。"

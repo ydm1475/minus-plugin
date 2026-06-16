@@ -4,13 +4,15 @@
 
 ## 状态路由
 
-路由输入直接用 `resume-env` 输出的字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=`），**不要重复 Read progress.json**。`.minus/skill.json` 只在需要 skillId/version 传给 MCP tool 时读。（没有 resume-env 输出的场景——如中途被用户打断后重入——才退回自己读 progress.json。）
+路由输入直接用 `resume-env` 输出的字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=` / `RESULT_DESIGN=` / `TEST_CONFIRMED=`），**不要重复 Read progress.json**。`.minus/skill.json` 只在需要 skillId/version 传给 MCP tool 时读。（没有 resume-env 输出的场景——如中途被用户打断后重入——才退回自己读 progress.json。）
 
 | 状态 | 条件 | Read |
 |------|------|------|
 | A — 开发中 | `PHASE=developing` 且 `STEPS_DONE` < `STEPS_TOTAL` | [node-dev.md](../minus-step/node-dev.md)，继续 `CURRENT_STEP` |
-| B — 待测试 | `PHASE=developing` 且步骤全完成，或 `PHASE=testing` | （提示跑端到端测试） |
-| C — 可发布 | 测试已通过 | （提示 /minus publish） |
+| B — 待测试 | `PHASE=testing`，无 `TEST_CONFIRMED`，无 `RESULT_DESIGN` | （提示跑端到端测试） |
+| B2 — 待结果设计 | `PHASE=testing`，`TEST_CONFIRMED=1`，无 `RESULT_DESIGN` | [result-design.md](../minus-structure/result-design.md) |
+| B3 — 结果设计中 | `PHASE=testing`，`RESULT_DESIGN=designing` | [result-design.md](../minus-structure/result-design.md)（从断点恢复） |
+| B4 — 可发布 | `RESULT_DESIGN=done` | （提示 /minus publish） |
 | D — 结构设计中 | `PHASE=designing` | [structure-design.md](../minus-structure/structure-design.md) |
 | E — 无进度 | `PHASE=`（空，progress.json 不存在） | [structure-design.md](../minus-structure/structure-design.md) |
 
@@ -47,10 +49,24 @@
 建议先跑一遍端到端测试，确认流程通畅。
 ```
 
-状态 C — 可发布（测试已通过）：
+状态 B2 — 待结果设计（测试已确认，结果页还没做）：
 ```
 当前项目：{名称} v{版本}
-所有步骤已开发，测试已通过。
+上次你已确认测试通过，接下来进入结果呈现设计。
+```
+→ Read [result-design.md](../minus-structure/result-design.md)
+
+状态 B3 — 结果设计中（进行到一半或代码已写但未标记完成）：
+```
+当前项目：{名称} v{版本}
+上次结果设计进行到一半，继续完成。
+```
+→ Read [result-design.md](../minus-structure/result-design.md)（脚本会根据已有标记从断点继续）
+
+状态 B4 — 可发布（结果页已完成）：
+```
+当前项目：{名称} v{版本}
+所有步骤和结果页都已开发完成。
 可以考虑发布了。输入 /minus publish 开始校验和打包。
 ```
 

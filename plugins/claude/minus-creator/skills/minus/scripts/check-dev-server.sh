@@ -33,7 +33,7 @@ if [ -n "$PORT" ] && [ "$PORT" != "DETECT_FAILED" ]; then
     echo "GATE_FAILED"
     echo "BACKEND_DOWN"
     echo "前端预览（端口 $PORT）在运行，但后端（端口 $BACKEND_PORT）无响应。" >&2
-    echo "请执行 env-init.md「4. dev server 异常处理」的固定重启脚本后重试本门禁。" >&2
+    echo "请执行: minus-lib resume-env restart  然后重试本门禁。" >&2
     exit 1
   fi
   echo "GATE_PASSED"
@@ -44,6 +44,6 @@ fi
 
 echo "GATE_FAILED"
 echo "未检测到属于当前项目的 dev server，禁止进入结构设计。" >&2
-echo "请先按 SKILL.md「3. 已登录 + 有项目」的步骤 2（探测预览能力）和步骤 3（启动 dev server + 打开预览）启动 dev server，再重试。" >&2
+echo "请执行: minus-lib resume-env restart  启动 dev server 后重试。" >&2
 echo "Desktop 分支 A 场景：若预览已在右侧面板打开，先执行 minus-lib record-preview-port <实际端口> 记录端口，再重跑本门禁。" >&2
 exit 1

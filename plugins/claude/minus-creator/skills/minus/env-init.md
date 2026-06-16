@@ -51,21 +51,21 @@ minus-lib bootstrap-env
 
 ## 3. 进入状态路由
 
-resume-env 的输出已带路由所需全部字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=`）。Read [dev-phase.md](dev-phase.md)，直接用这些字段分发，**不要再自己 Read progress.json / skill.json 重复判断**（skill.json 只在需要 skillId/version 传给 MCP tool 时读）。
+resume-env 的输出已带路由所需全部字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=` / `RESULT_DESIGN=` / `TEST_CONFIRMED=`）。Read [dev-phase.md](dev-phase.md)，直接用这些字段分发，**不要再自己 Read progress.json / skill.json 重复判断**（skill.json 只在需要 skillId/version 传给 MCP tool 时读）。
 
 ## 4. dev server 异常处理
 
 如果用户反馈预览打不开或 dev server 有问题：
 - 执行下面的固定重启命令（用 `Bash` 的 `run_in_background` 后台运行；`MINUS_DEV_RESTART=1` 会先清掉归属本项目的残留进程和旧端口记录，再强制重启）：
   ```bash
-  minus-lib start-dev restart
+  minus-lib resume-env restart
   ```
 - 用户没问就不要管——不要主动 kill 进程、不要手动启动 uvicorn/vite、不要手动分配端口。重启时的旧进程清理由 start-dev 脚本硬编码处理（带归属校验），Agent 自己永远不许 kill
 
 ## 5. 版本自动恢复后重启
 
 当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
-- 执行上面的固定重启脚本重启前后端 dev server
+- 执行上面的固定重启命令重启 dev server
 - 重新检测预览端口：`minus-lib detect-preview-port`
 - 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 

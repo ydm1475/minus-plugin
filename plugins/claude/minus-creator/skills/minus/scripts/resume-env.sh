@@ -4,10 +4,11 @@
 # （CLAUDE.md #1 能硬编码的别靠 Agent 自觉——实测散步执行产生 20+ 次工具往返，
 # 每步白付一次模型延迟；本脚本把开机链压缩到一次调用）。
 #
-# 用法: resume-env.sh <desktop|cli>
+# 用法: resume-env.sh <desktop|cli|restart>
 #   desktop  Desktop + Claude_Preview 可用：后台起后端 + 生成 launch.json，
 #            前端交给 preview_start（agent 层调用），输出 NEED_PREVIEW_START=1
 #   cli      CLI 或 Preview 不可用：后台起前后端 + 检测预览端口
+#   restart  重启：自动检测 Desktop/CLI + 探测哪个挂了，只重启挂的组件
 #
 # 输出（一行一个 KEY=VALUE，供 agent 直接路由）:
 #   NEED_BOOTSTRAP=1                  依赖缺失，需先跑 minus-lib bootstrap-env（脚本就此停止）
@@ -48,6 +49,39 @@ backend_port_from_file() {
 }
 
 case "$BRANCH" in
+  restart)
+    # 重启模式：探测哪个组件挂了，设好清理标志，exec 自己走 desktop/cli 链路。
+    # 所有启动→探测→输出逻辑复用 desktop/cli 分支，不另写一套。
+    case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+      claude-desktop|vscode|jetbrains) RESOLVED_BRANCH=desktop ;;
+      *) RESOLVED_BRANCH=cli ;;
+    esac
+
+    BE_PORT="" FE_PORT=""
+    if [ -f .minus/dev-ports.json ]; then
+      BE_PORT=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).backend;console.log(p>0?p:'')" 2>/dev/null)
+      FE_PORT=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend;console.log(p>0?p:'')" 2>/dev/null)
+    fi
+    BE_OK=false; FE_OK=false
+    [ -n "$BE_PORT" ] && curl -s -o /dev/null --max-time 2 "http://localhost:$BE_PORT/" 2>/dev/null && BE_OK=true
+    [ -n "$FE_PORT" ] && curl -s -o /dev/null --max-time 2 "http://localhost:$FE_PORT/" 2>/dev/null && FE_OK=true
+
+    if [ "$BE_OK" = true ] && [ "$FE_OK" = true ]; then
+      echo "ALREADY_RUNNING"
+      [ -n "$BE_PORT" ] && echo "BACKEND_PORT=$BE_PORT"
+      [ -n "$FE_PORT" ] && echo "FRONTEND_PORT=$FE_PORT"
+      exit 0
+    fi
+
+    export MINUS_DEV_RESTART=1
+    # 前端还活着 → 只清理后端，Desktop 跳过 NEED_PREVIEW_START
+    if [ "$FE_OK" = true ]; then
+      export MINUS_RESTART_SCOPE=backend
+      export MINUS_SKIP_PREVIEW_START=1
+    fi
+
+    exec bash "$0" "$RESOLVED_BRANCH"
+    ;;
   desktop)
     # 后端：start-dev 自带「健康且归属本项目 → ALREADY_RUNNING 复用」自检
     nohup bash "$SCRIPT_DIR/start-dev.sh" backend > .minus/backend-dev.log 2>&1 &
@@ -70,7 +104,7 @@ case "$BRANCH" in
     fi
     echo "ENV=ready"
     echo "BACKEND_PORT=$BACKEND_PORT"
-    echo "NEED_PREVIEW_START=1"
+    [ "${MINUS_SKIP_PREVIEW_START:-}" != "1" ] && echo "NEED_PREVIEW_START=1"
     ;;
   cli)
     nohup bash "$SCRIPT_DIR/start-dev.sh" full > .minus/dev.log 2>&1 &
@@ -123,5 +157,14 @@ if [ "$CURRENT_STEP" -gt 0 ] 2>/dev/null && [ -f "$STEP_TRACKER" ]; then
   STEP_OUT="$(bash "$STEP_TRACKER" check "$CURRENT_STEP" 2>/dev/null || true)"
   [ -n "$STEP_OUT" ] && echo "STEP_STATUS=$STEP_OUT"
 fi
+
+# ── 4. 结果设计状态 ──────────────────────────────────────────
+DEV_PROGRESS=".minus/dev-progress"
+if [ -f "$DEV_PROGRESS/result_design_done" ]; then
+  echo "RESULT_DESIGN=done"
+elif [ -f "$DEV_PROGRESS/result_summary_confirmed" ] || [ -f "$DEV_PROGRESS/result_download_confirmed" ]; then
+  echo "RESULT_DESIGN=designing"
+fi
+[ -f "$DEV_PROGRESS/final_test_confirmed" ] && echo "TEST_CONFIRMED=1"
 
 exit 0

@@ -5,6 +5,8 @@
 #   generate-result-design.sh                      — 门禁 + 两维度引导
 #   generate-result-design.sh confirm <summary|download> — 记录某维度已获 Creator 确认
 #   generate-result-design.sh check                — 写结果页代码前的门禁（两维度必须全部确认）
+#   generate-result-design.sh done                 — 标记结果页代码已完成（需两维度已确认）
+#   generate-result-design.sh reset                — 清除所有结果设计标记（删除结果页时用）
 #
 # 前置条件：所有 pipeline 步骤的四维度必须全部完成，且 Creator 已确认整体测试通过
 # 输出：数据全景 + 两维度引导（结果摘要 / 下载内容）
@@ -51,9 +53,24 @@ case "$ACTION" in
     echo "RESULT_DESIGN_COMPLETE"
     exit 0
     ;;
+  done)
+    if [ ! -f "$TRACKER_DIR/result_summary_confirmed" ] || [ ! -f "$TRACKER_DIR/result_download_confirmed" ]; then
+      echo "错误：两维度未全部确认，不能标记结果页完成" >&2
+      exit 1
+    fi
+    mkdir -p "$TRACKER_DIR"
+    date -u '+%Y-%m-%dT%H:%M:%SZ' > "$TRACKER_DIR/result_design_done"
+    echo "✓ 结果页开发已标记完成"
+    exit 0
+    ;;
+  reset)
+    rm -f "$TRACKER_DIR/result_summary_confirmed" "$TRACKER_DIR/result_download_confirmed" "$TRACKER_DIR/result_design_done"
+    echo "✓ 结果设计标记已清除"
+    exit 0
+    ;;
   "") ;;
   *)
-    echo "用法: generate-result-design.sh [confirm <summary|download> | check]" >&2
+    echo "用法: generate-result-design.sh [confirm <summary|download> | check | done | reset]" >&2
     exit 1
     ;;
 esac
@@ -90,7 +107,8 @@ fi
 # ── 门禁：Creator 必须已确认整体测试通过 ──
 # 设计原因：人工测试 612 中 Agent 在最后一步 step-done 后直接串接本脚本，
 # Creator 没有任何机会在浏览器验证最后一步。
-if [ ! -f "$TRACKER_DIR/final_test_confirmed" ]; then
+# 已完成过结果设计（result_design_done 存在）→ 重做不需要重新测试所有步骤
+if [ ! -f "$TRACKER_DIR/final_test_confirmed" ] && [ ! -f "$TRACKER_DIR/result_design_done" ]; then
   echo "GATE_FAILED"
   echo "Creator 尚未确认整体测试通过，不能进入结果呈现设计。" >&2
   echo "补救：转达测试邀请（见 update-progress step-done 的输出话术），等 Creator 在预览页完整跑一遍并确认后，" >&2
@@ -101,8 +119,8 @@ fi
 # ── 门禁通过 ──
 set +e
 
-# 开启新一轮结果设计：清掉上一轮的维度确认标记，防止重设计时 check 凭旧标记放行
-rm -f "$TRACKER_DIR/result_summary_confirmed" "$TRACKER_DIR/result_download_confirmed"
+# 开启新一轮结果设计：清掉上一轮的全部标记，防止重设计时 check/done 凭旧标记放行
+rm -f "$TRACKER_DIR/result_summary_confirmed" "$TRACKER_DIR/result_download_confirmed" "$TRACKER_DIR/result_design_done"
 
 echo "GATE_PASSED"
 echo "TOTAL_STEPS=$TOTAL_STEPS"
@@ -195,7 +213,8 @@ Creator 确认下载内容后，执行：
        - 前端：在 getSteps 数组末尾添加 { hidden: true, render: () => null }
        - 禁止把结果页的 LLM 摘要或文件导出逻辑塞进最后一个可见步骤——
          否则该步骤会卡在"处理中"直到 LLM 跑完，用户已看到数据却无法操作
-       - 同步更新 .minus/total-steps（+1）和 skill.json 的 steps 数组（追加 hidden 步骤声明）
+       - 更新 skill.json 的 steps 数组（追加 hidden 步骤声明）
+       - ⛔ 不要更新 .minus/total-steps — hidden 步骤不是用户可见的开发步骤，不纳入四维度跟踪
      详见前端 SDK 手册（frontend-guide.md）「结果页摘要 + 文件导出（hidden finalize 步骤）」章节。
   2. 执行 Python 依赖一致性检查：minus-lib check-python-deps
      - 如果输出 DEPENDENCIES_OK → 继续
@@ -205,5 +224,9 @@ Creator 确认下载内容后，执行：
      - 禁止用系统 python3 验证依赖，必须使用项目 venv 的 python（Unix：.venv/bin/python；Windows：.venv/Scripts/python.exe）
   3. 用 skill_update 将结果配置写入后端
   4. 告诉 Creator：开发完成，可以端到端测试了
+  5. 执行 minus-lib generate-result-design done 标记结果页开发完成
+
+  如果 Creator 要求删除结果页（而非重做），删完代码后执行：
+  minus-lib generate-result-design reset
 
 GUIDE

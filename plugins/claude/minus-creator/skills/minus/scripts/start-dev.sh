@@ -4,15 +4,16 @@
 # 负责解析 pnpm 绝对路径、带上 VOLTA_FEATURE_PNPM、按平台选对应 pnpm script。
 #
 # 用法: start-dev.sh [full|backend]
-#   full    （默认）启动前后端：pnpm dev
+#   full    （默认）启动前后端：pnpm dev（Desktop 模式自动降级为 backend）
 #   backend 只启动后端：    pnpm dev:backend
+# 重启请走 resume-env.sh restart，不要直接调本脚本。
 # 新模板（minus-dev 编排器）全平台同一脚本；存量旧项目的 dev 是 unix-only 形态，
 # Windows 上若 package.json 还有 dev:win 别名则优先使用（向后兼容）。
 #
 # 注意：本脚本会前台启动 dev server（长驻进程）。调用方应以后台方式运行
 # （Bash 工具 run_in_background），不要在这里 fork/nohup。
-# restart 场景直接以 MINUS_DEV_RESTART=1 调用本脚本即可——旧进程清理与
-# dev-ports.json 删除都在脚本内按正确顺序处理，调用方不要自己 rm/kill。
+# 调用方可设 MINUS_DEV_RESTART=1 触发旧进程清理（清理与 dev-ports.json
+# 删除都在脚本内按正确顺序处理，调用方不要自己 rm/kill）。
 
 MODE="${1:-full}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -22,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 新进程会被旧进程的清理逻辑 SIGTERM（实测后台任务报 exit 143，英文报错直怼用户）。
 # 已有归属本项目的 server 在跑 → 输出 ALREADY_RUNNING 并成功退出，复用旧 server。
 # restart 场景（版本恢复/用户要求重启）用 MINUS_DEV_RESTART=1 跳过自检。
-if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" != "backend" ] && [ "$MODE" != "restart" ]; then
+if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" != "backend" ]; then
   GATE_OUT="$(AUTO_OPEN=0 DETECT_PORT_MAX_WAIT=2 bash "$SCRIPT_DIR/check-dev-server.sh" 2>/dev/null || true)"
   if printf '%s\n' "$GATE_OUT" | grep -q '^GATE_PASSED$'; then
     echo "ALREADY_RUNNING"
@@ -52,44 +53,53 @@ if [ "${MINUS_DEV_RESTART:-0}" = "1" ]; then
       exit 1
     fi
   fi
-  if [ -x node_modules/.bin/minus-dev-cleanup ]; then
+  RESTART_SCOPE="${MINUS_RESTART_SCOPE:-all}"
+
+  # 后端清理 — scope=frontend 时跳过
+  if [ "$RESTART_SCOPE" != "frontend" ] && [ -x node_modules/.bin/minus-dev-cleanup ]; then
     node_modules/.bin/minus-dev-cleanup || true
   fi
-  # 杀归属本项目的旧前端监听。归属校验（CLAUDE.md #5 存在≠属于我）：
+
+  # 前端清理 — scope=backend 时跳过。
+  # 归属校验（CLAUDE.md #5 存在≠属于我）：
   #   Unix    → lsof 验证监听进程 cwd 在本项目内才杀
   #   Windows → 拿不到 cwd，只杀 dev-ports.json（文件在本项目，来源可信）记录的端口
-  RESTART_FE_PORTS=""
-  if [ -f .minus/dev-ports.json ]; then
-    RESTART_FE_PORTS=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend;console.log(p>0?p:'')" 2>/dev/null)
+  if [ "$RESTART_SCOPE" != "backend" ]; then
+    RESTART_FE_PORTS=""
+    if [ -f .minus/dev-ports.json ]; then
+      RESTART_FE_PORTS=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/dev-ports.json','utf8')).frontend;console.log(p>0?p:'')" 2>/dev/null)
+    fi
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        for P in $RESTART_FE_PORTS; do
+          OLD_PID=$(netstat -ano 2>/dev/null | grep -i 'LISTENING' | grep -E "[:.]${P}[[:space:]]" | awk '{print $NF}' | head -1)
+          [ -n "$OLD_PID" ] && taskkill //PID "$OLD_PID" //F >/dev/null 2>&1 || true
+        done
+        ;;
+      *)
+        RESTART_PROJ="$(pwd -P)"
+        for P in $RESTART_FE_PORTS $(seq 5173 5180); do
+          OLD_PID=$(lsof -iTCP:"$P" -sTCP:LISTEN -t 2>/dev/null | head -1)
+          [ -n "$OLD_PID" ] || continue
+          OLD_CWD=$(lsof -a -p "$OLD_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+          case "$OLD_CWD" in *'\'*) OLD_CWD=$(printf '%b' "$OLD_CWD" 2>/dev/null || echo "$OLD_CWD") ;; esac
+          case "$OLD_CWD" in
+            "$RESTART_PROJ"|"$RESTART_PROJ"/*)
+              kill "$OLD_PID" 2>/dev/null || true
+              I=0
+              while [ $I -lt 5 ] && kill -0 "$OLD_PID" 2>/dev/null; do sleep 1; I=$((I+1)); done
+              kill -0 "$OLD_PID" 2>/dev/null && kill -9 "$OLD_PID" 2>/dev/null || true
+              ;;
+          esac
+        done
+        ;;
+    esac
   fi
-  case "$(uname -s 2>/dev/null)" in
-    MINGW*|MSYS*|CYGWIN*)
-      for P in $RESTART_FE_PORTS; do
-        OLD_PID=$(netstat -ano 2>/dev/null | grep -i 'LISTENING' | grep -E "[:.]${P}[[:space:]]" | awk '{print $NF}' | head -1)
-        [ -n "$OLD_PID" ] && taskkill //PID "$OLD_PID" //F >/dev/null 2>&1 || true
-      done
-      ;;
-    *)
-      # Unix 可验归属，扫描兜底端口段（dev-ports.json 可能缺失/过期）
-      RESTART_PROJ="$(pwd -P)"
-      for P in $RESTART_FE_PORTS $(seq 5173 5180); do
-        OLD_PID=$(lsof -iTCP:"$P" -sTCP:LISTEN -t 2>/dev/null | head -1)
-        [ -n "$OLD_PID" ] || continue
-        OLD_CWD=$(lsof -a -p "$OLD_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
-        # lsof 对非 ASCII 路径输出 \xHH 转义（中文项目名），还原后再比较
-        case "$OLD_CWD" in *'\'*) OLD_CWD=$(printf '%b' "$OLD_CWD" 2>/dev/null || echo "$OLD_CWD") ;; esac
-        case "$OLD_CWD" in
-          "$RESTART_PROJ"|"$RESTART_PROJ"/*)
-            kill "$OLD_PID" 2>/dev/null || true
-            I=0
-            while [ $I -lt 5 ] && kill -0 "$OLD_PID" 2>/dev/null; do sleep 1; I=$((I+1)); done
-            kill -0 "$OLD_PID" 2>/dev/null && kill -9 "$OLD_PID" 2>/dev/null || true
-            ;;
-        esac
-      done
-      ;;
-  esac
-  rm -f .minus/dev-ports.json
+
+  # 只有全量重启才删 dev-ports.json；单组件重启保留另一方的端口记录
+  if [ "$RESTART_SCOPE" = "all" ]; then
+    rm -f .minus/dev-ports.json
+  fi
 fi
 
 # backend 模式同款自检：上一个 session 的后端可能还健康地活着（实测 2026-06-11：
@@ -150,16 +160,6 @@ has_script() {
 }
 
 case "$MODE" in
-  restart)
-    # 重启模式：自动选 backend/full，与 resume-env.sh 的 Desktop/CLI 判定同源。
-    # env-init.md / minus-diagnose 的重启模板统一用 `start-dev restart`，
-    # 不再写死 full——Desktop 模式下 full 会多起 vite 与 preview_start 冲突。
-    export MINUS_DEV_RESTART=1
-    case "${CLAUDE_CODE_ENTRYPOINT:-}" in
-      claude-desktop|vscode|jetbrains) exec bash "$0" backend ;;
-      *) exec bash "$0" full ;;
-    esac
-    ;;
   backend)
     if [ "$is_windows" = true ] && has_script "dev:win:backend"; then
       exec "$PNPM_CMD" run dev:win:backend
@@ -168,6 +168,10 @@ case "$MODE" in
     fi
     ;;
   full)
+    # Desktop 模式下前端由 preview 面板托管，full 会多起 vite 冲突，强制降级为 backend。
+    case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+      claude-desktop|vscode|jetbrains) exec bash "$0" backend ;;
+    esac
     if [ "$is_windows" = true ] && has_script "dev:win"; then
       exec "$PNPM_CMD" run dev:win
     else
@@ -175,7 +179,7 @@ case "$MODE" in
     fi
     ;;
   *)
-    echo "用法: start-dev.sh [full|backend|restart]" >&2
+    echo "用法: start-dev.sh [full|backend]（重启请用 resume-env.sh restart）" >&2
     exit 2
     ;;
 esac
