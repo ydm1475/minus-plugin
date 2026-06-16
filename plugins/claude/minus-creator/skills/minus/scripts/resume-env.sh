@@ -23,7 +23,13 @@
 
 set -u
 
-BRANCH="${1:?用法: resume-env.sh <desktop|cli>}"
+BRANCH="${1:-auto}"
+if [ "$BRANCH" = "auto" ]; then
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+    claude-desktop|vscode|jetbrains) BRANCH=desktop ;;
+    *) BRANCH=cli ;;
+  esac
+fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="${MINUS_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 STEP_TRACKER="$PLUGIN_ROOT/skills/minus-step/scripts/step-tracker.sh"
@@ -144,9 +150,13 @@ if [ -f .minus/progress.json ]; then
     console.log("PHASE=" + (p.phase || ""));
     if (p.designStage) console.log("DESIGN_STAGE=" + p.designStage);
     console.log("CURRENT_STEP=" + (p.currentStep || 0));
-    const steps = Object.values(p.steps || {});
-    console.log("STEPS_TOTAL=" + steps.length);
-    console.log("STEPS_DONE=" + steps.filter(s => s.status === "completed").length);
+    const totalFile = ".minus/total-steps";
+    const fs = require("fs");
+    const visibleTotal = fs.existsSync(totalFile) ? parseInt(fs.readFileSync(totalFile, "utf8").trim(), 10) || 0 : 0;
+    const steps = p.steps || {};
+    const visibleDone = Object.entries(steps).filter(([k, s]) => parseInt(k, 10) <= visibleTotal && s.status === "completed").length;
+    console.log("STEPS_TOTAL=" + visibleTotal);
+    console.log("STEPS_DONE=" + visibleDone);
   ' 2>/dev/null || echo "PHASE="
 else
   echo "PHASE="
