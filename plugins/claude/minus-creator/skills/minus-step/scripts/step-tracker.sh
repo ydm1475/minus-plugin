@@ -33,12 +33,19 @@ total_steps() {
 }
 
 # is_last_step <step> → YES / NO / UNKNOWN
+# 判断是否为最后一个用户可见步骤（排除结果页的 hidden finalize 步骤）
 is_last_step() {
-  local t
+  local t visible
   t=$(total_steps)
   if [ -z "$t" ] || [ "$t" -eq 0 ]; then
     echo "UNKNOWN"
-  elif [ "$1" -eq "$t" ]; then
+    return
+  fi
+  visible="$t"
+  if [ -f "$TRACKER_DIR/result_summary_confirmed" ] || [ -f "$TRACKER_DIR/result_download_confirmed" ]; then
+    visible=$((t - 1))
+  fi
+  if [ "$1" -ge "$visible" ]; then
     echo "YES"
   else
     echo "NO"
