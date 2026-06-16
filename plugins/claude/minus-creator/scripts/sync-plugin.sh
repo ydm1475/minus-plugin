@@ -12,7 +12,12 @@
 
 set -euo pipefail
 
-PLUGIN_SRC="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -n "${1:-}" ] && [ -d "$1/.claude-plugin" ]; then
+  PLUGIN_SRC="$(cd "$1" && pwd)"
+  shift
+else
+  PLUGIN_SRC="$(cd "$(dirname "$0")/.." && pwd)"
+fi
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_DIR/plugins/installed_plugins.json"
 
