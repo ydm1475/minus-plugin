@@ -165,15 +165,23 @@ for (const m of prevRefs) {
   echo "  6. 切换接口后 → 是否重新核对全部展示字段"
 fi
 
-# ── SDK PipelineContext 可用属性 ──
+# ── SDK 后端开发手册 ──
 
 echo ""
-echo "═══ SDK PipelineContext 可用属性 ═══"
+echo "═══ SDK 后端开发手册 ═══"
 
-CTX_FILE=$(find .venv -path "*/minus_ai_sdk/pipeline/context.py" 2>/dev/null | head -1)
-if [ -n "$CTX_FILE" ] && [ -f "$CTX_FILE" ]; then
-  # 提取类属性和方法签名
-  node -e "
+SDK_README=$(find .venv -path "*/minus_ai_sdk/README.md" 2>/dev/null | head -1)
+if [ -n "$SDK_README" ] && [ -f "$SDK_README" ]; then
+  echo "⛔ 写后端代码前必须阅读以下 SDK 文档，禁止凭记忆写 ctx.* 调用："
+  echo "SDK_DOC_PATH=$SDK_README"
+else
+  # SDK 尚未附带 README，fallback：从源码提取属性名 + 强制读源码
+  echo "(SDK 未附带 README，从源码提取属性列表作为兜底)"
+  CTX_FILE=$(find .venv -path "*/minus_ai_sdk/pipeline/context.py" 2>/dev/null | head -1)
+  if [ -n "$CTX_FILE" ] && [ -f "$CTX_FILE" ]; then
+    echo "⛔ 写后端代码前必须 Read 以下文件确认 ctx.* 的正确属性名和方法签名："
+    echo "SDK_CTX_PATH=$CTX_FILE"
+    node -e "
 const fs = require('fs');
 const code = fs.readFileSync('$CTX_FILE', 'utf8');
 const attrs = [...code.matchAll(/^\s{4}(\w+)\s*[:=]/gm)].map(m => m[1]).filter(a => !a.startsWith('_'));
@@ -182,8 +190,9 @@ const props = [...code.matchAll(/@property[\s\S]*?def (\w+)\(/gm)].map(m => m[1]
 if (props.length > 0) console.log('属性: ' + props.join(', '));
 if (methods.length > 0) console.log('方法: ' + methods.join(', '));
 " 2>/dev/null || echo "(SDK context.py 解析失败)"
-else
-  echo "(未找到 SDK PipelineContext 源码，请先 uv pip install -e .)"
+  else
+    echo "(未找到 SDK PipelineContext 源码，请先 uv pip install -e .)"
+  fi
 fi
 
 # ── 最后一步：提示调用 generate-result-design.sh ──
