@@ -185,8 +185,10 @@ minus-lib generate-node-code {step_number}
 
 ### 步骤摘要规则
 
-步骤摘要必须来自后端 payload，不能只在前端临时拼接。这样摘要会随步骤结果持久化，用户回放时不会丢失。
+⛔ **摘要不是默认行为——仅当 Creator 在输出定义阶段明确要求"摘要/总结/概览"时，才在后端 payload 中加 `summary` 字段。** Creator 没提摘要需求的步骤，禁止自行生成 summary。
 
+当 Creator 确认需要摘要时：
+- 摘要必须来自后端 payload，不能只在前端临时拼接（这样摘要会随步骤结果持久化，用户回放时不会丢失）。
 - 摘要的时序写法（什么时候用 `STEP_PARTIAL_DETAIL`、什么时候直接随终态下发）见前端 SDK 手册（frontend-guide.md）「步骤摘要（LLM summary）的三种时序」章节，按 `CONFIRM_MODE` 和摘要分析对象选择对应时序。
 - ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
 - ⛔ 禁止修改 Python SDK。
@@ -226,9 +228,9 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 ### 后端代码（pipeline.py）
 
-写后端代码前，检查 `generate-node-code` 的输出（紧接在门禁通过之后）——它包含 SDK 属性列表和数据契约。如果输出中已有本步骤需要的方法名和字段名，直接使用。如果缺少需要的**方法签名**（如需要 ctx.llm.chat 但输出中只有方法名没有参数结构），再读项目 CLAUDE.md 中列出的后端 SDK 开发手册。
+写后端代码前，检查 `generate-node-code` 的输出——如果输出了 `SDK_DOC_PATH=...`，**必须先 Read 该文件**，从文档中确认 `ctx.*` 的属性名、方法签名和用法示例，然后再写代码。如果输出了 `SDK_CTX_PATH=...`（SDK 尚未附带 README 的 fallback），**必须先 Read 该源码文件**，从 `@property` 和方法定义中确认正确的属性名和参数签名。
 
-凭记忆拼 `ctx.llm` / `ctx.ai` / `openai` 等调用都是错的——上下文中没有对应方法签名时必须查手册，手册也查不到就告诉 Creator 并停下。
+⛔ **禁止凭记忆写 `ctx.*` 调用。** 正确的属性名只能从 SDK 文档、门禁输出或 SDK 源码中获取。上下文中没有对应方法签名时必须查文档，文档查不到就去 Read `.venv` 里 `minus_ai_sdk/` 下的源码确认。
 
 ### 前端代码（frontend/src/main.tsx）
 
@@ -255,7 +257,7 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 #### ⛔ 步骤摘要由框架自动展示，禁止在 render 里重复渲染
 
-后端 payload 中带 `summary` 字段时，框架会自动在步骤卡片上展示该摘要。**禁止在 `StepConfig.render` 里再手动渲染步骤摘要**——否则同一段摘要会出现两份。详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
+后端 payload 中带 `summary` 字段时，框架会自动在步骤卡片上展示该摘要。**禁止在 `StepConfig.render` 里再手动渲染步骤摘要**——否则同一段摘要会出现两份。注意：只有 Creator 明确要求摘要时才加 `summary` 字段（见「步骤摘要规则」）。详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
 
 需要在默认确认值之外向下一步追加字段时，使用前端 SDK 手册里的 `extendConfirmed`；`mapConfirmed` 是完全自定义 payload 的高级能力，使用不当会导致 readonly 回放丢失用户选择。
 
