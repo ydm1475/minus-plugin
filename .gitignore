@@ -6,3 +6,6 @@ node_modules/
 Thumbs.db
 .minus/
 tests/e2e-agent/logs/
+# minus 自动生成的国内镜像源配置（本地生效，不入库）
+.npmrc
+uv.toml

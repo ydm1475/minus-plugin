@@ -17,6 +17,7 @@ const { values: args } = parseArgs({
     skill:   { type: 'string', short: 's' },
     samples: { type: 'string', short: 'n', default: '5' },
     model:   { type: 'string', short: 'm', default: 'haiku' },
+    cases:   { type: 'string', short: 'c' },
   },
   strict: false,
 });
@@ -111,7 +112,8 @@ function callClaude(systemPrompt, userMessage) {
 }
 
 // --- Load test cases ---
-const allCases = JSON.parse(readFileSync(join(__dirname, 'eval-skill-cases.json'), 'utf-8')).cases;
+const casesFile = args.cases || join(__dirname, 'eval-skill-cases.json');
+const allCases = JSON.parse(readFileSync(casesFile, 'utf-8')).cases;
 const cases = args.skill
   ? allCases.filter(c => c.expected === args.skill || c.id.startsWith(args.skill))
   : allCases;
@@ -178,7 +180,7 @@ const header = ''.padEnd(18) + labels.map(l => l.slice(0, 8).padStart(9)).join('
 console.log(header);
 for (const row of labels) {
   const cells = labels.map(col => {
-    const v = matrix[row]?.[col] || 0;
+    const v = (matrix[row] && matrix[row][col]) || 0;
     return (v > 0 ? String(v) : '·').padStart(9);
   }).join('');
   console.log(`  ${row.padEnd(16)}${cells}`);

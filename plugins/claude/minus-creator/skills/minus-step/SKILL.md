@@ -5,8 +5,6 @@ description: >
   （数据需求、处理逻辑、输出定义、界面）。用户指明了步骤编号或名称时触发，
   例如"开发步骤 2"、"改下第二步"、"第三步的界面调一下"、
   "第 1 步的数据来源换成 XX 接口"、"第 2 步有 bug"、"第三步有问题"。
-  增删/重排步骤、改输入定义或结果页等结构调整由 minus-structure 处理；
-  未指明具体步骤的"继续开发"由 minus 总入口处理。
 when_to_use: >
   用户在 Minus 项目中明确指向某个 pipeline 步骤的实现开发或修改时
 allowed-tools: Read Write Edit Bash Skill mcp__*

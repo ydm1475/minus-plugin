@@ -1,24 +1,14 @@
 ---
 name: minus
 description: >
-  Minus Skill 开发环境的总入口。仅当用户意图是开发 Minus Skill 时触发。
-  触发场景：用户说"打开 Minus"、"进入 Minus"、"我要开发一个 Skill"、"minus"；
-  或在 Minus 项目目录（存在 .minus/skill.json）中说"开始"、"继续"、"接着做"、
-  "做到哪了"、"现在什么状态"等开工或查看进度的意图而未指明具体对象；
-  或在 Minus 项目目录中表达需要 dev server 运行的意图：
-  "帮我启动下"、"启动项目"、"前端重新启动下"、
-  "我要测试一下"、"跑一遍看看"、"试一下"、
-  "预览一下"、"看看效果"。
-  不触发：通用编程（写 Python、解释代码、git 操作）、
-  与 Minus Skill 开发无关的任何请求（天气、部署、注册等）。
-  登录登出、查看账号状态由 minus-auth 处理；
-  用户指定了具体步骤（"开发第 2 步"）由 minus-step 处理；
-  增删步骤、改输入定义等结构调整由 minus-structure 处理。
+  Minus Skill 项目的会话入口与进度调度。
+  "打开 Minus"、"minus"、"进入 Minus"、"我要做一个 Skill"；
+  在 Minus 项目目录中："继续"、"接着做"、"做到哪了"、"开始"、
+  "现在什么状态"、"帮我启动下"、"启动项目"、"预览一下"、"看看效果"。
 when_to_use: >
-  用户明确提到 Minus 或 Skill 开发；或当前目录是 Minus Skill 项目
-  且用户表达未指明具体对象的"开始/继续"意图时；
-  或在 Minus 项目目录中要求启动、测试、预览、跑一遍等需要 dev server 运行的操作时。
-  不适用于通用编程、登录登出、与 Minus 无关的请求。
+  用户说"minus"或"打开 Minus"；或在 Minus 项目中表达
+  "继续"、"开始"、"做到哪了"等恢复或查看进度意图；
+  或在 Minus 项目中要求启动、预览项目。
 allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
