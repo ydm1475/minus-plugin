@@ -1,0 +1,3 @@
+{"case_id":"hard-neg-register","input":"帮我注册一个 Minus 账号","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"hard-neg-deploy","input":"部署到测试环境","expected":"minus-publish","acceptable":null,"responses":["minus-publish","minus-publish","minus-publish","minus-publish","minus-publish"],"accuracy":1,"pass":true}
+{"case_id":"no-project-publish","input":"帮我发布","expected":"none","acceptable":null,"responses":["minus-publish","minus-publish","minus-publish","minus-publish","minus-publish"],"accuracy":0,"pass":false}
