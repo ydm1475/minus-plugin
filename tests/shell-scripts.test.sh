@@ -3609,12 +3609,12 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
   fi
 )
 
-# Test: SKILL.md preview flow — two branches
+# Test: SKILL.md 环境恢复通过 resume-env 自动检测分支（不再用 ToolSearch 探测 preview）
 (
-  if grep >/dev/null 'ToolSearch.*preview' "$SKILL_MD"; then
-    pass "SKILL.md: step 3 probes Claude_Preview via ToolSearch"
+  if grep >/dev/null 'minus-lib resume-env' "$SKILL_MD"; then
+    pass "SKILL.md: 环境恢复引用 resume-env，脚本自动检测分支"
   else
-    fail "SKILL.md: step 3 probes Claude_Preview via ToolSearch" "not found"
+    fail "SKILL.md: 环境恢复应引用 resume-env" "not found"
   fi
 )
 
@@ -3698,13 +3698,13 @@ cat "$REPO_DIR"/plugins/claude/minus-creator/skills/minus/*.md "$REPO_DIR"/plugi
   fi
 )
 
-# SKILL.md 不再内联启动逻辑，只引用 start-dev.sh（单源化）
+# SKILL.md 不再内联启动逻辑，只引用 resume-env（单源化）
 (
-  if grep >/dev/null 'minus-lib start-dev' "$SKILL_MD" \
+  if grep >/dev/null 'minus-lib resume-env' "$SKILL_MD" \
      && ! grep >/dev/null '"$PNPM_CMD" run dev:win' "$SKILL_MD"; then
-    pass "SKILL.md: 启动逻辑引用 start-dev.sh，不内联"
+    pass "SKILL.md: 启动逻辑引用 resume-env，不内联"
   else
-    fail "SKILL.md: 启动逻辑应引用 start-dev.sh" "仍内联 pnpm 启动块或未引用脚本"
+    fail "SKILL.md: 启动逻辑应引用 resume-env" "仍内联 pnpm 启动块或未引用脚本"
   fi
 )
 
@@ -4102,11 +4102,11 @@ SYNC_SH="$LIB_DIR/sync-plugin.sh"
 (
   if grep >/dev/null 'installed_plugins.json' "$SYNC_SH" \
      && grep >/dev/null 'installPath' "$SYNC_SH" \
-     && ! grep >/dev/null 'CLAUDE_DIR/skills' "$SYNC_SH" \
+     && ! grep >/dev/null 'rsync.*CLAUDE_DIR/skills' "$SYNC_SH" \
      && ! grep >/dev/null 'CLAUDE_DIR/agents' "$SYNC_SH"; then
-    pass "sync-plugin: 从 installed_plugins.json 读 installPath，不写 ~/.claude/skills|agents"
+    pass "sync-plugin: 从 installed_plugins.json 读 installPath，不往 ~/.claude/skills rsync、不写 agents"
   else
-    fail "sync-plugin: 安装位置来源" "应读注册表 installPath，且不得复制到全局 skills/agents"
+    fail "sync-plugin: 安装位置来源" "应读注册表 installPath，不得 rsync 到全局 skills，不得复制到 agents"
   fi
 )
 
@@ -4593,7 +4593,9 @@ GATE="$REPO_DIR/plugins/claude/minus-creator/scripts/gate.sh"
   mkdir -p "$TMP/.minus" "$TMP/proj/.minus" "$TMP/proj/node_modules" "$TMP/proj/.venv"
   echo '{"session_id":"s1","user_id":"u1"}' > "$TMP/.minus/credentials.json"
   echo '{"skillId":"t"}' > "$TMP/proj/.minus/skill.json"
-  OUTPUT=$(cd "$TMP/proj" && HOME="$TMP" sh "$GATE")
+  printf '%s\n' '#!/bin/bash' 'exit 0' > "$TMP/devcheck"
+  chmod +x "$TMP/devcheck"
+  OUTPUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" sh "$GATE")
   if [ "$OUTPUT" = "GATE=ok" ]; then
     pass "gate.sh: 全部就绪 → GATE=ok"
   else
@@ -4632,8 +4634,9 @@ make_ready_proj() {
 (
   # gate 全过 + dev server 未运行 → DEV_SERVER_DOWN（dev 检查用桩模拟失败）
   TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE=ok' > "$TMP/gatemock" && chmod +x "$TMP/gatemock"
   printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED_NOT' 'echo GATE_FAILED' 'exit 1' > "$TMP/devcheck"
-  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_GATE_SH="$TMP/gatemock" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
   if assert_contains "$OUT" "DIAGNOSE=DEV_SERVER_DOWN"; then
     pass "diagnose.sh: dev server 未运行 → DIAGNOSE=DEV_SERVER_DOWN"
   else
@@ -4644,8 +4647,9 @@ make_ready_proj() {
 (
   # 前端在跑、后端无响应 → BACKEND_DOWN
   TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE=ok' > "$TMP/gatemock" && chmod +x "$TMP/gatemock"
   printf '%s\n' '#!/bin/bash' 'echo GATE_FAILED' 'echo BACKEND_DOWN' 'exit 1' > "$TMP/devcheck"
-  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_GATE_SH="$TMP/gatemock" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
   if assert_contains "$OUT" "DIAGNOSE=BACKEND_DOWN"; then
     pass "diagnose.sh: 后端无响应 → DIAGNOSE=BACKEND_DOWN"
   else
@@ -4656,10 +4660,11 @@ make_ready_proj() {
 (
   # pipeline.py 存在且依赖检查失败 → PYTHON_DEPS_MISSING
   TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE=ok' > "$TMP/gatemock" && chmod +x "$TMP/gatemock"
   printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED' 'echo PREVIEW_PORT=5173' > "$TMP/devcheck"
   printf '%s\n' '#!/bin/bash' 'echo 缺失依赖 requests' 'exit 1' > "$TMP/pycheck"
   touch "$TMP/proj/pipeline.py"
-  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" MINUS_CHECK_PY_SH="$TMP/pycheck" bash "$DIAG")
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_GATE_SH="$TMP/gatemock" MINUS_CHECK_DEV_SH="$TMP/devcheck" MINUS_CHECK_PY_SH="$TMP/pycheck" bash "$DIAG")
   if assert_contains "$OUT" "DIAGNOSE=PYTHON_DEPS_MISSING" \
      && assert_contains "$OUT" "requests"; then
     pass "diagnose.sh: Python 依赖缺失 → DIAGNOSE=PYTHON_DEPS_MISSING + 透传输出"
@@ -4671,8 +4676,9 @@ make_ready_proj() {
 (
   # 全绿（无 pipeline.py）→ clean + 透传端口；DIAGNOSE 恒为最后一行
   TMP=$(make_ready_proj)
+  printf '%s\n' '#!/bin/bash' 'echo GATE=ok' > "$TMP/gatemock" && chmod +x "$TMP/gatemock"
   printf '%s\n' '#!/bin/bash' 'echo GATE_PASSED' 'echo PREVIEW_PORT=5173' 'echo BACKEND_PORT=4001' > "$TMP/devcheck"
-  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
+  OUT=$(cd "$TMP/proj" && HOME="$TMP" MINUS_GATE_SH="$TMP/gatemock" MINUS_CHECK_DEV_SH="$TMP/devcheck" bash "$DIAG")
   LAST=$(printf '%s\n' "$OUT" | tail -1)
   if [ "$LAST" = "DIAGNOSE=clean" ] \
      && assert_contains "$OUT" "PREVIEW_PORT=5173" \
@@ -4927,6 +4933,8 @@ RE="$(via_lib resume-env)"
   write_stub "$SB" lsof "case \"\$*\" in *'-t'*) echo 1234 ;; *'cwd'*) echo \"n\$(pwd)\" ;; esac"
   write_stub "$SB" pnpm 'exit 0'
   echo '{"backend":4001}' > .minus/dev-ports.json
+  touch .minus/initialized
+  echo 1 > .minus/total-steps
   printf '{"currentStep":1,"steps":{"1":{"name":"步骤1","status":"pending"}},"phase":"developing"}' > .minus/progress.json
   OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); RC=$?
   if echo "$OUTPUT" | grep >/dev/null "ENV=ready" && echo "$OUTPUT" | grep >/dev/null "NEED_PREVIEW_START=1" \

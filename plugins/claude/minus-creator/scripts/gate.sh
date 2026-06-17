@@ -26,7 +26,8 @@ if [ ! -d node_modules ] || [ ! -d .venv ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if ! "$SCRIPT_DIR/../skills/minus/scripts/check-dev-server.sh" >/dev/null 2>&1; then
+CHECK_DEV_SH="${MINUS_CHECK_DEV_SH:-$SCRIPT_DIR/../skills/minus/scripts/check-dev-server.sh}"
+if ! "$CHECK_DEV_SH" >/dev/null 2>&1; then
   echo "GATE=fail reason=DEV_SERVER_DOWN"
   echo "HINT=Dev server 未运行。请 Read ../minus/env-init.md 完成环境恢复（会自动启动 dev server），完成后继续当前任务。"
   exit 0
