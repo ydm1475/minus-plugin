@@ -1,12 +1,10 @@
 ---
 name: minus-publish
 description: >
-  将当前 Minus Skill 项目发布到 Minus 平台。用户说"帮我发布"、"发布上线"、
-  "publish"、"上线"、"提交到 Minus"等意图时触发。
-  不处理 git 操作（提交代码、push）、不处理部署到测试/生产环境。
-  不在 Minus 项目目录中时不触发。
+  在 Minus 项目目录中，将当前 Skill 发布到 Minus 平台。
+  "帮我发布"、"发布上线"、"publish"、"上线"、"提交到 Minus"、"部署"。
 when_to_use: >
-  用户想要将 Skill 发布到 Minus 平台时（发布/上线/publish）
+  在 Minus 项目目录中，用户想要将 Skill 发布到平台时（发布/上线/publish/部署）
 allowed-tools: Read Write Edit Bash Agent mcp__*
 model: inherit
 effort: high
