@@ -1,0 +1,31 @@
+{"case_id":"minus-open-01","input":"打开 Minus","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-open-02","input":"进入 Minus","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-open-03","input":"我要开发一个 Skill","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-open-04","input":"minus","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-continue-01","input":"继续","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-continue-02","input":"接着做","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-continue-03","input":"开始吧","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-progress-01","input":"做到哪了","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"minus-progress-02","input":"现在什么状态","expected":"minus","acceptable":null,"responses":["minus","minus","minus","minus","minus"],"accuracy":1,"pass":true}
+{"case_id":"auth-login-01","input":"登录 Minus","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-login-02","input":"登录一下","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-logout-01","input":"退出登录","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-switch-01","input":"换个账号","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-status-01","input":"我现在登录的是哪个账号","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"auth-status-02","input":"我登录了吗","expected":"minus-auth","acceptable":null,"responses":["minus-auth","minus-auth","minus-auth","minus-auth","minus-auth"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-error-01","input":"报错了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-error-02","input":"出错了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-white-01","input":"白屏了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-broken-01","input":"坏了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-preview-01","input":"预览打不开","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-stuck-01","input":"卡住了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-stuck-02","input":"怎么不动了","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"diagnose-run-01","input":"跑不起来","expected":"minus-diagnose","acceptable":null,"responses":["minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose","minus-diagnose"],"accuracy":1,"pass":true}
+{"case_id":"step-dev-01","input":"开发步骤 2","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-dev-02","input":"改下第二步","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-ui-01","input":"第三步的界面调一下","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-data-01","input":"第 1 步的数据来源换成 XX 接口","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-bug-01","input":"第 2 步有 bug","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-bug-02","input":"第三步有问题","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"step-dev-03","input":"步骤一的代码不对","expected":"minus-step","acceptable":null,"responses":["minus-step","minus-step","minus-step","minus-step","minus-step"],"accuracy":1,"pass":true}
+{"case_id":"structure-split-01","input":"我想重新拆一下步骤","expected":"minus-structure","acceptable":null,"responses":["minus-structure","minus-structure","minus-structure","minus-structure","minus-structure"],"accuracy":1,"pass":true}
