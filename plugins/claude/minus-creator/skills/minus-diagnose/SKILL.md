@@ -35,31 +35,46 @@ effort: high
 - 用户已给出具体错误信息（截图、报错文字、明确现象如"白屏"、"页面打不开"）
 - 上下文中刚执行过的操作足以推断问题方向（如刚删了文件、改了依赖）
 
-## 2. 确定性体检
+## 2. 分流：代码问题 vs 环境问题
+
+根据第 1 步初判和第 1.5 步收集到的错误信息，判断问题属于哪一类：
+
+**路径 A — 报错包含具体文件路径或错误类型**（编译错误、语法错误、类型错误、import 缺失等，带文件路径 + 行号，或错误信息足以定位到具体文件）：
+
+1. Read 报错指向的文件，定位并修复问题
+2. 如果报错指向的文件不在项目内（如 `node_modules`、SDK 层），或问题超出代码修复范围 → 降级到路径 B，通过体检排查环境因素
+3. 修完后执行 `minus-lib diagnose` 确认环境恢复正常（如 dev server 因代码错误崩溃，修完代码后重启）
+4. 环境正常 → 回到用户原本想做的事
+
+**路径 B — 症状描述无法定位到具体文件**（白屏、页面打不开、点了没反应、卡住、截图只有空白页面等）：
+
+进入下面的确定性体检流程。
+
+## 3. 确定性体检（仅路径 B）
 
 执行：`minus-lib diagnose`
 
 输出最后一行是机器可读结论 `DIAGNOSE=<code>`，其余行是底层检查脚本的原始输出（含 `HINT=` 补救提示），按下表行动。
 
-## 3. 按结论路由
+## 4. 按结论路由
 
 | DIAGNOSE | 含义 | 行动 |
 |----------|------|------|
 | `NOT_LOGGED_IN` / `NO_PROJECT` / `ENV_NOT_READY` | 前置条件缺失 | 按透传的 HINT 行执行补救（指引单源于 gate.sh）。例外：`NO_PROJECT` 仅当确认用户在做 Minus 开发才补救，否则回到第 0 步的不适用处理 |
-| `DEV_SERVER_DOWN` | dev server 未运行 | 自动执行 `minus-lib resume-env restart`；仍失败则读尾部日志自行修复 |
-| `BACKEND_DOWN` | 前端在跑、后端无响应 | 同上：固定重启脚本，仍失败读后端日志自行修复 |
+| `DEV_SERVER_DOWN` | dev server 未运行 | 读 `.minus/dev.log` 最后 50 行查找崩溃原因；日志指向代码错误（编译失败、语法错误等）→ 转路径 A 先修代码；日志无明显代码错误 → 执行 `minus-lib resume-env restart` |
+| `BACKEND_DOWN` | 前端在跑、后端无响应 | 读 `.minus/backend-dev.log` 最后 50 行（如不存在则读 `.minus/dev.log`）查找后端崩溃原因；同上逻辑：先定因再决定修代码还是重启 |
 | `PYTHON_DEPS_MISSING` | pipeline 依赖缺失 | 自动修：把缺失包写进 pyproject.toml 并用项目 venv 安装（`uv pip install -e .`），不用系统 python |
 | `clean` | 环境全部正常 | 问题在业务代码层：读后端/前端日志定位到具体步骤，路由到 minus-step（指明步骤号）；若是结构层问题路由到 minus-structure |
 
 补救完成后重跑 `minus-lib diagnose` 确认 `DIAGNOSE=clean`，再回到用户原本想做的事。
 
-## 3.5 日志行号不匹配 = 运行时代码过期
+## 4.5 日志行号不匹配 = 运行时代码过期
 
 dev.log 报错指向某文件第 N 行，但磁盘上该文件第 N 行内容不匹配（已修改或行数偏移）——说明运行中的进程加载的是旧代码，hot reload 未生效。此时：
 - **不能以"旧日志"为由忽略**——行号不匹配是 stale runtime 的确定性信号
 - 必须确认 reload 成功（日志中出现 "WatchFiles detected changes" + 新 server process started 且无报错），或执行 `minus-lib resume-env restart` 重启
 - 确认新代码已加载后再判断问题是否仍存在
 
-## 4. 交互原则
+## 5. 交互原则
 
 Creator 是非程序员：不展示命令、代码、报错原文；能自动修的直接说"我来修"，修完用业务语言汇报修了什么、现在能不能继续。
