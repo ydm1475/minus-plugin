@@ -4,7 +4,7 @@
 
 ## 状态路由
 
-路由输入直接用 `resume-env` 输出的字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `STEP_STATUS=` / `RESULT_DESIGN=` / `TEST_CONFIRMED=`），**不要重复 Read progress.json**。`.minus/skill.json` 只在需要 skillId/version 传给 MCP tool 时读。（没有 resume-env 输出的场景——如中途被用户打断后重入——才退回自己读 progress.json。）
+路由输入直接用 `resume-env` 输出的字段（`INITIALIZED=` / `PHASE=` / `DESIGN_STAGE=` / `CURRENT_STEP=` / `STEPS_TOTAL=` / `STEPS_DONE=` / `RESULT_DESIGN=` / `TEST_CONFIRMED=`），**不要重复 Read progress.json**。`.minus/skill.json` 只在需要 skillId/version 传给 MCP tool 时读。（没有 resume-env 输出的场景——如中途被用户打断后重入——才退回自己读 progress.json。）
 
 | 状态 | 条件 | Read |
 |------|------|------|

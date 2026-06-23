@@ -1,6 +1,6 @@
 #!/bin/bash
 # E2E 验证：node-dev 四维度流程是否完整可达
-# 模拟真实项目环境，验证从 SKILL.md → node-dev.md → step-tracker.sh 的完整链路
+# 模拟真实项目环境，验证 SKILL.md → node-dev.md → generate-node-code.sh 的完整链路
 
 set -euo pipefail
 
@@ -60,7 +60,7 @@ else
   pass "node-dev.md 不包含 \$PLUGIN_DIR"
 fi
 
-# --- 7. 模拟真实项目：step-tracker.sh 完整链路 ---
+# --- 7. 模拟真实项目：generate-node-code.sh 三参数链路 ---
 TMP=$(mktemp -d)
 cd "$TMP"
 mkdir -p .minus
@@ -76,56 +76,73 @@ class TestPipeline(Pipeline):
         return StepOutcome.complete(payload={})
 PY
 
-TRACKER="$PLUGIN_ROOT/skills/minus-step/scripts/step-tracker.sh"
+GNC="$PLUGIN_ROOT/skills/minus-step/scripts/generate-node-code.sh"
 
 echo ""
-echo "--- 模拟步骤 1（非最后一步）四维度流程 ---"
+echo "--- generate-node-code.sh 三参数接口验证 ---"
 
-bash "$TRACKER" complete 1 data 2>&1
-bash "$TRACKER" complete 1 logic 2>&1
-
-IS_LAST=$(bash "$TRACKER" is-last 1 2>&1)
-if [ "$IS_LAST" = "NO" ]; then
-  pass "is-last 步骤1 返回 NO（共2步）"
+# 7a. 合法参数应输出 GATE_PASSED
+RESULT=$(bash "$GNC" 1 deterministic auto 2>&1)
+if echo "$RESULT" | grep -q "GATE_PASSED"; then
+  pass "generate-node-code 合法参数 → GATE_PASSED"
 else
-  fail "is-last 步骤1 应返回 NO" "got: $IS_LAST"
+  fail "generate-node-code 合法参数应输出 GATE_PASSED" "$RESULT"
 fi
 
-bash "$TRACKER" complete 1 output 2>&1
-
-# 非最后一步，Creator 可以选择自动往下走（最终用户不用确认）
-if bash "$TRACKER" complete 1 confirm auto 2>/dev/null; then
-  pass "step-tracker 允许非最后一步使用 confirm auto"
+# 7b. 非法 logic_mode 应拒绝
+RESULT=$(bash "$GNC" 1 badmode auto 2>&1 || true)
+if echo "$RESULT" | grep -q "错误"; then
+  pass "generate-node-code 非法 logic_mode → 拒绝"
 else
-  fail "step-tracker 应允许非最后一步 confirm auto" "不应拒绝"
+  fail "generate-node-code 非法 logic_mode 应拒绝" "$RESULT"
 fi
 
-CHECK=$(bash "$TRACKER" check 1 2>&1)
-if echo "$CHECK" | grep -q "COMPLETE"; then
-  pass "步骤 1 四维度全部 COMPLETE（含维度④）"
+# 7c. 非法 confirm_mode 应拒绝
+RESULT=$(bash "$GNC" 1 deterministic badmode 2>&1 || true)
+if echo "$RESULT" | grep -q "错误"; then
+  pass "generate-node-code 非法 confirm_mode → 拒绝"
 else
-  fail "步骤 1 四维度未全部完成" "$CHECK"
+  fail "generate-node-code 非法 confirm_mode 应拒绝" "$RESULT"
 fi
 
-echo ""
-echo "--- 模拟步骤 2（最后一步）四维度流程 ---"
-bash "$TRACKER" complete 2 data 2>&1
-bash "$TRACKER" complete 2 logic 2>&1
-
-IS_LAST=$(bash "$TRACKER" is-last 2 2>&1)
-if [ "$IS_LAST" = "YES" ]; then
-  pass "is-last 步骤2 返回 YES（最后一步）"
+# 7d. is-last: 步骤 1（共2步）→ IS_LAST=NO
+RESULT=$(bash "$GNC" 1 deterministic auto 2>&1)
+if echo "$RESULT" | grep -q "IS_LAST=NO"; then
+  pass "is-last 步骤1 → NO（共2步）"
 else
-  fail "is-last 步骤2 应返回 YES" "got: $IS_LAST"
+  fail "is-last 步骤1 应为 NO" "$RESULT"
 fi
 
-bash "$TRACKER" complete 2 output 2>&1
-bash "$TRACKER" complete 2 confirm auto 2>&1
-CHECK=$(bash "$TRACKER" check 2 2>&1)
-if echo "$CHECK" | grep -q "COMPLETE"; then
-  pass "步骤 2 最后一步 confirm auto，自动 COMPLETE"
+# 7e. is-last: 步骤 2（共2步）→ IS_LAST=YES
+RESULT=$(bash "$GNC" 2 deterministic auto 2>&1)
+if echo "$RESULT" | grep -q "IS_LAST=YES"; then
+  pass "is-last 步骤2 → YES（最后一步）"
 else
-  fail "步骤 2 未完成" "$CHECK"
+  fail "is-last 步骤2 应为 YES" "$RESULT"
+fi
+
+# 7f. llm 模式输出 LLM_REQUIRED=YES
+RESULT=$(bash "$GNC" 1 llm interactive 2>&1)
+if echo "$RESULT" | grep -q "LLM_REQUIRED=YES"; then
+  pass "llm 模式 → LLM_REQUIRED=YES"
+else
+  fail "llm 模式应输出 LLM_REQUIRED=YES" "$RESULT"
+fi
+
+# 7g. interactive 模式输出 FRONTEND_TEMPLATE=interactive
+RESULT=$(bash "$GNC" 1 deterministic interactive 2>&1)
+if echo "$RESULT" | grep -q "FRONTEND_TEMPLATE=interactive"; then
+  pass "interactive 模式 → FRONTEND_TEMPLATE=interactive"
+else
+  fail "interactive 模式应输出 FRONTEND_TEMPLATE=interactive" "$RESULT"
+fi
+
+# 7h. auto 模式输出 FRONTEND_TEMPLATE=display
+RESULT=$(bash "$GNC" 1 deterministic auto 2>&1)
+if echo "$RESULT" | grep -q "FRONTEND_TEMPLATE=display"; then
+  pass "auto 模式 → FRONTEND_TEMPLATE=display"
+else
+  fail "auto 模式应输出 FRONTEND_TEMPLATE=display" "$RESULT"
 fi
 
 # 清理

@@ -29,7 +29,6 @@ PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
 STEP_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-step/scripts"
 STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
-AGENTS_DIR="$PLUGIN_DIR/agents"
 SKILLS_DIR="$PLUGIN_DIR/skills"
 NODE_DEV="$SKILLS_DIR/minus-step/node-dev.md"
 SKILL_MD="$SKILLS_DIR/minus/SKILL.md"
@@ -40,16 +39,6 @@ RESOLVED_NODE="$(sh "$PLUGIN_DIR/scripts/resolve-node.sh" 2>/dev/null || true)"
 [ -n "$RESOLVED_NODE" ] && export PATH="$(dirname "$RESOLVED_NODE"):$PATH"
 [ -n "$RESOLVED_NODE" ] && export MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"  # 预填分发器缓存
 ML_BIN="$PLUGIN_DIR/bin/minus-lib"
-
-# ── 盖章驱动：复刻真实 ask→Stop→complete 流程 ──
-# step-tracker complete 有硬门禁：必须存在 _replied（ask 之后发生过真实用户轮次）才放行。
-# 真实会话里 _replied 由 Stop hook(bless-replies) 在 Agent 让渡轮次时盖出；e2e 回放无真实
-# Stop 事件，故每次 complete 前显式 ask + 跑 bless-replies 模拟那次盖章。
-st_complete() {  # <step> <dim> [mode]
-  bash "$ML_BIN" step-tracker ask "$1" "$2" >/dev/null 2>&1
-  bash "$ML_BIN" bless-replies >/dev/null 2>&1
-  bash "$ML_BIN" step-tracker complete "$@"
-}
 
 # ── Test Framework ──
 
@@ -149,46 +138,18 @@ else
   fail "P1: 维度①应有明确的接口选择标准" "检查 node-dev.md 维度①"
 fi
 
-# --- 模拟四维度收集 ---
-echo ""
-echo "── 步骤 1 四维度状态管理 ──"
-
-# 维度① data: 对话 line 246 用户确认拓词接口
-st_complete 1 data > /dev/null 2>&1
-# 维度② logic: 对话 line 260 "按搜索量排序,只展示前200个"
-st_complete 1 logic > /dev/null 2>&1
-
-# is-last 检查
-IS_LAST_1=$(bash "$ML_BIN" step-tracker is-last 1)
-if [ "$IS_LAST_1" = "NO" ]; then
-  pass "步骤 1 is-last → NO"
-else
-  fail "步骤 1 is-last 应为 NO" "实际: $IS_LAST_1"
-fi
-
-# 维度③ output: 对话 line 278 "表格列出关键词和搜索量"
-st_complete 1 output > /dev/null 2>&1
-
-# 维度④ confirm: 非最后一步也允许 auto（最终用户不用确认）
-AUTO_RESULT=$(st_complete 1 confirm auto 2>&1 || true)
-if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
-  pass "非最后一步 confirm auto 被允许"
-else
-  fail "非最后一步 confirm auto 应允许" "实际: $AUTO_RESULT"
-fi
-
-CHECK_1=$(bash "$ML_BIN" step-tracker check 1 2>&1)
-if echo "$CHECK_1" | grep -q "COMPLETE"; then
-  pass "步骤 1 四维度全部完成"
-else
-  fail "步骤 1 四维度应全部完成" "实际: $CHECK_1"
-fi
-
-# --- 门禁检查 ---
+# --- generate-node-code 验证 ---
 echo ""
 echo "── 步骤 1 代码生成门禁 ──"
 
-GATE_1=$(bash "$ML_BIN" generate-node-code 1 2>&1)
+# is-last 检查（通过 generate-node-code 输出）
+GATE_1=$(bash "$ML_BIN" generate-node-code 1 deterministic auto 2>&1)
+if echo "$GATE_1" | grep -q "IS_LAST=NO"; then
+  pass "步骤 1 is-last → NO"
+else
+  fail "步骤 1 is-last 应为 NO" "实际: $(echo "$GATE_1" | grep IS_LAST)"
+fi
+
 if echo "$GATE_1" | grep -q "GATE_PASSED" && echo "$GATE_1" | grep -q "CONFIRM_MODE=auto"; then
   pass "步骤 1 门禁通过，CONFIRM_MODE=auto"
 else
@@ -203,31 +164,15 @@ fi
 echo ""
 echo "═══ Phase 3: 步骤 2 四维度收集（最后一步）═══"
 
-# 维度① data
-st_complete 2 data > /dev/null 2>&1
-# 维度② logic: 对话 line 524 "Top 3, 所有 ASIN 汇总一张表，去重，按销量排名"
-st_complete 2 logic > /dev/null 2>&1
+# generate-node-code 验证步骤 2
+GATE_2=$(bash "$ML_BIN" generate-node-code 2 deterministic auto 2>&1)
 
-IS_LAST_2=$(bash "$ML_BIN" step-tracker is-last 2)
-if [ "$IS_LAST_2" = "YES" ]; then
+if echo "$GATE_2" | grep -q "IS_LAST=YES"; then
   pass "步骤 2 is-last → YES"
 else
-  fail "步骤 2 is-last 应为 YES" "实际: $IS_LAST_2"
+  fail "步骤 2 is-last 应为 YES" "实际: $(echo "$GATE_2" | grep IS_LAST)"
 fi
 
-# 维度③ output: 对话 line 524 "展示销量，价格，按照销量排名"
-st_complete 2 output > /dev/null 2>&1
-
-# 最后一步 → 维度④自动跳过，用 auto 模式
-st_complete 2 confirm auto > /dev/null 2>&1
-CHECK_2=$(bash "$ML_BIN" step-tracker check 2 2>&1)
-if echo "$CHECK_2" | grep -q "COMPLETE"; then
-  pass "步骤 2 四维度全部完成（维度④自动跳过）"
-else
-  fail "步骤 2 四维度应全部完成" "实际: $CHECK_2"
-fi
-
-GATE_2=$(bash "$ML_BIN" generate-node-code 2 2>&1)
 if echo "$GATE_2" | grep -q "GATE_PASSED" && echo "$GATE_2" | grep -q "CONFIRM_MODE=auto"; then
   pass "步骤 2 门禁通过，CONFIRM_MODE=auto"
 else

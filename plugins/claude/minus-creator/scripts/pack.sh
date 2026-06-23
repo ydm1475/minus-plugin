@@ -7,6 +7,17 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"          # .../claude/minus-creator/scripts
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"                # .../claude/minus-creator
+
+# 优先从源码目录打包：如果当前工作目录在源码 git 仓库内且结构正确，用源码而非 marketplace 安装目录
+if ! git -C "$PLUGIN_DIR" rev-parse --git-dir &>/dev/null; then
+  SOURCE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+  SOURCE_PLUGIN="${SOURCE_ROOT}/plugins/claude/minus-creator"
+  if [ -n "$SOURCE_ROOT" ] && [ -d "$SOURCE_PLUGIN/scripts" ]; then
+    echo "→ 检测到源码目录，从源码打包：$SOURCE_PLUGIN"
+    PLUGIN_DIR="$SOURCE_PLUGIN"
+  fi
+fi
+
 MARKETPLACE_DIR="$(dirname "$PLUGIN_DIR")"           # .../claude （含 .claude-plugin/marketplace.json）
 MCP_DIR="$PLUGIN_DIR/mcp-servers/minus-platform"
 OUT_DIR="${1:-$HOME/Desktop}"

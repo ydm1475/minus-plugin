@@ -45,11 +45,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/bless-replies.sh\"",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/progress-check.sh\"",
             "timeout": 5000
           }

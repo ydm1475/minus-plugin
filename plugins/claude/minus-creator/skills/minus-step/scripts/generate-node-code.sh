@@ -1,50 +1,45 @@
 #!/bin/bash
 # generate-node-code.sh
 # 在四维度全部确认后，一次性生成单个节点的代码
-# 用法: generate-node-code.sh <step_number>
+# 用法: generate-node-code.sh <step_number> <logic_mode> <confirm_mode>
 #
-# 前置条件：step-tracker.sh check <step_number> 必须返回 COMPLETE
 # 生成内容：根据 logic_mode 决定处理方式，根据 confirm_mode 决定前端交互方式
-#
-# 此脚本只做「门禁检查 + 读取 logic_mode / confirm_mode」，
 # 实际代码由 Agent 在门禁通过后编写（脚本输出指导信息）
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TRACKER_DIR=".minus/dev-progress"
 
-STEP="${1:?用法: generate-node-code.sh <step_number>}"
+STEP="${1:?用法: generate-node-code.sh <step_number> <logic_mode> <confirm_mode>}"
+LOGIC_MODE="${2:?用法: generate-node-code.sh <step_number> <logic_mode> <confirm_mode>}"
+CONFIRM_MODE="${3:?用法: generate-node-code.sh <step_number> <logic_mode> <confirm_mode>}"
 
-# ── 门禁：四维度必须全部完成 ──
-
-CHECK_RESULT=$(bash "$SCRIPT_DIR/step-tracker.sh" check "$STEP" 2>&1) || true
-if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
-  echo "错误：步骤 $STEP 四维度未全部完成，不能生成代码" >&2
-  echo "$CHECK_RESULT" >&2
-  exit 1
-fi
-
-# ── 读取 logic_mode / confirm_mode ──
-
-LOGIC_MODE_FILE="$TRACKER_DIR/step_${STEP}_logic_mode"
-if [ -f "$LOGIC_MODE_FILE" ]; then
-  LOGIC_MODE=$(cat "$LOGIC_MODE_FILE")
-else
-  # 兼容旧项目：历史节点只有 step_N_logic 完成标记，没有细分模式。
-  LOGIC_MODE="deterministic"
-fi
-
-MODE_FILE="$TRACKER_DIR/step_${STEP}_confirm_mode"
-if [ -f "$MODE_FILE" ]; then
-  CONFIRM_MODE=$(cat "$MODE_FILE")
-else
-  CONFIRM_MODE="auto"
-fi
+case "$LOGIC_MODE" in
+  deterministic|llm) ;;
+  *) echo "错误：logic_mode 必须是 deterministic 或 llm，收到: '$LOGIC_MODE'" >&2; exit 1 ;;
+esac
+case "$CONFIRM_MODE" in
+  auto|interactive) ;;
+  *) echo "错误：confirm_mode 必须是 auto 或 interactive，收到: '$CONFIRM_MODE'" >&2; exit 1 ;;
+esac
 
 # ── 判断是否最后一步 ──
 
-IS_LAST=$(bash "$SCRIPT_DIR/step-tracker.sh" is-last "$STEP" 2>&1)
+if [ -f ".minus/total-steps" ]; then
+  TOTAL=$(cat ".minus/total-steps")
+elif [ -f "pipeline.py" ]; then
+  TOTAL=$(grep -c 'async def step_[0-9]' pipeline.py 2>/dev/null || echo 0)
+else
+  TOTAL=0
+fi
+if [ "$TOTAL" -gt 0 ] && [ "$STEP" -ge "$TOTAL" ]; then
+  IS_LAST="YES"
+elif [ "$TOTAL" -gt 0 ]; then
+  IS_LAST="NO"
+else
+  echo "ERROR: pipeline.py 不存在且 .minus/total-steps 不存在" >&2
+  exit 1
+fi
 
 # ── 门禁通过，后续全部是信息性输出，不应因解析失败而中断脚本 ──
 set +e
@@ -73,8 +68,7 @@ else:
 " 2>/dev/null || echo "NO")
   if [ "$STEP_HAS_LLM" = "YES" ]; then
     echo "⛔ 步骤 $STEP 的 logic_mode 是 deterministic，但代码中已有 ctx.llm 调用。" >&2
-    echo "   必须先重过 logic 维度：minus-lib step-tracker ask $STEP logic → complete $STEP logic llm" >&2
-    echo "   然后重新执行本门禁。" >&2
+    echo "   重新确认处理逻辑为 LLM 模式后，执行：minus-lib generate-node-code $STEP llm $CONFIRM_MODE" >&2
     exit 1
   fi
 fi

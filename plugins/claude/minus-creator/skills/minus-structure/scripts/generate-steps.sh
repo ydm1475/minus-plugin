@@ -134,7 +134,7 @@ fi
 
 echo "✓ pipeline.py 已生成 ${STEP_COUNT} 个步骤"
 
-# ── 记录总步骤数（供 step-tracker.sh is-last 使用）──
+# ── 记录总步骤数（供 generate-node-code.sh 使用）──
 echo "$STEP_COUNT" > .minus/total-steps
 
 # ── 进度搭载写入：steps 列表 + phase=developing（Agent 不再手写 progress.json）──

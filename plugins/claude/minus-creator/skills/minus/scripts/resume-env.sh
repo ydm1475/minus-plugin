@@ -18,7 +18,6 @@
 #   CLIENT=cli|desktop                cli 分支：detect-preview-port 判定的客户端（决定预览文案）
 #   INITIALIZED=0|1                   .minus/initialized 存在性（0=首次进入，需 skill_version_get）
 #   PHASE= / DESIGN_STAGE= / CURRENT_STEP= / STEPS_TOTAL= / STEPS_DONE=   progress.json 摘要
-#   STEP_STATUS=COMPLETE|INCOMPLETE: ...   当前步骤四维度状态（step-tracker check）
 #   FAIL_REASON= + 诊断行              ENV=failed 时
 
 set -u
@@ -32,7 +31,6 @@ if [ "$BRANCH" = "auto" ]; then
 fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="${MINUS_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
-STEP_TRACKER="$PLUGIN_ROOT/skills/minus-step/scripts/step-tracker.sh"
 
 # ── 1. 本地状态 ──────────────────────────────────────────
 STATE="$(sh "$SCRIPT_DIR/check-project-state.sh")"
@@ -160,12 +158,6 @@ if [ -f .minus/progress.json ]; then
   ' 2>/dev/null || echo "PHASE="
 else
   echo "PHASE="
-fi
-
-CURRENT_STEP="$(node -e 'const p=JSON.parse(require("fs").readFileSync(".minus/progress.json","utf8"));console.log(p.currentStep||0)' 2>/dev/null || echo 0)"
-if [ "$CURRENT_STEP" -gt 0 ] 2>/dev/null && [ -f "$STEP_TRACKER" ]; then
-  STEP_OUT="$(bash "$STEP_TRACKER" check "$CURRENT_STEP" 2>/dev/null || true)"
-  [ -n "$STEP_OUT" ] && echo "STEP_STATUS=$STEP_OUT"
 fi
 
 # ── 4. 结果设计状态 ──────────────────────────────────────────

@@ -438,25 +438,11 @@ implement_step() {
   fi
 )
 
-# Test: step-done 四维度未完成时拒写
-(
-  TMP=$(make_tmp); cd "$TMP"
-  setup_project 2
-  bash "$UP" design-done "A" "B" >/dev/null 2>&1
-  OUTPUT=$(bash "$UP" step-done 1 2>&1 || true)
-  if assert_contains "$OUTPUT" "四维度未全部完成" && [ "$(pj '.steps["1"].status')" = "in_progress" ]; then
-    pass "update-progress: step-done blocked when dims incomplete"
-  else
-    fail "update-progress: step-done blocked when dims incomplete" "got: $OUTPUT"
-  fi
-)
-
 # Test: step-done 时 step_N 仍是 TODO 骨架则拒写
 (
   TMP=$(make_tmp); cd "$TMP"
   setup_project 2
   bash "$UP" design-done "A" "B" >/dev/null 2>&1
-  mark_dims_done 1
   OUTPUT=$(bash "$UP" step-done 1 2>&1 || true)
   if assert_contains "$OUTPUT" "骨架占位" && [ "$(pj '.steps["1"].status')" = "in_progress" ]; then
     pass "update-progress: step-done blocked when step is TODO skeleton"
@@ -816,287 +802,65 @@ PD_SCRIPT="$(via_lib project-detector)"
 
 # ══════════════════════════════════════════════════════
 echo ""
-echo "═══ step-tracker.sh ═══"
+echo "═══ generate-node-code.sh ═══"
 # ══════════════════════════════════════════════════════
 
-ST="$(via_lib step-tracker)"
-BLESS_SCRIPT="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
+GNC="$(via_lib generate-node-code)"
 
-# 测试辅助：为指定步骤+维度预置 _replied（模拟 ask→Stop 盖章已完成）
-bless_dim() {
-  local step="$1" dim="$2"
-  mkdir -p .minus/dev-progress
-  touch ".minus/dev-progress/step_${step}_${dim}_asked"
-  bash "$BLESS_SCRIPT"
-}
-
-# Test: fails without arguments
+# Test: fails without all 3 arguments
 (
-  OUTPUT=$(bash "$ST" 2>&1 || true)
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$GNC" 2>&1 || true)
   if assert_contains "$OUTPUT" "用法"; then
-    pass "step-tracker: fails without arguments"
+    pass "generate-node-code: fails without arguments"
   else
-    fail "step-tracker: fails without arguments" "got: $OUTPUT"
+    fail "generate-node-code: fails without arguments" "got: $OUTPUT"
   fi
 )
 
-# Test: complete and status
+# Test: fails with only 1 argument
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" status 1 2>&1)
-  if assert_contains "$OUTPUT" "✓ 数据需求"; then
-    pass "step-tracker: complete data + status shows done"
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$GNC" 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "用法"; then
+    pass "generate-node-code: fails with only step_number"
   else
-    fail "step-tracker: complete data + status" "got: $OUTPUT"
+    fail "generate-node-code: fails with only step_number" "got: $OUTPUT"
   fi
 )
 
-# Test: must complete in order（先 bless logic 绕过 _replied 检查，让顺序门禁生效）
+# Test: rejects invalid logic_mode
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 logic
-  OUTPUT=$(bash "$ST" complete 1 logic 2>&1 || true)
-  if assert_contains "$OUTPUT" "还未完成"; then
-    pass "step-tracker: enforces dimension order"
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  OUTPUT=$(bash "$GNC" 1 auto interactive 2>&1 || true)
+  if assert_contains "$OUTPUT" "logic_mode 必须是 deterministic 或 llm"; then
+    pass "generate-node-code: rejects invalid logic_mode"
   else
-    fail "step-tracker: enforces dimension order" "got: $OUTPUT"
+    fail "generate-node-code: rejects invalid logic_mode" "got: $OUTPUT"
   fi
 )
 
-# Test: check returns INCOMPLETE
+# Test: rejects invalid confirm_mode
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" check 1 2>&1 || true)
-  if assert_contains "$OUTPUT" "INCOMPLETE"; then
-    pass "step-tracker: check returns INCOMPLETE when missing dims"
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  OUTPUT=$(bash "$GNC" 1 deterministic bogus 2>&1 || true)
+  if assert_contains "$OUTPUT" "confirm_mode 必须是 auto 或 interactive"; then
+    pass "generate-node-code: rejects invalid confirm_mode"
   else
-    fail "step-tracker: check returns INCOMPLETE" "got: $OUTPUT"
+    fail "generate-node-code: rejects invalid confirm_mode" "got: $OUTPUT"
   fi
 )
 
-# Test: check returns COMPLETE when all done
+# Test: GATE_PASSED with llm mode emits LLM_REQUIRED guidance
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic >/dev/null 2>&1
-  bless_dim 1 output
-  bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" check 1 2>&1)
-  if assert_contains "$OUTPUT" "COMPLETE"; then
-    pass "step-tracker: check returns COMPLETE when all dims done"
-  else
-    fail "step-tracker: check returns COMPLETE" "got: $OUTPUT"
-  fi
-)
-
-# Test: reset clears state
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bash "$ST" reset 1 >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" check 1 2>&1 || true)
-  if assert_contains "$OUTPUT" "INCOMPLETE"; then
-    pass "step-tracker: reset clears state"
-  else
-    fail "step-tracker: reset clears state" "got: $OUTPUT"
-  fi
-)
-
-# Test: logic mode defaults to deterministic for backward compatibility
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic >/dev/null 2>&1
-  MODE=$(cat .minus/dev-progress/step_1_logic_mode)
-  if [ "$MODE" = "deterministic" ]; then
-    pass "step-tracker: logic defaults to deterministic for old calls"
-  else
-    fail "step-tracker: default logic mode" "expected deterministic, got: $MODE"
-  fi
-)
-
-# Test: explicit llm mode persists and status displays it
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic llm >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" status 1 2>&1)
-  if [ "$(cat .minus/dev-progress/step_1_logic_mode)" = "llm" ] \
-     && assert_contains "$OUTPUT" "模式: llm"; then
-    pass "step-tracker: explicit llm mode persists and appears in status"
-  else
-    fail "step-tracker: llm mode persistence" "got: $OUTPUT"
-  fi
-)
-
-# Test: invalid logic mode is rejected（bless data、complete data；再 bless logic 让 mode 校验生效）
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data;  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  OUTPUT=$(bash "$ST" complete 1 logic auto 2>&1 || true)
-  if assert_contains "$OUTPUT" "logic 模式必须是 deterministic 或 llm"; then
-    pass "step-tracker: rejects invalid logic mode"
-  else
-    fail "step-tracker: invalid logic mode should fail" "got: $OUTPUT"
-  fi
-)
-
-# Test: reset clears the persisted logic mode
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic llm >/dev/null 2>&1
-  bash "$ST" reset 1 >/dev/null 2>&1
-  if [ ! -f .minus/dev-progress/step_1_logic_mode ]; then
-    pass "step-tracker: reset clears logic mode"
-  else
-    fail "step-tracker: reset should clear logic mode" "logic mode file still exists"
-  fi
-)
-
-# Test: list shows progress
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic >/dev/null 2>&1
-  bless_dim 1 output
-  bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  bless_dim 2 data
-  bash "$ST" complete 2 data >/dev/null 2>&1
-  OUTPUT=$(bash "$ST" list 2>&1)
-  if assert_contains "$OUTPUT" "✓ 步骤 1" && assert_contains "$OUTPUT" "◐ 步骤 2"; then
-    pass "step-tracker: list shows mixed progress"
-  else
-    fail "step-tracker: list shows mixed progress" "got: $OUTPUT"
-  fi
-)
-
-# Test: complete 输出下一维度引导话术（话术单源在脚本，不靠 Agent 记忆）
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bless_dim 1 data
-  OUTPUT=$(bash "$ST" complete 1 data 2>&1)
-  if assert_contains "$OUTPUT" "NEXT_DIM=logic" && assert_contains "$OUTPUT" "step-tracker ask"; then
-    pass "step-tracker: complete data emits ask instruction for next dim"
-  else
-    fail "step-tracker: complete data emits ask instruction" "got: $OUTPUT"
-  fi
-)
-
-# Test: 非最后一步 complete output 输出维度④话术
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 3 > .minus/total-steps
-  bless_dim 1 data;   bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic;  bash "$ST" complete 1 logic >/dev/null 2>&1
-  bless_dim 1 output
-  OUTPUT=$(bash "$ST" complete 1 output 2>&1)
-  if assert_contains "$OUTPUT" "NEXT_DIM=confirm" && assert_contains "$OUTPUT" "step-tracker ask"; then
-    pass "step-tracker: complete output (non-last) emits confirm ask instruction"
-  else
-    fail "step-tracker: complete output (non-last) prompts confirm dimension" "got: $OUTPUT"
-
-  fi
-)
-
-# Test: 最后一步 complete output 自动跳过维度④（硬编码，不靠 Agent 自觉）
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 2 > .minus/total-steps
-  bless_dim 2 data;  bash "$ST" complete 2 data >/dev/null 2>&1
-  bless_dim 2 logic; bash "$ST" complete 2 logic >/dev/null 2>&1
-  bless_dim 2 output
-  OUTPUT=$(bash "$ST" complete 2 output 2>&1)
-  MODE=$(cat .minus/dev-progress/step_2_confirm_mode 2>/dev/null || echo MISSING)
-  if assert_contains "$OUTPUT" "NEXT=GENERATE" && [ "$MODE" = "auto" ] && bash "$ST" check 2 >/dev/null 2>&1; then
-    pass "step-tracker: complete output (last step) auto-completes confirm(auto)"
-  else
-    fail "step-tracker: complete output (last step) auto-completes confirm(auto)" "got: $OUTPUT / mode=$MODE"
-  fi
-)
-
-# Test: complete confirm 输出 NEXT=GENERATE 提示进入阶段二
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 3 > .minus/total-steps
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic >/dev/null 2>&1
-  bless_dim 1 output; bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  OUTPUT=$(bash "$ST" complete 1 confirm interactive 2>&1)
-  if assert_contains "$OUTPUT" "NEXT=GENERATE" && assert_contains "$OUTPUT" "generate-node-code 1"; then
-    pass "step-tracker: complete confirm emits NEXT=GENERATE"
-  else
-    fail "step-tracker: complete confirm emits NEXT=GENERATE" "got: $OUTPUT"
-  fi
-)
-
-# Test: generate-node-code exposes llm mode to the code-generation stage
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 1 > .minus/total-steps
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic llm >/dev/null 2>&1
-  bless_dim 1 output
-  bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
-  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
-  if assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 1 llm auto 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
      && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
      && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
     pass "generate-node-code: llm mode emits LLM_REQUIRED guidance"
@@ -1105,22 +869,14 @@ bless_dim() {
   fi
 )
 
-# Test: interactive code generation explains persisted hidden finalize summaries
+# Test: interactive template points to frontend-guide.md
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 2 > .minus/total-steps
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
-  bless_dim 1 output
-  bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  bash "$ST" complete 1 confirm interactive >/dev/null 2>&1
-  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
-  if assert_contains "$OUTPUT" "frontend-guide.md" \
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 2 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' '    async def step_2(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 1 deterministic interactive 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "frontend-guide.md" \
      && assert_contains "$OUTPUT" "用户确认后的步骤摘要"; then
     pass "generate-node-code: interactive template points summary finalize to platform docs"
   else
@@ -1128,23 +884,14 @@ bless_dim() {
   fi
 )
 
-# Test: code generation gate rejects silent placeholder degradation
+# Test: data-contract completeness checks emitted
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  echo 1 > .minus/total-steps
-  bless_dim 1 data
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  bless_dim 1 logic
-  bash "$ST" complete 1 logic deterministic >/dev/null 2>&1
-  bless_dim 1 output
-  bash "$ST" complete 1 output >/dev/null 2>&1
-  bless_dim 1 confirm
-  bash "$ST" complete 1 confirm auto >/dev/null 2>&1
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return StepOutcome.complete(payload={"rows": []})' > pipeline.py
-  OUTPUT=$(bash "$(via_lib generate-node-code)" 1 2>&1)
-  if assert_contains "$OUTPUT" "真实接口或计算来源" \
+  OUTPUT=$(bash "$GNC" 1 deterministic auto 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "真实接口或计算来源" \
      && assert_contains "$OUTPUT" "尚未接入真实数据来源" \
      && assert_contains "$OUTPUT" "重新核对全部展示字段"; then
     pass "generate-node-code: emits data-contract completeness checks"
@@ -1152,126 +899,57 @@ bless_dim() {
     fail "generate-node-code: data-contract completeness checks" "got: $OUTPUT"
   fi
 )
-# Test: ask 子命令写 _asked 标记并输出话术
+
+# Test: deterministic mode emits LLM_REQUIRED=NO
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  OUTPUT=$(bash "$ST" ask 1 logic 2>&1)
-  if [ -f .minus/dev-progress/step_1_logic_asked ] \
-     && assert_contains "$OUTPUT" "本轮到此结束" \
-     && assert_contains "$OUTPUT" "数据获取确认完毕"; then
-    pass "step-tracker: ask writes _asked and emits prompt"
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 1 deterministic auto 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "LLM_REQUIRED=NO"; then
+    pass "generate-node-code: deterministic mode emits LLM_REQUIRED=NO"
   else
-    fail "step-tracker: ask writes _asked and emits prompt" "got: $OUTPUT / files: $(ls .minus/dev-progress/ 2>/dev/null)"
+    fail "generate-node-code: deterministic LLM_REQUIRED" "got: $OUTPUT"
   fi
 )
 
-# Test: ask 多维度写多个 _asked
+# Test: IS_LAST=YES for last step
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  bash "$ST" ask 1 output confirm >/dev/null 2>&1
-  if [ -f .minus/dev-progress/step_1_output_asked ] \
-     && [ -f .minus/dev-progress/step_1_confirm_asked ]; then
-    pass "step-tracker: ask multi-dim writes multiple _asked"
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 2 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' '    async def step_2(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 2 deterministic auto 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "IS_LAST=YES"; then
+    pass "generate-node-code: IS_LAST=YES for last step"
   else
-    fail "step-tracker: ask multi-dim writes multiple _asked" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
+    fail "generate-node-code: IS_LAST=YES" "got: $OUTPUT"
   fi
 )
 
-# Test: complete 缺 _replied 时被硬门禁拒绝
+# Test: IS_LAST=NO for non-last step
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  OUTPUT=$(bash "$ST" complete 1 data 2>&1 || true)
-  if assert_contains "$OUTPUT" "还没等 Creator 回复就标记完成"; then
-    pass "step-tracker: complete blocked without _replied"
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 3 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' '    async def step_2(self, ctx):' '        return None' '    async def step_3(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 1 llm interactive 2>&1)
+  if assert_contains "$OUTPUT" "GATE_PASSED" \
+     && assert_contains "$OUTPUT" "IS_LAST=NO"; then
+    pass "generate-node-code: IS_LAST=NO for non-last step"
   else
-    fail "step-tracker: complete blocked without _replied" "got: $OUTPUT"
+    fail "generate-node-code: IS_LAST=NO" "got: $OUTPUT"
   fi
 )
 
-# Test: bless-replies.sh 把 _asked 升级为 _replied
+# Test: fails when pipeline.py and .minus/total-steps both missing
 (
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus/dev-progress
-  touch .minus/dev-progress/step_1_data_asked
-  touch .minus/dev-progress/step_2_logic_asked
-  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
-  bash "$BLESS" 2>&1
-  if [ -f .minus/dev-progress/step_1_data_replied ] \
-     && [ -f .minus/dev-progress/step_2_logic_replied ]; then
-    pass "bless-replies: converts _asked to _replied"
+  TMP=$(make_tmp); cd "$TMP"
+  OUTPUT=$(bash "$GNC" 1 deterministic auto 2>&1 || true)
+  if assert_contains "$OUTPUT" "pipeline.py"; then
+    pass "generate-node-code: fails without pipeline.py and total-steps"
   else
-    fail "bless-replies: converts _asked to _replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
-  fi
-)
-
-# Test: bless-replies.sh 无 .minus 时 no-op 不报错
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
-  if bash "$BLESS" >/dev/null 2>&1; then
-    pass "bless-replies: no-op when no .minus/dev-progress"
-  else
-    fail "bless-replies: should exit 0 without .minus/dev-progress" ""
-  fi
-)
-
-# Test: ask → bless → complete 正常流程放行
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus
-  BLESS="$REPO_DIR/plugins/claude/minus-creator/scripts/bless-replies.sh"
-  bash "$ST" ask 1 data >/dev/null 2>&1
-  bash "$BLESS" >/dev/null 2>&1   # 模拟 Stop 事件盖章
-  OUTPUT=$(bash "$ST" complete 1 data 2>&1)
-  if assert_contains "$OUTPUT" "✓ 步骤 1 — data 已确认" \
-     && [ ! -f .minus/dev-progress/step_1_data_asked ] \
-     && [ ! -f .minus/dev-progress/step_1_data_replied ]; then
-    pass "step-tracker: ask→bless→complete succeeds and cleans up"
-  else
-    fail "step-tracker: ask→bless→complete flow" "got: $OUTPUT / files: $(ls .minus/dev-progress/ 2>/dev/null)"
-  fi
-)
-
-# Test: complete 成功后清掉 _asked/_replied（防陈旧盖章）
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus/dev-progress
-  touch .minus/dev-progress/step_1_data_asked
-  touch .minus/dev-progress/step_1_data_replied
-  bash "$ST" complete 1 data >/dev/null 2>&1
-  if [ ! -f .minus/dev-progress/step_1_data_asked ] \
-     && [ ! -f .minus/dev-progress/step_1_data_replied ]; then
-    pass "step-tracker: complete cleans up _asked/_replied"
-  else
-    fail "step-tracker: complete should clean _asked/_replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
-  fi
-)
-
-# Test: reset 同时清掉 _asked/_replied
-(
-  TMP=$(make_tmp)
-  cd "$TMP"
-  mkdir -p .minus/dev-progress
-  touch .minus/dev-progress/step_1_data_asked
-  touch .minus/dev-progress/step_1_data_replied
-  touch .minus/dev-progress/step_1_data
-  bash "$ST" reset 1 >/dev/null 2>&1
-  if [ ! -f .minus/dev-progress/step_1_data_asked ] \
-     && [ ! -f .minus/dev-progress/step_1_data_replied ] \
-     && [ ! -f .minus/dev-progress/step_1_data ]; then
-    pass "step-tracker: reset clears _asked/_replied too"
-  else
-    fail "step-tracker: reset should clear _asked/_replied" "files: $(ls .minus/dev-progress/ 2>/dev/null)"
+    fail "generate-node-code: fails without pipeline.py and total-steps" "got: $OUTPUT"
   fi
 )
 
@@ -1491,18 +1169,24 @@ GRD="$(via_lib generate-result-design)"
   }
 )
 
-# Test: fails when steps incomplete
+# Test: fails when steps incomplete (pipeline.py has skeleton TODO)
 (
   cd "$(mktemp -d)"
   mkdir -p .minus/dev-progress
   echo "2" > .minus/total-steps
-  # step 1 complete, step 2 missing
-  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
+  # step 1 implemented, step 2 still skeleton
+  printf '%s\n' \
+    'class Demo:' \
+    '    async def step_1(self, ctx):' \
+    '        return StepOutcome.complete(payload={"rows": []})' \
+    '    async def step_2(self, ctx):' \
+    '        # TODO: 实现「步骤2」的逻辑' \
+    '        return StepOutcome.complete(payload={"text": "步骤2完成"})' > pipeline.py
   OUTPUT=$(bash "$GRD" 2>&1) && {
     fail "generate-result-design: should fail with incomplete steps" "got: $OUTPUT"
   } || {
     if echo "$OUTPUT" | grep >/dev/null "步骤2"; then
-      pass "generate-result-design: fails with incomplete steps, reports which"
+      pass "generate-result-design: should report incomplete step number"
     else
       fail "generate-result-design: should report incomplete step number" "got: $OUTPUT"
     fi
@@ -1514,8 +1198,13 @@ GRD="$(via_lib generate-result-design)"
   cd "$(mktemp -d)"
   mkdir -p .minus/dev-progress
   echo "2" > .minus/total-steps
-  touch .minus/dev-progress/step_1_{data,logic,output,confirm}
-  touch .minus/dev-progress/step_2_{data,logic,output,confirm}
+  # Both steps implemented (no skeleton)
+  printf '%s\n' \
+    'class Demo:' \
+    '    async def step_1(self, ctx):' \
+    '        return StepOutcome.complete(payload={"rows": []})' \
+    '    async def step_2(self, ctx):' \
+    '        return StepOutcome.complete(payload={"text": "done"})' > pipeline.py
   OUTPUT=$(bash "$GRD" 2>&1) && {
     fail "generate-result-design: should block without final test confirmation" "got: $OUTPUT"
   } || {
@@ -2777,7 +2466,7 @@ project-detector|
 projects-manager|list
 post-install-check|
 generate-steps|步骤A|步骤B
-generate-node-code|1
+generate-node-code|1|deterministic|auto
 check-dev-server|
 detect-preview-port|
 record-preview-port|5173
@@ -2823,7 +2512,7 @@ FAKE
   # start-dev/resume-env 会走到 pnpm/curl：给无害 stub，smoke 只验 node 解析链
   printf '#!/bin/bash\nexit 0\n' > "$OLDNODE_SHIM/pnpm"; chmod +x "$OLDNODE_SHIM/pnpm"
 
-  echo "$OLDNODE_SMOKE" | while IFS='|' read -r SM_NAME SM_A1 SM_A2; do
+  echo "$OLDNODE_SMOKE" | while IFS='|' read -r SM_NAME SM_A1 SM_A2 SM_A3; do
     [ -n "$SM_NAME" ] || continue
     (
       TMP=$(make_tmp); mkdir -p "$TMP/proj/.minus"; cd "$TMP/proj"
@@ -2832,6 +2521,7 @@ FAKE
       SM_ARGS=()
       [ -n "$SM_A1" ] && SM_ARGS+=("$SM_A1")
       [ -n "$SM_A2" ] && SM_ARGS+=("$SM_A2")
+      [ -n "$SM_A3" ] && SM_ARGS+=("$SM_A3")
       if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 MINUS_DEV_RESTART=1 MINUS_NODE_BIN_DIR= \
            PATH="$OLDNODE_SHIM:$PATH" bash "$ML" "$SM_NAME" ${SM_ARGS+"${SM_ARGS[@]}"} 2>&1); then RC=0; else RC=$?; fi
       if echo "$OUTPUT" | grep >/dev/null "SyntaxError"; then
@@ -4699,7 +4389,7 @@ MINUS_LIB="$REPO_DIR/plugins/claude/minus-creator/bin/minus-lib"
 (
   # 各新 skill 私有目录的脚本均可被裸名分发
   OK=1
-  for name in step-tracker generate-node-code generate-steps generate-result-design gate; do
+  for name in generate-node-code generate-steps generate-result-design gate; do
     OUT=$(bash "$MINUS_LIB" "$name" --__probe__ 2>&1) || true
     if echo "$OUT" | grep >/dev/null "未找到脚本"; then
       OK=0

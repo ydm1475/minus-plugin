@@ -14,7 +14,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STEP_TRACKER="$SCRIPT_DIR/../../minus-step/scripts/step-tracker.sh"
 TRACKER_DIR=".minus/dev-progress"
 
 ACTION="${1:-}"
@@ -89,18 +88,27 @@ if [ "$TOTAL_STEPS" -lt 1 ]; then
   exit 1
 fi
 
+if [ ! -f "pipeline.py" ]; then
+  echo "错误：未找到 pipeline.py" >&2
+  exit 1
+fi
+
 ALL_COMPLETE=true
 INCOMPLETE_STEPS=""
 for i in $(seq 1 "$TOTAL_STEPS"); do
-  CHECK_RESULT=$(bash "$STEP_TRACKER" check "$i" 2>&1) || true
-  if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
+  if awk -v step="$i" '
+      $0 ~ "async def step_" step "\\(" { inside = 1; next }
+      inside && /async def step_[0-9]/ { inside = 0 }
+      inside && /# TODO: 实现「/ { found = 1 }
+      END { exit found ? 0 : 1 }
+    ' pipeline.py; then
     ALL_COMPLETE=false
     INCOMPLETE_STEPS="${INCOMPLETE_STEPS} 步骤$i"
   fi
 done
 
 if [ "$ALL_COMPLETE" = false ]; then
-  echo "错误：以下步骤四维度未全部完成，不能进入结果呈现设计：${INCOMPLETE_STEPS}" >&2
+  echo "错误：以下步骤尚未开发完成，不能进入结果呈现设计：${INCOMPLETE_STEPS}" >&2
   exit 1
 fi
 

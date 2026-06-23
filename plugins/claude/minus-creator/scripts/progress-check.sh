@@ -1,6 +1,6 @@
 #!/bin/bash
 # progress-check.sh
-# 进度自愈：从硬产物（pipeline.py 占位标记、.minus/dev-progress 四维度标记、.minus/total-steps）
+# 进度自愈：从硬产物（pipeline.py 占位标记、.minus/total-steps）
 # 单向收敛 .minus/progress.json，兜底 Agent 漏调 update-progress.sh。
 # 挂载于 SessionStart 与 Stop hook；非 Minus 项目目录静默退出。
 # 收敛方向只允许"少标 → 补标"，禁止把人工确认的 ready 降级。
@@ -13,7 +13,7 @@ set -uo pipefail
 TRACKER_DIR=".minus/dev-progress"
 PROGRESS_FILE=".minus/progress.json"
 
-# 总步骤数（同 step-tracker.sh is-last 逻辑）
+# 总步骤数
 if [ -f ".minus/total-steps" ]; then
   TOTAL=$(cat .minus/total-steps)
 else
@@ -21,14 +21,10 @@ else
 fi
 [ "$TOTAL" -ge 1 ] 2>/dev/null || exit 0
 
-# 收集每步硬产物完成证据：四维度齐全 且 step_N 无骨架占位
+# 收集每步硬产物完成证据：step_N 无骨架占位
 HARD_DONE=""
 for STEP in $(seq 1 "$TOTAL"); do
-  ALL_DIMS=true
-  for dim in data logic output confirm; do
-    [ -f "$TRACKER_DIR/step_${STEP}_${dim}" ] || { ALL_DIMS=false; break; }
-  done
-  if [ "$ALL_DIMS" = true ] && ! awk -v step="$STEP" '
+  if ! awk -v step="$STEP" '
       $0 ~ "async def step_" step "\\(" { inside = 1; next }
       inside && /async def step_[0-9]/ { inside = 0 }
       inside && /# TODO: 实现「/ { found = 1 }

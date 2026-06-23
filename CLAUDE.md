@@ -16,7 +16,7 @@ Claude Code 插件，帮助 Creator 开发和发布 Minus Skill。
 
 自然语言指令 Agent 遵守率不可控。规则越多越分散，遗漏率越高。能用代码/脚本/模板约束的逻辑，不要写在 .md 里等 Agent 自觉执行。
 
-- 流程分支（如"最后一步跳过维度 ④"）→ 在 step-tracker.sh 或流程控制层硬编码
+- 流程分支（如"最后一步跳过维度 ④"）→ 在 generate-node-code.sh 或流程控制层硬编码
 - 代码默认值（如 `confirmedKey` 命名规则）→ 写进代码模板或 SDK 默认值，不靠 Agent 记得加
 - 格式约束（如"必须换行"）→ 用结构化模板而非自然语言描述
 

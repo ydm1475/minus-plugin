@@ -18,6 +18,16 @@ if [ -n "${1:-}" ] && [ -d "$1/.claude-plugin" ]; then
 else
   PLUGIN_SRC="$(cd "$(dirname "$0")/.." && pwd)"
 fi
+
+# 优先从源码目录同步：如果 PLUGIN_SRC 在已安装位置（非 git 仓库），
+# 而 cwd 在源码 git 仓库内且结构正确，用源码目录替换
+if ! git -C "$PLUGIN_SRC" rev-parse --git-dir &>/dev/null; then
+  SOURCE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  SOURCE_PLUGIN="${SOURCE_ROOT}/plugins/claude/minus-creator"
+  if [ -n "$SOURCE_ROOT" ] && [ -d "$SOURCE_PLUGIN/scripts" ]; then
+    PLUGIN_SRC="$SOURCE_PLUGIN"
+  fi
+fi
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_DIR/plugins/installed_plugins.json"
 

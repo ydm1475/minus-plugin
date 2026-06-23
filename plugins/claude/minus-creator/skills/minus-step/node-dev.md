@@ -4,11 +4,11 @@
 
 ## 插件脚本调用方式
 
-插件脚本通过 `minus-lib <脚本名> [参数]` 裸命令调用（bin/ 已在 PATH 上），如 `minus-lib step-tracker check 1`。
+插件脚本通过 `minus-lib <脚本名> [参数]` 裸命令调用（bin/ 已在 PATH 上），如 `minus-lib generate-node-code 1 deterministic auto`。
 
 ## 任务
 
-进入步骤开发时，**先执行 `minus-lib step-tracker status <step>`**，从未完成的维度继续。不要靠对话记忆判断进度——对话可能被压缩，磁盘状态才是唯一真值源。
+进入步骤开发时，先检查 pipeline.py 中对应步骤函数是否包含 `# TODO: 实现「` 骨架占位。有占位 = 未开发（按四维度流程执行），无占位 = 已有代码（进入修改流程）。
 
 引导 Creator 按顺序确认当前 pipeline 节点的四个维度意图，**全部确认后一次性生成代码**。
 
@@ -18,24 +18,18 @@
 - **明确确认** = Creator 清楚说出了该维度的具体内容（如"表格""排序""自动继续"）；Agent 推断、联想、从技能名猜测出来的**不算明确表达**
 - **四个维度的问答阶段只收集意图，不写任何代码**
 - **所有维度全部确认后，一次性生成 pipeline.py + main.tsx 代码**
-- **禁止抢答**：Creator 的回复只有在你已执行 `ask` 并输出该维度问题之后，才算该维度的回答。不确定 Creator 在回答哪个维度时，先复述理解请 Creator 确认，禁止自行判断并标记完成
+- **禁止抢答**：Creator 的回复只有在你已提出该维度问题之后，才算该维度的回答。不确定 Creator 在回答哪个维度时，先复述理解请 Creator 确认，禁止自行判断并标记完成
 
 ## 每个维度的标准流程
 
-```
-1. 执行 minus-lib step-tracker ask <step> <dim>  → 输出话术，转达，停止等回复
+对于每个维度：
+1. **进入前先回顾**：检查 Creator 之前的回答是否已经覆盖了本维度的内容
+   - 已覆盖 → 不要从头提问，改为复述你的理解并请 Creator 确认（如「你前面说了要展示趋势曲线 + 体量数字 + 一段解读总结，展示内容就按这个来，可以吗？」），Creator 确认后直接进入下一维度
+   - 未覆盖 → 正常提出该维度的问题（结合具体建议）
 2. 等待 Creator 明确回复
-3. 执行 minus-lib step-tracker complete <step> <dim> [mode]
-```
+3. 记住 Creator 的回答，进入下一维度
 
-若 Creator 一句话**明确**覆盖了多个维度（如同时说清楚了处理方式和展示内容），可合并：
-
-```
-minus-lib step-tracker ask <step> output confirm  → 输出合并确认句，停止等回复
-Creator 确认后 → complete output，complete confirm <mode>
-```
-
-合并的前提是各维度内容均已**明确**说出，不是 Agent 推断的。
+⛔ **禁止对已有答案视而不见地重新提问。** Creator 的回答经常一句话覆盖多个维度（如回答处理逻辑时顺带说了展示内容），进入后续维度时必须识别出来，用确认式推进代替从头提问。
 
 ## 阶段一：逐维度收集意图
 
@@ -51,23 +45,17 @@ Creator 确认后 → complete output，complete confirm <mode>
 1. 调用 `ToolSearch("mcp__")` 发现当前会话中可用的 MCP 工具（这些工具来自插件 `.mcp.json` 中配置的 MCP 服务，会话启动时已自动注册）。排除 `mcp__plugin_minus-creator_minus-platform__` 开头的（那是平台管理工具），剩下的就是数据服务商的工具。工具列表和参数 schema 只能通过 ToolSearch 获取（`.mcp.json` 里只有启动配置，没有这些信息）。
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
 3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**（只看第一个结果就决定经常选错）
-4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），接口确认后执行 ask
+4. 用通俗语言向 Creator 展示能获取的数据（如"可以查到搜索量、点击率、竞争度"），等 Creator 确认
 
 ⛔ P0：写进确认内容的接口必须来自上述 MCP 发现流程的真实结果。找不到合适接口时，如实告诉 Creator 这一步取不到数据并讨论调整——不读本地 SDK 源码猜接口，不用 mock 数据顶替。
 
 **重要：MCP 只用于开发阶段发现 API。生成的代码通过 SDK 调用 API（如 SIF 数据源用 `ctx.sif.*`），不依赖 MCP。具体用哪个 SDK 方法，参考 MCP 返回的接口文档。**
 
-接口发现完成后，执行：
+接口发现完成后，向 Creator 确认（原样转达，[…] 处填入实际发现的数据字段）：
 
-```bash
-minus-lib step-tracker ask {step_number} data
-```
+「这一步能拿到以下数据——[在此填入接口发现的数据字段]。这些数据够用吗？还是需要补充？」
 
-脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后执行：
-
-```bash
-minus-lib step-tracker complete {step_number} data
-```
+**等 Creator 确认后进入下一维度。**
 
 ### ② 处理逻辑
 
@@ -80,27 +68,21 @@ minus-lib step-tracker complete {step_number} data
 
 引导时不要主动推销"大模型生成"作为默认选项；只在 Creator 明确表达，或任务确实需要自然语言理解/判断/生成时使用。
 
+向 Creator 输出以下三部分（**同一条消息内全部说完**，不要说完前两句就停下等回复）：
+
+「下一个问题：拿到这些数据之后，怎么处理？」
+
+「比如：直接透传原始数据？做聚合/排序？用大模型做分析总结？」
+
+「我的建议：[根据维度 ① 已确认的具体数据，给出贴合当前步骤的建议]」
+
 如果使用 LLM，必须先完成一次动态确认，不暴露技术细节：
 
 1. 根据当前步骤的数据内容、Creator 已表达的业务目标和上下文，动态生成需要确认的问题（固定问题清单无法贴合具体数据语境，不要照搬）。
 2. Creator 回答后，用通俗语言归纳大模型将生成什么、重点关注什么、有哪些边界，并询问「这样可以吗？」
-3. 只有 Creator 明确确认后，才能记录 `logic llm` 并进入下一维度。
+3. 只有 Creator 明确确认后，才能记录 logic 为 llm 并进入下一维度。
 
-执行：
-
-```bash
-minus-lib step-tracker ask {step_number} logic
-```
-
-脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后，根据处理方式执行其中一个命令：
-
-```bash
-# 排序、筛选、聚合、格式化等确定性处理
-minus-lib step-tracker complete {step_number} logic deterministic
-
-# 大模型生成、AI 总结、自动分析等 LLM 处理
-minus-lib step-tracker complete {step_number} logic llm
-```
+Creator 确认后，记住处理模式（deterministic 或 llm），**进入下一维度**。
 
 ### ③ 输出定义
 
@@ -110,78 +92,72 @@ minus-lib step-tracker complete {step_number} logic llm
 - 传给下一步的数据在维度 ④ 确认后再问
 - ⛔ **禁止自动补展示内容**：代码只能渲染 Creator 在输出定义阶段明确确认的展示内容。接口返回字段、计算中间值、排序依据、调试信息，都不是默认展示内容。Creator 只说"表格"就只生成表格；只有 Creator 明确要求"概览/摘要/统计卡片/顶部汇总"时，才可以添加这类 UI。
 
-执行：
+**⛔ 必须先执行以下判断，禁止跳过直接提问：**
 
-```bash
-minus-lib step-tracker ask {step_number} output
-```
+回顾 Creator 在维度 ①② 中的所有回答，判断 Creator 是否已经说了要展示什么：
 
-脚本输出话术后**停止，等 Creator 回复**。Creator 明确确认后执行：
+- **已说了展示内容**（Creator 提到了表格、图表、曲线、摘要、卡片、列表等具体展示形式）→ **禁止再问"这一步要展示什么给用户看"**，改为复述确认：「你前面说了要展示 [复述具体内容，如"趋势曲线 + 体量数字 + 一段解读总结"]，展示内容就按这个来，可以吗？」Creator 确认后 → 进入下一维度
+- **未说展示内容**（Creator 只说了处理逻辑，没提到具体展示形式）→ 正常提问，向 Creator 输出以下三部分（**同一条消息内全部说完**）：
 
-```bash
-minus-lib step-tracker complete {step_number} output
-```
+「下一个问题：这一步要展示什么给用户看？」
 
-脚本会自动判断是否为最后一步：
+「比如：一个数据表格、一段文字摘要、一个卡片……」
 
-- **最后一步**：脚本自动标记 `confirm (auto)` 并输出 `NEXT=GENERATE`——直接进入「阶段二：一次性生成代码」，维度 ④ 不存在于最后一步
-- **非最后一步**：脚本提示执行 `ask <step> confirm`，执行后停止等回复
+「我的建议：[结合维度 ①② 已确认的数据和处理逻辑，给出贴合当前步骤的建议]」
+
+**等 Creator 确认后进入下一维度。**
+
+**最后一步判断**：读 `.minus/total-steps` 中的数字，如果当前步骤编号 >= 该数字，则为最后一步。最后一步没有维度 ④（最后一步没有"传给下一步"的概念），直接进入阶段二。
 
 ### ④ 用户确认 + 传递数据
 
-本维度只在脚本提示执行 `ask <step> confirm` 时进入（最后一步已由脚本自动跳过）。
+本维度只在非最后一步时进入。
 
-确认模式必须由 Creator 亲口选择，按字面映射：说"需要确认"→ interactive；说"自动继续"或"用户不用确认"→ auto（"不用确认"是 auto 的同义表达，不是 interactive）。
+**⛔ 必须先执行以下判断，禁止跳过直接提问：**
 
-执行：
+回顾 Creator 在维度 ①②③ 中的所有回答，判断 Creator 是否已经表达了用户交互意图：
 
-```bash
-minus-lib step-tracker ask {step_number} confirm
-```
+- **已表达交互意图**（Creator 提到了勾选、选择、复选框、用户确认、筛选等用户操作动作）→ 确认模式 = interactive。**禁止再问"需要暂停让用户确认吗"**，改为复述确认：「你前面说了要让用户 [复述具体操作，如"勾选想要的词"]，所以这一步会暂停等用户操作完再继续，对吧？」Creator 确认后 → 直接跳到下面的「传递数据」
+- **未表达交互意图**（Creator 只描述了纯展示，没提到任何用户操作）→ 正常提问：「下一个问题：用户运行到这一步后，需要暂停让用户确认数据再继续吗？还是自动往下走？」
 
-脚本输出话术后**停止，等 Creator 回复**。
+按字面映射：说"需要确认"→ interactive；说"自动继续"或"用户不用确认"→ auto（"不用确认"是 auto 的同义表达，不是 interactive）。
 
-**分两轮收集：**
+**传递数据：**
 
-**第一轮：确认模式**
+根据维度 ①②③ 已确认的内容（数据源、处理逻辑、展示内容）和 Skill 整体步骤设计，推断这一步应该传给下一步哪些数据。除了这一步自身的产出，还要看后续步骤是否会复用这一步已经拿到的信息（如类目、站点、关键词清单等），如果会复用就一起推荐传下去，省得后续步骤重复查接口。
 
-- "需要确认" → 记录 interactive
-- "自动继续" / "用户不用确认" → 记录 auto
+推荐时用业务语言描述每条数据是什么、后面哪些步骤会用到。条目数量不固定，由实际情况决定。始终给出具体推荐，Creator 只需确认或修正。
 
-**第二轮：传递数据（根据确认模式调整措辞）**
-
-如果 interactive，原样输出：
+如果 interactive：
 
 「好，用户需要先确认再继续。」
 
-「那用户勾选确认的什么数据传给下一步？比如选中的关键词、选中的 ASIN……」
+「下一个问题：那什么数据传给下一步？我的建议：」
 
-如果 auto，原样输出：
+然后列出推荐，说明每条数据后面哪些步骤会用到。interactive 模式下注意区分哪些是用户选择的数据（如勾选的关键词）、哪些是自动带过去的（如类目、站点信息）。例如：这一步展示了关键词表格，就说「**类目身份**（哪个类目、哪个站点）——后面每步都要用，自动带过去不需要用户操心；**用户选中的关键词**——用户从表格里勾选的那些词。这样可以吗？」
+
+如果 auto：
 
 「好，自动往下走。」
 
-「那这一步的什么数据传给下一步？」
+「下一个问题：那什么数据传给下一步？我的建议：」
 
-Creator 确认后，执行：
+然后列出推荐，说明每条数据后面哪些步骤会用到。例如：这一步做了关键词筛选，就说「**类目身份**（哪个类目、哪个站点）——后面分析要围绕它；**核心关键词清单**——这一步已经查出来了。这样可以吗？」
 
-```bash
-minus-lib step-tracker complete {step_number} confirm <auto|interactive>
-```
-
-脚本输出 `NEXT=GENERATE` 后，执行门禁检查进入阶段二。
+Creator 确认后，**进入阶段二**。
 
 ## 阶段二：一次性生成代码
 
-⛔ **进入阶段二前必须执行门禁检查**，门禁不通过则不能写任何代码：
+四个维度全部确认后，执行代码生成门禁：
 
 ```bash
-minus-lib generate-node-code {step_number}
+minus-lib generate-node-code {step_number} {logic_mode} {confirm_mode}
 ```
 
-此脚本会检查四维度是否全部 COMPLETE，并输出 `LOGIC_MODE`（deterministic/llm）、`LLM_REQUIRED`（YES/NO）、`CONFIRM_MODE`（auto/interactive）和前端代码模板。
+其中 `logic_mode` 是维度 ② 确认的处理模式（deterministic 或 llm），`confirm_mode` 是维度 ④ 确认的交互模式（auto 或 interactive，最后一步固定传 auto）。
 
 - 如果输出 `GATE_PASSED` → 可以开始写代码
-- 如果报错 → 四维度未全部确认，必须补完
+- 如果报错 → 按提示修正
 
 ⛔ **禁止在门禁通过前编辑 pipeline.py 或 main.tsx。** 任何代码修改必须在 `generate-node-code.sh` 返回 `GATE_PASSED` 之后。
 
@@ -192,6 +168,7 @@ minus-lib generate-node-code {step_number}
 ⛔ **摘要不是默认行为——仅当 Creator 在输出定义阶段明确要求"摘要/总结/概览"时，才在后端 payload 中加 `summary` 字段。** Creator 没提摘要需求的步骤，禁止自行生成 summary。
 
 当 Creator 确认需要摘要时：
+
 - 摘要必须来自后端 payload，不能只在前端临时拼接（这样摘要会随步骤结果持久化，用户回放时不会丢失）。
 - 摘要的时序写法（什么时候用 `STEP_PARTIAL_DETAIL`、什么时候直接随终态下发）见前端 SDK 手册（frontend-guide.md）「步骤摘要（LLM summary）的三种时序」章节，按 `CONFIRM_MODE` 和摘要分析对象选择对应时序。
 - ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
@@ -276,21 +253,7 @@ minus-lib locale-set rm  frontend/src/locales/zh-CN.json "{key}"
 
 ### 代码生成后
 
-1. 执行 `step-tracker.sh check {step_number}` 确认四维度全部 COMPLETE
-
-<!-- TODO（暂时注释，先不管）：前端类型检查门禁。
-     当前 `@minus/*` 真实类型到不了编译期（兜底桩 `declare module '@minus/*';` 让类型塌成 any），
-     check-frontend 在任何真实项目上都过不了，硬门禁会死锁流程。
-     待平台「类型随运行时 JS 动态下发」落地（详见项目根目录 CLAUDE.md「@minus/* SDK 类型契约」章节）后恢复：
-
-2. 执行前端类型检查硬门禁（输出 `FRONTEND_OK` 才能继续；`GATE_FAILED` 时 Agent 必须自己修到通过，包括 tsconfig 配置错误——配置错误意味着类型检查整体失效，不是可忽略的小报错）：
-
-```bash
-minus-lib check-frontend
-```
--->
-
-3. 执行 Python 依赖一致性检查：
+1. 执行 Python 依赖一致性检查：
 
 ```bash
 minus-lib check-python-deps
@@ -300,48 +263,43 @@ minus-lib check-python-deps
 - 如果报缺失依赖 → Agent 自己修复：把依赖写进 `pyproject.toml` 再执行 `uv pip install -e .`（只装进 `.venv` 不更新 pyproject，换环境就丢），然后重新检查；通过前不要让 Creator 测试（依赖修复是 Agent 的事，不交给 Creator 手动处理）
 - 验证依赖用项目 venv 的 python（Unix：`.venv/bin/python`；Windows：`.venv/Scripts/python.exe`）——系统 `python3` 看不到 venv 里的包，结果不可信
 
-4. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
-5. 执行 `minus-lib update-progress step-done {step_number}`（自动标记本步骤完成、推进 currentStep；最后一步会自动进入待测试阶段）。⛔ 禁止手写 `.minus/progress.json`。
-6. 脚本会输出测试邀请话术（单源在脚本里）：原样转达「」内的行（每行独立），然后**停止，等 Creator 回复**。
+2. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
+3. 执行 `minus-lib update-progress step-done {step_number}`（自动标记本步骤完成、推进 currentStep；最后一步会自动进入待测试阶段）。⛔ 禁止手写 `.minus/progress.json`。
+4. 脚本会输出测试邀请话术（单源在脚本里）：原样转达「」内的行（每行独立），然后**停止，等 Creator 回复**。
    - ⛔ 禁止把 step-done 与其他流程命令（如 generate-result-design）串在一条命令里执行
    - 最后一步：Creator 确认整体测试通过后，先执行 `minus-lib update-progress confirm-test`，再进入结果呈现设计（其门禁会校验该确认）
 
 ### 修改已完成步骤的处理逻辑
 
-当 `step-tracker status` 显示步骤已有维度完成时，进入修改流程。先区分修改类型：
+当 pipeline.py 中对应步骤已有实际代码（无骨架占位）时，进入修改流程。先区分修改类型：
 
 **Bug 修复**（Creator 说"有 bug"/"不对"/"没生效"/"报错"等故障症状）：不重走任何维度，直接读代码和后端日志定位问题并修复。意图没变，只是代码写错了。
 
-**功能修改**（Creator 说"加一列"/"换接口"/"改成手动确认"等功能调整）：**不重走全部四维度**，只重走受影响的维度。
+**功能修改**（Creator 说"加一列"/"换接口"/"改成手动确认"等功能调整）：**不重走全部四维度**，只针对受影响的维度重新确认。
 
 **第一步：判断修改影响了哪些维度**
 
 根据 Creator 的修改意图对照：
 
-| 修改内容 | 受影响维度 |
-|---------|----------|
-| 换数据接口 / 改数据来源 | ① data |
-| 改排序、过滤、聚合逻辑 | ② logic |
-| 加 LLM 分析 / 改处理模式 | ② logic |
-| 改展示字段、表格列、卡片内容 | ③ output |
-| 改确认方式（自动/手动） | ④ confirm |
+| 修改内容                     | 受影响维度 |
+| ---------------------------- | ---------- |
+| 换数据接口 / 改数据来源      | ① data     |
+| 改排序、过滤、聚合逻辑       | ② logic    |
+| 加 LLM 分析 / 改处理模式     | ② logic    |
+| 改展示字段、表格列、卡片内容 | ③ output   |
+| 改确认方式（自动/手动）      | ④ confirm  |
 
 一次修改可能影响多个维度（如"换接口并改展示字段" → ① + ③）。
 
-**第二步：只重走受影响的维度**
+**第二步：只针对受影响维度重新确认**
+
+向 Creator 确认受影响维度的新意图，未受影响的维度保留原状不重新询问。全部确认后重新调用：
 
 ```bash
-# 重置受影响维度
-minus-lib step-tracker ask <step> <affected_dim1> [<affected_dim2> ...]
-# Creator 确认后逐个 complete
-minus-lib step-tracker complete <step> <dim> [mode]
-# 全部受影响维度确认完毕后，重新执行门禁并生成代码
-minus-lib generate-node-code <step>
+minus-lib generate-node-code {step} {logic_mode} {confirm_mode}
 ```
 
-**未受影响的维度保留原状，不重新询问。**
-
-⛔ 禁止在 logic_mode=deterministic 的步骤里直接加 LLM 调用而不更新 logic_mode。元数据和代码不一致会导致后续门禁和流程路由判断错误。
+其中 `logic_mode` 和 `confirm_mode` 使用更新后的值（如果 logic 维度被修改了就用新值，否则沿用原值——从现有代码判断：有 `ctx.llm` 调用 = llm，否则 = deterministic；有 `StepOutcome.input_required` = interactive，否则 = auto）。
 
 ⛔ 判断不清哪些维度受影响时，向 Creator 简要说明修改涉及的维度并确认，不要默认全部重走。
 

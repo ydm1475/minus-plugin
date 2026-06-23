@@ -17,7 +17,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
-STEP_TRACKER="$PLUGIN_ROOT/skills/minus-step/scripts/step-tracker.sh"
 
 PROGRESS_FILE=".minus/progress.json"
 
@@ -96,7 +95,7 @@ apply() {
   '
 }
 
-# 取总步骤数：.minus/total-steps 优先，缺失时回退统计 pipeline.py（与 step-tracker.sh is-last 同逻辑）
+# 取总步骤数：.minus/total-steps 优先，缺失时回退统计 pipeline.py
 total_steps() {
   if [ -f ".minus/total-steps" ]; then
     cat .minus/total-steps
@@ -151,15 +150,7 @@ case "$ACTION" in
   step-done)
     STEP="${1:?用法: update-progress.sh step-done <step_number>}"
 
-    # 硬门禁 1：四维度必须全部完成
-    CHECK_RESULT=$(bash "$STEP_TRACKER" check "$STEP" 2>&1) || true
-    if ! echo "$CHECK_RESULT" | grep -q "^COMPLETE$"; then
-      echo "错误：步骤 $STEP 四维度未全部完成，不能标记为已完成" >&2
-      echo "$CHECK_RESULT" >&2
-      exit 1
-    fi
-
-    # 硬门禁 2：pipeline.py 中 step_N 不能仍是骨架占位（# TODO: 实现「）
+    # 硬门禁：pipeline.py 中 step_N 不能仍是骨架占位（# TODO: 实现「）
     if [ ! -f "pipeline.py" ]; then
       echo "错误：未找到 pipeline.py" >&2
       exit 1

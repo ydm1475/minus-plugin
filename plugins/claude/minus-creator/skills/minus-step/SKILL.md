@@ -18,9 +18,7 @@ Read [node-dev.md](node-dev.md)。
 
 先判断用户指定的步骤是**新开发**还是**修改已完成步骤**：
 
-```bash
-minus-lib step-tracker status <step_number>
-```
+检查 pipeline.py 中 `step_N` 方法是否包含 `# TODO: 实现「` 骨架占位：
 
-- **四维度均未完成** → 新开发：先跑门禁（`minus-lib gate`，`GATE=fail` 时按 HINT 补救后重跑），然后按 node-dev.md 四维度流程执行
-- **四维度已全部或部分完成** → 修改场景：跳过门禁，按 node-dev.md「修改已完成步骤的处理逻辑」执行
+- **有骨架占位** → 新开发：先跑门禁（`minus-lib gate`，`GATE=fail` 时按 HINT 补救后重跑），然后按 node-dev.md 四维度流程执行
+- **无骨架占位（已有实际代码）** → 修改场景：跳过门禁，按 node-dev.md「修改已完成步骤的处理逻辑」执行

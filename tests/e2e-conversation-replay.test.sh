@@ -1,7 +1,7 @@
 #!/bin/bash
 # E2E 对话还原验证测试
 # 按 conversation-2026-05-21-194400.txt 的用户输入流程，一比一还原关键节点
-# 验证框架层操作（step-tracker、generate-steps、is-last）在每个节点的行为是否正确
+# 验证框架层操作（generate-steps、generate-node-code）在每个节点的行为是否正确
 #
 # Usage: bash tests/e2e-conversation-replay.test.sh
 
@@ -15,8 +15,6 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PLUGIN_DIR="$REPO_DIR/plugins/claude/minus-creator"
 LIB_DIR="$PLUGIN_DIR/skills/minus/scripts"
 STEP_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-step/scripts"
-STRUCT_LIB="$(dirname "$(dirname "$LIB_DIR")")/minus-structure/scripts"
-AGENTS_DIR="$PLUGIN_DIR/agents"
 NODE_DEV="$PLUGIN_DIR/skills/minus-step/node-dev.md"
 
 # 套件自身的 node 解析（pj 等 helper 用）；被测脚本统一经 bin/minus-lib 分发器
@@ -25,16 +23,6 @@ RESOLVED_NODE="$(sh "$PLUGIN_DIR/scripts/resolve-node.sh" 2>/dev/null || true)"
 [ -n "$RESOLVED_NODE" ] && export PATH="$(dirname "$RESOLVED_NODE"):$PATH"
 [ -n "$RESOLVED_NODE" ] && export MINUS_NODE_BIN_DIR="$(dirname "$RESOLVED_NODE")"  # 预填分发器缓存
 ML_BIN="$PLUGIN_DIR/bin/minus-lib"
-
-# ── 盖章驱动：复刻真实 ask→Stop→complete 流程 ──
-# step-tracker complete 有硬门禁：必须存在 _replied（ask 之后发生过真实用户轮次）才放行。
-# 真实会话里 _replied 由 Stop hook(bless-replies) 在 Agent 让渡轮次时盖出；e2e 回放无真实
-# Stop 事件，故每次 complete 前显式 ask + 跑 bless-replies 模拟那次盖章。
-st_complete() {  # <step> <dim> [mode]
-  bash "$ML_BIN" step-tracker ask "$1" "$2" >/dev/null 2>&1
-  bash "$ML_BIN" bless-replies >/dev/null 2>&1
-  bash "$ML_BIN" step-tracker complete "$@"
-}
 
 # ── Test Framework ──
 
@@ -117,31 +105,26 @@ fi
 echo ""
 echo "═══ Phase 2: 开发第 1 步（非最后一步）═══"
 
-# TC-R01: is-last 判断第 1 步不是最后一步
-IS_LAST_1=$(bash "$ML_BIN" step-tracker is-last 1)
-if [ "$IS_LAST_1" = "YES" ]; then
-  fail "第 1 步 is-last 应返回 NO" "NO" "$IS_LAST_1"
-else
+# TC-R01: generate-node-code is-last 判断第 1 步不是最后一步
+GNC_1=$(bash "$ML_BIN" generate-node-code 1 deterministic interactive 2>&1)
+if echo "$GNC_1" | grep -q "IS_LAST=NO"; then
+  IS_LAST_1="NO"
   pass "第 1 步 is-last → NO（非最后一步）"
-fi
-
-# TC-R02: 维度① — Creator 确认数据接口后标记 data 完成
-# 对应 conversation 第 260 行：用户说"可以了"确认以词拓词接口
-st_complete 1 data > /dev/null 2>&1
-STATUS_1=$(bash "$ML_BIN" step-tracker status 1 2>&1)
-if echo "$STATUS_1" | grep -q "✓ 数据需求"; then
-  pass "维度① data 标记完成"
 else
-  fail "维度① data 应标记完成" "✓ 数据需求" "$STATUS_1"
+  IS_LAST_1="YES"
+  fail "第 1 步 is-last 应返回 NO" "NO" "$(echo "$GNC_1" | grep IS_LAST)"
 fi
 
-# TC-R03: 维度② — Creator 说"做聚合排序按照搜索量对词进行排序"
-# 对应 conversation 第 338 行
-st_complete 1 logic > /dev/null 2>&1
+# TC-R02: generate-node-code 输出 GATE_PASSED
+if echo "$GNC_1" | grep -q "GATE_PASSED"; then
+  pass "步骤 1 generate-node-code → GATE_PASSED"
+else
+  fail "步骤 1 generate-node-code 应输出 GATE_PASSED" "GATE_PASSED" "$GNC_1"
+fi
 
-# 按新流程，维度②完成后 Agent 应调 is-last 判断是否最后一步
+# TC-R03: 非最后一步 node-dev.md 流程验证
 # 传递数据的问题已移到维度④之后，维度③只问展示内容
-if echo "$IS_LAST_1" | grep -q "NO"; then
+if [ "$IS_LAST_1" = "NO" ]; then
   # 维度③→④过渡提问不应包含传递数据
   NON_LAST_BLOCK=$(sed -n '/如果不是最后一步（返回 NO）/,/### ④/p' "$NODE_DEV" | head -20)
   if echo "$NON_LAST_BLOCK" | grep -q "传什么数据给下一步"; then
@@ -158,26 +141,11 @@ if echo "$IS_LAST_1" | grep -q "NO"; then
   fi
 fi
 
-# TC-R04: 维度③ — Creator 说"一个数据表格"
-# 对应 conversation 第 349 行
-st_complete 1 output > /dev/null 2>&1
-
-# TC-R05: 维度④ — Creator 说"需要暂停让用户确认数据再继续"
-# 对应 conversation 第 492 行
-# 第 1 步不是最后一步 → 维度④不应跳过
-CHECK_BEFORE_CONFIRM=$(bash "$ML_BIN" step-tracker check 1 2>&1 || true)
-if echo "$CHECK_BEFORE_CONFIRM" | grep -q "INCOMPLETE"; then
-  pass "维度④未完成前 check 返回 INCOMPLETE"
+# TC-R05: generate-node-code 正确输出 CONFIRM_MODE=interactive
+if echo "$GNC_1" | grep -q "CONFIRM_MODE=interactive"; then
+  pass "步骤 1 CONFIRM_MODE=interactive"
 else
-  fail "维度④未完成前应 INCOMPLETE" "INCOMPLETE" "$CHECK_BEFORE_CONFIRM"
-fi
-
-st_complete 1 confirm interactive > /dev/null 2>&1
-CHECK_AFTER_CONFIRM=$(bash "$ML_BIN" step-tracker check 1 2>&1)
-if echo "$CHECK_AFTER_CONFIRM" | grep -q "COMPLETE"; then
-  pass "第 1 步四维度全部完成 → COMPLETE"
-else
-  fail "第 1 步四维度全部完成应 COMPLETE" "COMPLETE" "$CHECK_AFTER_CONFIRM"
+  fail "步骤 1 CONFIRM_MODE 应为 interactive" "CONFIRM_MODE=interactive" "$GNC_1"
 fi
 
 # TC-R06: 维度④确认"需要确认" → 验证 node-dev.md 引导查 SDK 文档
@@ -196,19 +164,22 @@ fi
 echo ""
 echo "═══ Phase 3: 开发第 2 步（最后一步）═══"
 
-# TC-R07: is-last 判断第 2 步是最后一步
-IS_LAST_2=$(bash "$ML_BIN" step-tracker is-last 2)
-if [ "$IS_LAST_2" = "YES" ]; then
+# TC-R07: generate-node-code is-last 判断第 2 步是最后一步
+GNC_2=$(bash "$ML_BIN" generate-node-code 2 deterministic auto 2>&1)
+if echo "$GNC_2" | grep -q "IS_LAST=YES"; then
+  IS_LAST_2="YES"
   pass "第 2 步 is-last → YES（最后一步）"
 else
-  fail "第 2 步 is-last 应返回 YES" "YES" "$IS_LAST_2"
+  IS_LAST_2="NO"
+  fail "第 2 步 is-last 应返回 YES" "YES" "$(echo "$GNC_2" | grep IS_LAST)"
 fi
 
-# TC-R08: 维度① — Creator 确认接口
-st_complete 2 data > /dev/null 2>&1
-
-# TC-R09: 维度② — Creator 说"做聚合排"
-st_complete 2 logic > /dev/null 2>&1
+# TC-R08: generate-node-code 输出 GATE_PASSED
+if echo "$GNC_2" | grep -q "GATE_PASSED"; then
+  pass "步骤 2 generate-node-code → GATE_PASSED"
+else
+  fail "步骤 2 generate-node-code 应输出 GATE_PASSED" "GATE_PASSED" "$GNC_2"
+fi
 
 # 按新流程，维度②完成后 Agent 应调 is-last → YES
 # 维度③提问不应包含"需要传什么数据给下一步"
@@ -219,23 +190,11 @@ else
   pass "最后一步：维度③提问不含「传什么数据给下一步」"
 fi
 
-# TC-R10: 维度③ — Creator 说"一个表格列出热销"（最后一步展示）
-# 对应 conversation 第 782 行
-OUTPUT_DONE=$(st_complete 2 output 2>&1)
-
-# TC-R11: 最后一步 → 维度④自动跳过（已硬编码进 step-tracker.sh，不靠 md 指令）
-# complete output 时脚本检测 is-last=YES → 自动标记 confirm(auto) 并输出 NEXT=GENERATE
-if echo "$OUTPUT_DONE" | grep -q "NEXT=GENERATE" && echo "$OUTPUT_DONE" | grep -q "自动标记 confirm"; then
-  pass "最后一步：complete output 自动跳过维度④（脚本硬编码）"
+# TC-R11: 最后一步使用 auto 模式 → CONFIRM_MODE=auto, FRONTEND_TEMPLATE=display
+if echo "$GNC_2" | grep -q "CONFIRM_MODE=auto" && echo "$GNC_2" | grep -q "FRONTEND_TEMPLATE=display"; then
+  pass "最后一步：CONFIRM_MODE=auto + FRONTEND_TEMPLATE=display"
 else
-  fail "最后一步：complete output 应自动标记 confirm" "NEXT=GENERATE + 自动标记 confirm" "$OUTPUT_DONE"
-fi
-
-CHECK_STEP2=$(bash "$ML_BIN" step-tracker check 2 2>&1)
-if echo "$CHECK_STEP2" | grep -q "COMPLETE"; then
-  pass "第 2 步四维度全部完成 → COMPLETE"
-else
-  fail "第 2 步四维度全部完成应 COMPLETE" "COMPLETE" "$CHECK_STEP2"
+  fail "最后一步：应输出 CONFIRM_MODE=auto + FRONTEND_TEMPLATE=display" "CONFIRM_MODE=auto + display" "$GNC_2"
 fi
 
 # TC-R12: 维度④没有被问到（对比旧流程：conversation 第 896 行 Agent 错误地问了）
@@ -282,72 +241,37 @@ else
   fail "BUG-7/8 修复验证：应包含一次性生成代码阶段" "包含声明" "未找到"
 fi
 
-# TC-R17: step-tracker 允许非最后一步使用 auto 模式（最终用户不用确认）
-AUTO_RESULT=$(st_complete 1 confirm auto 2>&1 || true)
-if echo "$AUTO_RESULT" | grep -q "✓ 步骤 1 — confirm 已确认"; then
-  pass "硬编码门禁：非最后一步 confirm auto 被允许"
+# TC-R17: generate-node-code.sh 非最后一步 auto 模式正常通过
+GNC_1_AUTO=$(bash "$ML_BIN" generate-node-code 1 deterministic auto 2>&1)
+if echo "$GNC_1_AUTO" | grep -q "GATE_PASSED" && echo "$GNC_1_AUTO" | grep -q "CONFIRM_MODE=auto"; then
+  pass "门禁：非最后一步 confirm auto → GATE_PASSED"
 else
-  fail "硬编码门禁：非最后一步 confirm auto 应允许" "confirm 已确认" "$AUTO_RESULT"
+  fail "门禁：非最后一步 confirm auto 应输出 GATE_PASSED" "GATE_PASSED + auto" "$GNC_1_AUTO"
 fi
 
-# TC-R18: generate-node-code.sh 门禁 — 维度未全部完成时拒绝生成
-bash "$ML_BIN" step-tracker reset 1 > /dev/null 2>&1
-st_complete 1 data > /dev/null 2>&1
-GATE_RESULT=$(bash "$ML_BIN" generate-node-code 1 2>&1 || true)
-if echo "$GATE_RESULT" | grep -q "四维度未全部完成"; then
-  pass "硬编码门禁：维度未完成时 generate-node-code.sh 拒绝生成"
-else
-  fail "硬编码门禁：维度未完成时应拒绝" "包含拒绝信息" "$GATE_RESULT"
-fi
-
-# TC-R19: generate-node-code.sh 门禁 — 全部完成时输出 GATE_PASSED + 模板
-st_complete 1 logic > /dev/null 2>&1
-st_complete 1 output > /dev/null 2>&1
-st_complete 1 confirm interactive > /dev/null 2>&1
-GATE_RESULT2=$(bash "$ML_BIN" generate-node-code 1 2>&1)
+# TC-R19: generate-node-code.sh 全部参数正确时输出 GATE_PASSED + 模板
+GATE_RESULT2=$(bash "$ML_BIN" generate-node-code 1 deterministic interactive 2>&1)
 if echo "$GATE_RESULT2" | grep -q "GATE_PASSED" \
    && echo "$GATE_RESULT2" | grep -q "LOGIC_MODE=deterministic" \
    && echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
-  pass "硬编码门禁：全部完成 → GATE_PASSED + LOGIC_MODE=deterministic + CONFIRM_MODE=interactive"
+  pass "门禁：GATE_PASSED + LOGIC_MODE=deterministic + CONFIRM_MODE=interactive"
 else
-  fail "硬编码门禁：全部完成应输出 GATE_PASSED" "GATE_PASSED + deterministic + interactive" "$GATE_RESULT2"
+  fail "门禁：应输出 GATE_PASSED" "GATE_PASSED + deterministic + interactive" "$GATE_RESULT2"
 fi
 
 # TC-R20: generate-node-code.sh 输出的 interactive 模板引导查 SDK 文档
-if echo "$GATE_RESULT2" | grep -q "CONFIRM_MODE=interactive"; then
-  pass "硬编码模板：interactive 模式正确标记 CONFIRM_MODE"
+if echo "$GATE_RESULT2" | grep -q "FRONTEND_TEMPLATE=interactive"; then
+  pass "模板：interactive 模式输出 FRONTEND_TEMPLATE=interactive"
 else
-  fail "硬编码模板：应输出 CONFIRM_MODE=interactive" "包含 CONFIRM_MODE" "未找到"
+  fail "模板：应输出 FRONTEND_TEMPLATE=interactive" "包含 FRONTEND_TEMPLATE" "未找到"
 fi
 
-# TC-R21: Creator 明确要求大模型自动生成结论 → 节点状态和门禁保留 LLM 意图
-bash "$ML_BIN" step-tracker reset 2 > /dev/null 2>&1
-st_complete 2 data > /dev/null 2>&1
-st_complete 2 logic llm > /dev/null 2>&1
-st_complete 2 output > /dev/null 2>&1
-st_complete 2 confirm auto > /dev/null 2>&1
-GATE_RESULT3=$(bash "$ML_BIN" generate-node-code 2 2>&1)
+# TC-R21: LLM 模式 → LOGIC_MODE=llm + LLM_REQUIRED=YES
+GATE_RESULT3=$(bash "$ML_BIN" generate-node-code 2 llm auto 2>&1)
 if echo "$GATE_RESULT3" | grep -q "LOGIC_MODE=llm" && echo "$GATE_RESULT3" | grep -q "LLM_REQUIRED=YES"; then
-  pass "LLM 意图持久化：大模型自动生成结论 → LOGIC_MODE=llm + LLM_REQUIRED=YES"
+  pass "LLM 意图：LOGIC_MODE=llm + LLM_REQUIRED=YES"
 else
   fail "LLM 意图应传递到代码生成门禁" "LOGIC_MODE=llm + LLM_REQUIRED=YES" "$GATE_RESULT3"
-fi
-
-if grep -q "complete {step_number} logic llm" "$NODE_DEV"; then
-  pass "node-dev.md：明确的大模型生成意图会记录 logic llm"
-else
-  fail "node-dev.md 应记录 logic llm" "包含 complete {step_number} logic llm" "未找到"
-fi
-
-# TC-R16: 验证整个流程的 step-tracker 状态正确
-echo ""
-echo "═══ Phase 5: 最终状态检查 ═══"
-
-LIST_OUTPUT=$(bash "$ML_BIN" step-tracker list 2>&1)
-if echo "$LIST_OUTPUT" | grep -q "✓ 步骤 1" && echo "$LIST_OUTPUT" | grep -q "✓ 步骤 2"; then
-  pass "step-tracker list：两个步骤都标记为全部完成"
-else
-  fail "step-tracker list 应显示两个步骤全部完成" "✓ 步骤 1 + ✓ 步骤 2" "$LIST_OUTPUT"
 fi
 
 # ── 清理 ──
