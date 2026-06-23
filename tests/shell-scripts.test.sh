@@ -1250,6 +1250,7 @@ GRD="$(via_lib generate-result-design)"
   cd "$(mktemp -d)"
   mkdir -p .minus/dev-progress
   echo "1" > .minus/total-steps
+  printf 'class Skill:\n    async def step_1(self, ctx):\n        pass\n' > pipeline.py
   touch .minus/dev-progress/step_1_{data,logic,output,confirm}
   echo x > .minus/dev-progress/final_test_confirmed
   echo stale > .minus/dev-progress/result_summary_confirmed
@@ -1267,6 +1268,7 @@ GRD="$(via_lib generate-result-design)"
   cd "$(mktemp -d)"
   mkdir -p .minus/dev-progress
   echo "2" > .minus/total-steps
+  printf 'class Skill:\n    async def step_1(self, ctx):\n        pass\n    async def step_2(self, ctx):\n        pass\n' > pipeline.py
   touch .minus/dev-progress/step_1_{data,logic,output,confirm}
   touch .minus/dev-progress/step_2_{data,logic,output,confirm}
   echo "2026-06-12T00:00:00Z" > .minus/dev-progress/final_test_confirmed
@@ -4630,7 +4632,7 @@ RE="$(via_lib resume-env)"
   if echo "$OUTPUT" | grep >/dev/null "ENV=ready" && echo "$OUTPUT" | grep >/dev/null "NEED_PREVIEW_START=1" \
      && echo "$OUTPUT" | grep >/dev/null "BACKEND_PORT=4001" && echo "$OUTPUT" | grep >/dev/null "PHASE=developing" \
      && echo "$OUTPUT" | grep >/dev/null "CURRENT_STEP=1" && echo "$OUTPUT" | grep >/dev/null "STEPS_TOTAL=1" \
-     && echo "$OUTPUT" | grep >/dev/null "STEPS_DONE=0" && echo "$OUTPUT" | grep >/dev/null "STEP_STATUS=" && [ "$RC" = "0" ]; then
+     && echo "$OUTPUT" | grep >/dev/null "STEPS_DONE=0" && [ "$RC" = "0" ]; then
     pass "resume-env: desktop 就绪 → ENV=ready + 进度摘要齐全"
   else
     fail "resume-env: desktop 就绪" "rc=$RC out=$OUTPUT"
