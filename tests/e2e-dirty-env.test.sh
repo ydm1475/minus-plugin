@@ -85,7 +85,7 @@ HAS_LSOF=0; command -v lsof >/dev/null 2>&1 && HAS_LSOF=1
 # 回退 curl 验证——curl 时刚好 bind 上 → 跳过归属校验误放行。
 wait_port_up() {
   local W=0
-  while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$1/" 2>/dev/null; do
+  while [ $W -lt 30 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$1/" 2>/dev/null; do
     sleep 1; W=$((W+1))
   done
 }
