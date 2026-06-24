@@ -2256,9 +2256,11 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
     TMP=$(make_tmp); SB="$TMP/sb"; mkdir -p "$SB" "$TMP/.minus"; cd "$TMP"
     write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
     python3 -m http.server 5189 >/dev/null 2>&1 & OLD_SRV=$!
-    # 等端口真正可达再继续：CI 冷启动 python 首次 bind 可能 >1s，固定 sleep 有竞态
-    # （实测 GH macOS：lsof 扫描时还没 bind → 杀不到 → 误报）
-    W=0; while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5189/" 2>/dev/null; do sleep 1; W=$((W+1)); done
+    W=0; while [ $W -lt 30 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5189/" 2>/dev/null; do sleep 1; W=$((W+1)); done
+    if [ $W -ge 30 ]; then
+      kill -9 "$OLD_SRV" 2>/dev/null || true; wait "$OLD_SRV" 2>/dev/null || true
+      skip "start-dev: 重启杀归属旧前端" "python3 未在 30s 内绑定端口"
+    else
     echo '{"frontend":5189}' > .minus/dev-ports.json
     write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
     OUTPUT=$(MINUS_DEV_RESTART=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$SD" full 2>&1 || true)
@@ -2270,6 +2272,7 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
       fail "start-dev: 重启应杀归属旧前端" "old_alive=$ALIVE out=$OUTPUT"
     fi
     wait "$OLD_SRV" 2>/dev/null || true
+    fi
   fi
 )
 
@@ -2281,7 +2284,11 @@ SD_SRC="$SKILL_LIB/start-dev.sh"   # 内容断言用源文件
     TMP=$(make_tmp); SB="$TMP/sb"; OTHER="$TMP/other"; mkdir -p "$SB" "$TMP/proj/.minus" "$OTHER"
     write_stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
     (cd "$OTHER" && exec python3 -m http.server 5179 >/dev/null 2>&1) & OTHER_SRV=$!
-    W=0; while [ $W -lt 10 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5179/" 2>/dev/null; do sleep 1; W=$((W+1)); done
+    W=0; while [ $W -lt 30 ] && ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:5179/" 2>/dev/null; do sleep 1; W=$((W+1)); done
+    if [ $W -ge 30 ]; then
+      kill -9 "$OTHER_SRV" 2>/dev/null || true; wait "$OTHER_SRV" 2>/dev/null || true
+      skip "start-dev: 重启不误杀别人进程" "python3 未在 30s 内绑定端口"; exit 0
+    fi
     cd "$TMP/proj"
     echo '{"frontend":5179}' > .minus/dev-ports.json
     write_stub "$SB" pnpm 'echo "PNPM_ARGS=$*"'
