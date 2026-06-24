@@ -148,8 +148,13 @@ if [ "$HAS_PY" = "1" ] && [ "$HAS_LSOF" = "1" ]; then
   # 残留 2：端口活着，但属于另一个项目（cwd=$OTHER）——存在 ≠ 属于我
   (cd "$OTHER" && python3 -m http.server 5191 >/dev/null 2>&1) & SRV_PIDS="$SRV_PIDS $!"
   wait_port_up 5191
+  # DEBUG: CI 上 lsof 能否看到 python3 监听进程？
+  echo "  [debug] lsof -iTCP:5191 -sTCP:LISTEN:" >&2
+  lsof -iTCP:5191 -sTCP:LISTEN 2>&1 | head -5 >&2 || echo "  [debug] lsof failed with $?" >&2
+  echo "  [debug] python3 pid=$(lsof -iTCP:5191 -sTCP:LISTEN -t 2>/dev/null | head -1)" >&2
   echo '{"frontend":5191}' > .minus/dev-ports.json
-  if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
+  export DETECT_PORT_MAX_WAIT=2
+  if OUT=$(run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "1" ] && echo "$OUT" | grep -q "GATE_FAILED"; then
     pass "非归属 server → 门禁拒绝（GATE_FAILED）"
   else
@@ -168,9 +173,15 @@ if [ "$HAS_PY" = "1" ]; then
   # 残留 3：上个 session 的 server 还活着且归属本项目（cwd=$PROJ）
   python3 -m http.server 5192 >/dev/null 2>&1 & SRV_OWNED=$!; SRV_PIDS="$SRV_PIDS $SRV_OWNED"
   wait_port_up 5192
+  # DEBUG: CI 上 lsof 能否看到归属本项目的 python3？
+  echo "  [debug] lsof -iTCP:5192 -sTCP:LISTEN:" >&2
+  lsof -iTCP:5192 -sTCP:LISTEN 2>&1 | head -5 >&2 || echo "  [debug] lsof failed with $?" >&2
+  echo "  [debug] python3 pid=$(lsof -iTCP:5192 -sTCP:LISTEN -t 2>/dev/null | head -1)" >&2
+  echo "  [debug] cwd=$(pwd) PROJECT_DIR=$(realpath "$(pwd)" 2>/dev/null || pwd -P)" >&2
   echo '{"frontend":5192}' > .minus/dev-ports.json
 
-  if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
+  export DETECT_PORT_MAX_WAIT=2
+  if OUT=$(run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "0" ] && echo "$OUT" | grep -q "GATE_PASSED" && echo "$OUT" | grep -q "PREVIEW_PORT=5192"; then
     pass "归属本项目的旧 server → 门禁放行"
   else
@@ -178,7 +189,7 @@ if [ "$HAS_PY" = "1" ]; then
   fi
 
   # 143 回归：再启动不应重复起进程，而是复用
-  if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib start-dev full 2>&1); then RC=0; else RC=$?; fi
+  if OUT=$(DETECT_PORT_MAX_WAIT=2; export DETECT_PORT_MAX_WAIT; run_lib start-dev full 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "0" ] && echo "$OUT" | grep -q "ALREADY_RUNNING"; then
     pass "旧 server 活着 → start-dev 复用不重复启动（143 回归）"
   else
@@ -187,7 +198,7 @@ if [ "$HAS_PY" = "1" ]; then
 
   # 残留 4：前端活、后端死（半死不活的最典型形态）
   echo '{"frontend":5192,"backend":5993}' > .minus/dev-ports.json
-  if OUT=$(DETECT_PORT_MAX_WAIT=2 run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
+  if OUT=$(DETECT_PORT_MAX_WAIT=2; export DETECT_PORT_MAX_WAIT; run_lib check-dev-server 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "1" ] && echo "$OUT" | grep -q "BACKEND_DOWN"; then
     pass "前端活后端死 → 门禁拦截（BACKEND_DOWN）"
   else
