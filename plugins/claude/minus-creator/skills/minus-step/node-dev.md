@@ -8,13 +8,7 @@
 
 ## 任务
 
-进入步骤开发时，先检查 pipeline.py 中对应步骤函数的状态：
-
-- **函数不存在**（Creator 要新增步骤）→ 先执行 `minus-lib generate-steps --append "步骤名称"` 创建骨架（自动注册平台步骤名、更新 main.tsx、更新 total-steps），然后按下方四维度流程执行
-- **函数存在且包含 `# TODO: 实现「` 骨架占位** → 未开发，按四维度流程执行
-- **函数存在且无骨架占位** → 已有代码，进入修改流程
-
-引导 Creator 按顺序确认当前 pipeline 节点的四个维度意图，**全部确认后一次性生成代码**。
+引导 Creator 按顺序确认当前 pipeline 节点的四个维度意图，**全部确认后一次性生成代码**。入口路由（新增/新开发/修改的判断、gate 门禁）由 SKILL.md 负责，本文件不重复。
 
 ⛔ 核心规则：
 
@@ -193,7 +187,7 @@ minus-lib generate-node-code {step_number} {logic_mode} {confirm_mode}
 
 ### 写代码前：必须查 API 文档（硬性前置步骤）
 
-⛔ **禁止凭记忆或推测写 API 调用代码。** 每个 `ctx.sif.request(...)` 调用前，检查当前对话中是否已有该接口的 `get_endpoint_details` 返回结果（维度 ① 查过的接口会在上文出现完整的参数和响应定义——有则直接使用，不需要重新查询）。只有维度 ① 未涉及的新接口才需要调用 MCP 查询。需确认以下三项：
+⛔ **禁止凭记忆或推测写 API 调用代码。** 每个 `ctx.sif.request(...)` 调用前，检查当前对话中是否已有该接口的 `get_endpoint_details` 返回结果（维度 ① 查过的接口会在上文出现完整的参数和响应定义——有则直接使用，不需要重新查询）。只有维度 ① 未涉及的新接口才需要调用 MCP 查询。需确认以下各项：
 
 1. **HTTP 方法和参数名**：用 `get_endpoint_details` 查端点详情，确认 method（GET/POST）、参数名（如 `keywords` 不是 `searchKeyword`）、参数类型（数组/字符串）、参数位置（body/query）
 2. **响应结构**：确认返回数据的嵌套层级和字段名（如数据在 `list` 还是 `dataList`，ASIN 详情在 `asinDetail` 子对象还是扁平字段）
