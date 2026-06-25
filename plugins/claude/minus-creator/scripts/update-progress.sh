@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # update-progress.sh
 # .minus/progress.json 的唯一写入入口。Agent 对 progress.json 只读不手写。
 # 用法:
@@ -171,7 +171,10 @@ case "$ACTION" in
     # 测试邀请话术单源在此（node-dev.md 只引用，不复制）。
     # 设计原因（CLAUDE.md #1 能硬编码的别靠 Agent 自觉）：人工测试 612 中
     # Agent 把 step-done 和结果设计脚本串在一条命令执行，跳过了测试邀请。
-    step_name() { cat ".minus/dev-progress/step_${1}_name" 2>/dev/null || echo "步骤${1}"; }
+    step_name() {
+      cat ".minus/dev-progress/step_${1}_name" 2>/dev/null && return
+      node -e "try{const p=JSON.parse(require('fs').readFileSync('$PROGRESS_FILE','utf8'));const s=p.steps&&p.steps['$1'];if(s&&s.name)process.stdout.write(s.name);else process.stdout.write('步骤$1')}catch(e){process.stdout.write('步骤$1')}" 2>/dev/null
+    }
     STEP_NAME=$(step_name "$STEP")
     if [ "$STEP" -ge "$TOTAL" ]; then
       # 标记最后一步测试待确认：结果设计门禁靠它拦截
@@ -232,7 +235,7 @@ case "$ACTION" in
     ;;
 
   *)
-    echo "用法: update-progress.sh <init-design|design-done|append-steps|step-done|confirm-test|set-phase|touch|show> [args]" >&2
+    echo "用法: update-progress.sh <init-design|design-done|append-steps|rename-step|swap-steps|step-done|confirm-test|set-phase|touch|show> [args]" >&2
     exit 1
     ;;
 esac
