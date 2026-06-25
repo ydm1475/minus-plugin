@@ -530,6 +530,7 @@ API 文档见 .claude/api/openapi-bundled.yaml`,
         const available = tagResult.data.map(t => `${t.code}（${t.label}）`).join("、");
         return { content: [{ type: "text", text: `标签 [${invalidTags.join(", ")}] 不在可用列表中。\n可用标签：${available}` }] };
       }
+      updates.tags = updates.tags.map(t => typeof t === "string" ? { code: t } : t);
     }
 
     let result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version}`, {

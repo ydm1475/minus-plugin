@@ -38936,6 +38936,7 @@ API \u6587\u6863\u89C1 .claude/api/openapi-bundled.yaml`,
         return { content: [{ type: "text", text: `\u6807\u7B7E [${invalidTags.join(", ")}] \u4E0D\u5728\u53EF\u7528\u5217\u8868\u4E2D\u3002
 \u53EF\u7528\u6807\u7B7E\uFF1A${available}` }] };
       }
+      updates.tags = updates.tags.map((t) => typeof t === "string" ? { code: t } : t);
     }
     let result = await apiRequest("PATCH", `/api/skills/${skillId}/versions/${version2}`, {
       body: updates
