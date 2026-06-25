@@ -1347,6 +1347,97 @@ RS="$STRUCT_LIB/restructure.cjs"
   fi
 )
 
+# Test: restructure.cjs renumberPipeline 正确重编号
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        prev = ctx.previous_outputs.get(1, {})
+        return None
+
+    async def step_2(self, ctx):
+        prev = ctx.previous_outputs.get(1, {})
+        return None
+PYEOF
+  node -e "
+    const m = require('$RS');
+    let code = require('fs').readFileSync('pipeline.py','utf8');
+    code = m._renumberPipeline(code, 2, 3);
+    if (!/step_3/.test(code)) { console.error('step_2 未变成 step_3'); process.exit(1); }
+    if (!/step_1/.test(code)) { console.error('step_1 被误改'); process.exit(1); }
+    // get(1) in step_2(now step_3) should NOT change — it references step 1's output
+    if (!/get\(1/.test(code)) { console.error('get(1) 被误改'); process.exit(1); }
+    console.log('ok');
+  "
+  if [ $? -eq 0 ]; then
+    pass "restructure: renumberPipeline renames step_2 to step_3"
+  else
+    fail "restructure: renumberPipeline renames step_2 to step_3" ""
+  fi
+)
+
+# Test: restructure.cjs deletePipelineMethod 保留末尾代码
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        return None
+
+    async def step_2(self, ctx):
+        return None
+
+if __name__ == '__main__':
+    SkillPipeline().run()
+PYEOF
+  node -e "
+    const m = require('$RS');
+    let code = require('fs').readFileSync('pipeline.py','utf8');
+    code = m._deletePipelineMethod(code, 2, 2);
+    if (!/step_1/.test(code)) { console.error('step_1 丢失'); process.exit(1); }
+    if (/step_2/.test(code)) { console.error('step_2 未删除'); process.exit(1); }
+    if (!/__main__/.test(code)) { console.error('末尾代码被吞'); process.exit(1); }
+    console.log('ok');
+  "
+  if [ $? -eq 0 ]; then
+    pass "restructure: deletePipelineMethod preserves trailing code"
+  else
+    fail "restructure: deletePipelineMethod preserves trailing code" ""
+  fi
+)
+
+# Test: restructure.cjs extractPipelineMethod 提取方法体
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        x = 1
+        return x
+
+    async def step_2(self, ctx):
+        y = 2
+        return y
+PYEOF
+  node -e "
+    const m = require('$RS');
+    let code = require('fs').readFileSync('pipeline.py','utf8');
+    const body = m._extractPipelineMethod(code, 1);
+    if (!/x = 1/.test(body)) { console.error('方法体未包含 x = 1'); process.exit(1); }
+    if (/step_2/.test(body)) { console.error('方法体包含了 step_2'); process.exit(1); }
+    console.log('ok');
+  "
+  if [ $? -eq 0 ]; then
+    pass "restructure: extractPipelineMethod extracts step_1 body"
+  else
+    fail "restructure: extractPipelineMethod extracts step_1 body" ""
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ generate-result-design.sh ═══"

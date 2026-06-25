@@ -159,6 +159,67 @@ function validateConsistency(result) {
   }
 }
 
+// ── pipeline.py 工具函数 ──
+
+function escPy(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+function renumberPipeline(code, from, to) {
+  var f = String(from), t = String(to);
+  code = code.replace(new RegExp('(async def step_)' + f + '(?=\\()', 'g'), '$1' + t);
+  code = code.replace(new RegExp('(ctx\\.previous_outputs\\.get\\()' + f + '(?=[,\\)])', 'g'), '$1' + t);
+  code = code.replace(new RegExp('(ctx\\.step_payload\\()' + f + '(?=[,\\)])', 'g'), '$1' + t);
+  return code;
+}
+
+function insertPipelineSkeleton(code, pos, total, name) {
+  for (var i = total; i >= pos; i--) {
+    code = renumberPipeline(code, i, i + 1);
+  }
+  var skeleton =
+    '\n    async def step_' + pos + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
+    '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
+    '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+  var marker = 'async def step_' + (pos + 1) + '(';
+  var idx = code.indexOf(marker);
+  if (idx !== -1) {
+    var lineStart = code.lastIndexOf('\n', idx);
+    code = code.slice(0, lineStart) + skeleton + code.slice(lineStart);
+  } else {
+    code = code + skeleton;
+  }
+  return code;
+}
+
+function deletePipelineMethod(code, pos, total) {
+  var methodStart = code.indexOf('\n    async def step_' + pos + '(');
+  if (methodStart !== -1) {
+    var searchAfter = methodStart + 1;
+    var nextBoundary = code.slice(searchAfter).search(/\n(    (async def |def )|[^ \t\n])/);
+    var methodEnd = nextBoundary !== -1 ? searchAfter + nextBoundary : code.length;
+    var trailing = code.slice(methodEnd);
+    if (trailing.trim().length === 0) {
+      code = code.slice(0, methodStart);
+    } else {
+      code = code.slice(0, methodStart) + code.slice(methodEnd);
+    }
+  }
+  for (var i = pos + 1; i <= total; i++) {
+    code = renumberPipeline(code, i, i - 1);
+  }
+  return code;
+}
+
+function extractPipelineMethod(code, pos) {
+  var methodStart = code.indexOf('\n    async def step_' + pos + '(');
+  if (methodStart === -1) return null;
+  var searchAfter = methodStart + 1;
+  var nextBoundary = code.slice(searchAfter).search(/\n(    (async def |def )|[^ \t\n])/);
+  var methodEnd = nextBoundary !== -1 ? searchAfter + nextBoundary : code.length;
+  return code.slice(methodStart, methodEnd);
+}
+
 // ── 操作注册表 ──
 
 const ops = {};
@@ -209,4 +270,11 @@ if (require.main === module) {
   execute(opName, args);
 }
 
-module.exports = { execute: execute, ops: ops, SOURCES: SOURCES, validateConsistency: validateConsistency, countPipelineMethods: countPipelineMethods, countBuildStepItems: countBuildStepItems };
+module.exports = {
+  execute: execute, ops: ops, SOURCES: SOURCES, validateConsistency: validateConsistency,
+  countPipelineMethods: countPipelineMethods, countBuildStepItems: countBuildStepItems,
+  _renumberPipeline: renumberPipeline,
+  _deletePipelineMethod: deletePipelineMethod,
+  _extractPipelineMethod: extractPipelineMethod,
+  _insertPipelineSkeleton: insertPipelineSkeleton,
+};
