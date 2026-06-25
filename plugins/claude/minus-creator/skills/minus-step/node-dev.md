@@ -237,10 +237,10 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 `${platformUrl}/runtime/` 是 `@minus/*` 的权威文档和运行时来源：
 
-- `${platformUrl}/runtime/frontend-guide/doc.md` — 前端 SDK 手册（步骤 ⑤ 已读取），覆盖 defineWidgetStep、常用组件用法、时序模式等
+- `${platformUrl}/runtime/frontend-guide/doc.md` — 前端 SDK 手册的**路由索引**（不是文档本身）。读完后按索引表的「你在做什么」列，对照当前步骤要做的事，读取命中的每个子文档。只读 doc.md 不读子文档 = 没读文档。
 - `${platformUrl}/runtime/platform-widgets/docs.md` — platform-widgets 组件文档（Chart、SelectableTable 等完整 props）
 
-如果步骤 ⑤ 读取的前端 SDK 手册中已有该组件的完整 props 示例和行为说明，直接使用。手册未覆盖的组件，查 `${platformUrl}/runtime/` 下对应包的文档。文档仍不够时，再去读 platform 仓库源码确认：
+手册子文档中已有该组件的完整 props 示例和行为说明时，直接使用。手册未覆盖的组件，查 `${platformUrl}/runtime/` 下对应包的文档。文档仍不够时，再去读 platform 仓库源码确认：
 
 ```bash
 # 源码位置（在 platform 仓库，不在项目 .venv 里）
