@@ -1502,6 +1502,216 @@ TSXEOF
   fi
 )
 
+# Test: restructure.cjs insert 原子写入全部数据源
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  mkdir -p frontend/src
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>A</div>), },
+    { render: ({ data }) => (<div>B</div>), },
+    { render: ({ data }) => (<div>C</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" insert 2 "新步骤"
+  PIPE_COUNT=$(grep -c 'async def step_' pipeline.py)
+  FRONT_COUNT=$(grep -c 'render:' frontend/src/main.tsx)
+  PROG_NAME=$(pj '.steps["2"].name')
+  TOTAL=$(cat .minus/total-steps)
+  NAME_FILE=$(cat .minus/dev-progress/step_2_name 2>/dev/null)
+  if [ "$PIPE_COUNT" = "4" ] && [ "$FRONT_COUNT" = "4" ] \
+     && [ "$PROG_NAME" = "新步骤" ] && [ "$TOTAL" = "4" ] && [ "$NAME_FILE" = "新步骤" ]; then
+    pass "restructure: insert atomically writes all 5 sources"
+  else
+    fail "restructure: insert atomically writes all 5 sources" \
+      "pipeline=$PIPE_COUNT frontend=$FRONT_COUNT progress=$PROG_NAME total=$TOTAL name=$NAME_FILE"
+  fi
+)
+
+# Test: restructure.cjs delete 原子写入全部数据源
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  mkdir -p .minus/dev-progress
+  printf 'A' > .minus/dev-progress/step_1_name
+  printf 'B' > .minus/dev-progress/step_2_name
+  printf 'C' > .minus/dev-progress/step_3_name
+  mkdir -p frontend/src
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>A</div>), },
+    { render: ({ data }) => (<div>B</div>), },
+    { render: ({ data }) => (<div>C</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" delete 2
+  PIPE_COUNT=$(grep -c 'async def step_' pipeline.py)
+  FRONT_COUNT=$(grep -c 'render:' frontend/src/main.tsx)
+  PROG_NAME=$(pj '.steps["2"].name')
+  TOTAL=$(cat .minus/total-steps)
+  NAME_FILE=$(cat .minus/dev-progress/step_2_name 2>/dev/null)
+  if [ "$PIPE_COUNT" = "2" ] && [ "$FRONT_COUNT" = "2" ] \
+     && [ "$PROG_NAME" = "C" ] && [ "$TOTAL" = "2" ] && [ "$NAME_FILE" = "C" ]; then
+    pass "restructure: delete atomically writes all 5 sources"
+  else
+    fail "restructure: delete atomically writes all 5 sources" \
+      "pipeline=$PIPE_COUNT frontend=$FRONT_COUNT progress=$PROG_NAME total=$TOTAL name=$NAME_FILE"
+  fi
+)
+
+# Test: restructure.cjs append 原子写入
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  mkdir -p frontend/src
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>A</div>), },
+    { render: ({ data }) => (<div>B</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" append "C" "D"
+  PIPE_COUNT=$(grep -c 'async def step_' pipeline.py)
+  FRONT_COUNT=$(grep -c 'render:' frontend/src/main.tsx)
+  TOTAL=$(cat .minus/total-steps)
+  PROG_KEYS=$(node -e "const p=JSON.parse(require('fs').readFileSync('.minus/progress.json','utf8'));console.log(Object.keys(p.steps).length)")
+  if [ "$PIPE_COUNT" = "4" ] && [ "$FRONT_COUNT" = "4" ] \
+     && [ "$TOTAL" = "4" ] && [ "$PROG_KEYS" = "4" ]; then
+    pass "restructure: append atomically writes all sources"
+  else
+    fail "restructure: append atomically writes all sources" \
+      "pipeline=$PIPE_COUNT frontend=$FRONT_COUNT total=$TOTAL progress_keys=$PROG_KEYS"
+  fi
+)
+
+# Test: restructure.cjs insert 无 main.tsx 时报错不写
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 2
+  bash "$UP" design-done "A" "B" >/dev/null 2>&1
+  OUTPUT=$(node "$RS" insert 1 "X" 2>&1 || true)
+  if assert_contains "$OUTPUT" "错误" && grep -q 'step_1' pipeline.py && ! grep -q 'step_3' pipeline.py; then
+    pass "restructure: insert without main.tsx errors and writes nothing"
+  else
+    fail "restructure: insert without main.tsx errors and writes nothing" "got: $OUTPUT"
+  fi
+)
+
+# Test: restructure.cjs delete 不覆盖 completed 状态
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  node -e "
+    const fs=require('fs');
+    const p=JSON.parse(fs.readFileSync('.minus/progress.json','utf8'));
+    p.steps['1'].status='completed';
+    p.currentStep=2;
+    p.steps['3'].status='completed';
+    fs.writeFileSync('.minus/progress.json',JSON.stringify(p,null,2)+'\n');
+  "
+  mkdir -p frontend/src
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>A</div>), },
+    { render: ({ data }) => (<div>B</div>), },
+    { render: ({ data }) => (<div>C</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" delete 2
+  STATUS=$(pj '.steps["2"].status')
+  if [ "$STATUS" = "completed" ]; then
+    pass "restructure: delete does not overwrite completed status"
+  else
+    fail "restructure: delete does not overwrite completed status" "got status=$STATUS"
+  fi
+)
+
+# Test: restructure.cjs swap 同时交换全部数据源
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus/dev-progress frontend/src
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        x = "step1_code"
+        return x
+
+    async def step_2(self, ctx):
+        y = "step2_code"
+        return y
+PYEOF
+  echo '2' > .minus/total-steps
+  cat > .minus/progress.json <<'JEOF'
+{"currentStep":1,"steps":{"1":{"name":"甲","status":"in_progress"},"2":{"name":"乙","status":"pending"}},"phase":"developing"}
+JEOF
+  printf '甲' > .minus/dev-progress/step_1_name
+  printf '乙' > .minus/dev-progress/step_2_name
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>甲</div>), },
+    { render: ({ data }) => (<div>乙</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" swap 1 2
+  STEP1_BODY=$(node -e "var m=require('$RS');var c=require('fs').readFileSync('pipeline.py','utf8');console.log(m._extractPipelineMethod(c,1))")
+  PROG_1=$(pj '.steps["1"].name')
+  PROG_2=$(pj '.steps["2"].name')
+  NAME_1=$(cat .minus/dev-progress/step_1_name)
+  NAME_2=$(cat .minus/dev-progress/step_2_name)
+  if echo "$STEP1_BODY" | grep -q "step2_code" \
+     && [ "$PROG_1" = "乙" ] && [ "$PROG_2" = "甲" ] \
+     && [ "$NAME_1" = "乙" ] && [ "$NAME_2" = "甲" ]; then
+    pass "restructure: swap exchanges all data sources"
+  else
+    fail "restructure: swap exchanges all data sources" \
+      "prog1=$PROG_1 prog2=$PROG_2 name1=$NAME_1 name2=$NAME_2"
+  fi
+)
+
+# Test: restructure.cjs generate 全量生成
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus frontend/src
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  cat > pipeline.py <<'PYEOF'
+class TestPipeline(Pipeline):
+    version = "1.0.0"
+PYEOF
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>old</div>), },
+  ];
+}
+TSXEOF
+  node "$RS" generate "步骤A" "步骤B" "步骤C"
+  PIPE_COUNT=$(grep -c 'async def step_' pipeline.py)
+  TOTAL=$(cat .minus/total-steps)
+  PROG_PHASE=$(pj '.phase')
+  if [ "$PIPE_COUNT" = "3" ] && [ "$TOTAL" = "3" ] && [ "$PROG_PHASE" = "developing" ]; then
+    pass "restructure: generate creates full project"
+  else
+    fail "restructure: generate creates full project" "pipe=$PIPE_COUNT total=$TOTAL phase=$PROG_PHASE"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ generate-result-design.sh ═══"

@@ -321,6 +321,219 @@ function extractBuildStep(code, pos) {
 
 const ops = {};
 
+ops.insert = {
+  reads: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  writes: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  validate: true,
+  run: function(sources, posStr, name) {
+    var pos = Number(posStr);
+    var total = sources.totalSteps;
+    var newTotal = total + 1;
+
+    if (!name) { console.error('用法: restructure.cjs insert <位置N> <步骤名称>'); process.exit(1); }
+    if (pos < 1 || pos > total + 1) { console.error('错误：插入位置 ' + pos + ' 超出范围（1 ~ ' + (total + 1) + '）'); process.exit(1); }
+    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE + '，结构变更需要 main.tsx 存在'); process.exit(1); }
+
+    var pipeline = insertPipelineSkeleton(sources.pipeline, pos, total, name);
+    var frontend = insertBuildStep(sources.frontend, pos, name);
+
+    var p = sources.progress;
+    p.steps = p.steps || {};
+    var max = Math.max.apply(null, [0].concat(Object.keys(p.steps).map(Number)));
+    for (var i = max; i >= pos; i--) {
+      p.steps[String(i + 1)] = p.steps[String(i)];
+    }
+    p.steps[String(pos)] = { name: name, status: 'pending' };
+    if (p.currentStep >= pos) p.currentStep = p.currentStep + 1;
+
+    var stepNames = {};
+    var snKeys = Object.keys(sources.stepNames);
+    for (var si = 0; si < snKeys.length; si++) {
+      var sn = Number(snKeys[si]);
+      stepNames[sn >= pos ? sn + 1 : sn] = sources.stepNames[snKeys[si]];
+    }
+    stepNames[pos] = name;
+
+    console.log('✓ 已在位置 ' + pos + ' 插入步骤「' + name + '」，总步骤数 ' + total + ' → ' + newTotal);
+    return { pipeline: pipeline, frontend: frontend, progress: p, totalSteps: newTotal, stepNames: stepNames };
+  },
+};
+
+ops.delete = {
+  reads: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  writes: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  validate: true,
+  run: function(sources, posStr) {
+    var pos = Number(posStr);
+    var total = sources.totalSteps;
+    var newTotal = total - 1;
+
+    if (pos < 1 || pos > total) { console.error('错误：步骤 ' + pos + ' 不存在（当前共 ' + total + ' 步）'); process.exit(1); }
+    if (newTotal < 1) { console.error('错误：只剩一个步骤，不能删除'); process.exit(1); }
+    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE + '，结构变更需要 main.tsx 存在'); process.exit(1); }
+
+    var pipeline = deletePipelineMethod(sources.pipeline, pos, total);
+    var frontend = deleteBuildStep(sources.frontend, pos);
+
+    var p = sources.progress;
+    p.steps = p.steps || {};
+    var max = Math.max.apply(null, [0].concat(Object.keys(p.steps).map(Number)));
+    for (var i = pos; i < max; i++) {
+      p.steps[String(i)] = p.steps[String(i + 1)];
+    }
+    delete p.steps[String(max)];
+
+    if (p.currentStep > pos) {
+      p.currentStep = p.currentStep - 1;
+    } else if (p.currentStep === pos) {
+      if (p.currentStep > newTotal) p.currentStep = newTotal;
+      var step = p.steps[String(p.currentStep)];
+      if (step && step.status !== 'completed') step.status = 'in_progress';
+    }
+
+    var stepNames = {};
+    var snKeys2 = Object.keys(sources.stepNames);
+    for (var si2 = 0; si2 < snKeys2.length; si2++) {
+      var sn2 = Number(snKeys2[si2]);
+      if (sn2 === pos) continue;
+      stepNames[sn2 > pos ? sn2 - 1 : sn2] = sources.stepNames[snKeys2[si2]];
+    }
+
+    console.log('✓ 已删除步骤 ' + pos + '，总步骤数 ' + total + ' → ' + newTotal);
+    return { pipeline: pipeline, frontend: frontend, progress: p, totalSteps: newTotal, stepNames: stepNames };
+  },
+};
+
+ops.append = {
+  reads: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  writes: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
+  validate: true,
+  run: function(sources) {
+    var names = Array.prototype.slice.call(arguments, 1);
+    if (names.length === 0) { console.error('用法: restructure.cjs append <步骤名称> ...'); process.exit(1); }
+    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE + '，结构变更需要 main.tsx 存在'); process.exit(1); }
+
+    var pipeline = sources.pipeline;
+    var frontend = sources.frontend;
+    var total = sources.totalSteps;
+    var newTotal = total + names.length;
+    var p = sources.progress;
+    p.steps = p.steps || {};
+    var stepNames = {};
+    var snKeys3 = Object.keys(sources.stepNames);
+    for (var si3 = 0; si3 < snKeys3.length; si3++) {
+      stepNames[snKeys3[si3]] = sources.stepNames[snKeys3[si3]];
+    }
+
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      var stepNum = total + i + 1;
+      pipeline += '\n    async def step_' + stepNum + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
+        '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
+        '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+      frontend = insertBuildStep(frontend, stepNum, name);
+      p.steps[String(stepNum)] = { name: name, status: 'pending' };
+      stepNames[stepNum] = name;
+    }
+
+    console.log('✓ 追加了 ' + names.length + ' 个步骤，总步骤数 ' + total + ' → ' + newTotal);
+    return { pipeline: pipeline, frontend: frontend, progress: p, totalSteps: newTotal, stepNames: stepNames };
+  },
+};
+
+ops.swap = {
+  reads: ['pipeline', 'frontend', 'progress', 'stepNames'],
+  writes: ['pipeline', 'frontend', 'progress', 'stepNames'],
+  validate: false,
+  run: function(sources, aStr, bStr) {
+    var a = Number(aStr), b = Number(bStr);
+    if (!a || !b || a === b) { console.error('用法: restructure.cjs swap <A> <B>'); process.exit(1); }
+    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE); process.exit(1); }
+
+    var pipeline = sources.pipeline;
+    var frontend = sources.frontend;
+    var p = sources.progress;
+
+    var bodyA = extractPipelineMethod(pipeline, a);
+    var bodyB = extractPipelineMethod(pipeline, b);
+    if (bodyA && bodyB) {
+      var bodyOnlyA = bodyA.slice(bodyA.indexOf('\n', 1));
+      var bodyOnlyB = bodyB.slice(bodyB.indexOf('\n', 1));
+      pipeline = pipeline.replace(bodyA, bodyA.slice(0, bodyA.indexOf('\n', 1)) + bodyOnlyB);
+      pipeline = pipeline.replace(bodyB, bodyB.slice(0, bodyB.indexOf('\n', 1)) + bodyOnlyA);
+    }
+
+    var entryA = extractBuildStep(frontend, a);
+    var entryB = extractBuildStep(frontend, b);
+    if (entryA && entryB) {
+      var placeholder = '\n    /* __SWAP_PLACEHOLDER__ */';
+      frontend = frontend.replace(entryA, placeholder);
+      frontend = frontend.replace(entryB, entryA);
+      frontend = frontend.replace(placeholder, entryB);
+    }
+
+    var tmp = p.steps[String(a)];
+    p.steps[String(a)] = p.steps[String(b)] || { name: '步骤' + a, status: 'pending' };
+    p.steps[String(b)] = tmp || { name: '步骤' + b, status: 'pending' };
+
+    var stepNames = {};
+    var snKeys = Object.keys(sources.stepNames);
+    for (var i = 0; i < snKeys.length; i++) {
+      stepNames[snKeys[i]] = sources.stepNames[snKeys[i]];
+    }
+    var tmpName = stepNames[a];
+    stepNames[a] = stepNames[b];
+    stepNames[b] = tmpName;
+
+    console.log('✓ 步骤 ' + a + ' 和步骤 ' + b + ' 已交换');
+    return { pipeline: pipeline, frontend: frontend, progress: p, stepNames: stepNames };
+  },
+};
+
+ops.generate = {
+  reads: ['pipeline', 'frontend'],
+  writes: ['pipeline', 'frontend', 'progress', 'totalSteps'],
+  validate: true,
+  run: function(sources) {
+    var names = Array.prototype.slice.call(arguments, 1);
+    if (names.length === 0) { console.error('用法: restructure.cjs generate <步骤名称> ...'); process.exit(1); }
+
+    var classMatch = sources.pipeline.match(/class\s+(\w+)\(Pipeline\)/);
+    var className = classMatch ? classMatch[1] : 'SkillPipeline';
+
+    var pipeline = 'from minus_ai_sdk import Pipeline, PipelineContext, StepOutcome\n\n\n' +
+      'class ' + className + '(Pipeline):\n';
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      pipeline += '\n    async def step_' + (i + 1) + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
+        '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
+        '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+    }
+
+    var frontend = sources.frontend;
+    if (frontend !== null) {
+      var stepsCode = '';
+      for (var j = 0; j < names.length; j++) {
+        stepsCode += buildStepEntry(names[j]);
+      }
+      var pattern = /(function buildSteps\([^)]*\)[^{]*\{[\s\S]*?return\s*\[)([\s\S]*?)(\];\s*\n\})/m;
+      var match = frontend.match(pattern);
+      if (match) {
+        frontend = frontend.replace(pattern, match[1] + '\n' + stepsCode + '  ' + match[3]);
+      }
+    }
+
+    var steps = {};
+    for (var k = 0; k < names.length; k++) {
+      steps[String(k + 1)] = { name: names[k], status: k === 0 ? 'in_progress' : 'pending' };
+    }
+    var progress = { currentStep: 1, steps: steps, phase: 'developing' };
+
+    console.log('✓ 已生成 ' + names.length + ' 个步骤');
+    return { pipeline: pipeline, frontend: frontend, progress: progress, totalSteps: names.length };
+  },
+};
+
 // ── 执行器 ──
 
 function execute(opName, args) {
