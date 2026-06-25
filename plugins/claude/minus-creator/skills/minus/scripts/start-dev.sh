@@ -83,6 +83,8 @@ if [ "${MINUS_DEV_RESTART:-0}" = "1" ]; then
           [ -n "$OLD_PID" ] || continue
           OLD_CWD=$(lsof -a -p "$OLD_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
           case "$OLD_CWD" in *'\'*) OLD_CWD=$(printf '%b' "$OLD_CWD" 2>/dev/null || echo "$OLD_CWD") ;; esac
+          # macOS: /var → /private/var 符号链接，lsof 报 /var 而 pwd -P 报 /private/var
+          [ -d "$OLD_CWD" ] && OLD_CWD=$(cd "$OLD_CWD" && pwd -P)
           case "$OLD_CWD" in
             "$RESTART_PROJ"|"$RESTART_PROJ"/*)
               kill "$OLD_PID" 2>/dev/null || true
@@ -117,7 +119,8 @@ if [ "${MINUS_DEV_RESTART:-0}" != "1" ] && [ "$MODE" = "backend" ]; then
     OWNER_PID=$(lsof -nP -iTCP:"$BACKEND_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1)
     if [ -n "$OWNER_PID" ]; then
       OWNER_CWD=$(lsof -a -p "$OWNER_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
-      if [ "$OWNER_CWD" = "$(pwd)" ]; then
+      [ -d "$OWNER_CWD" ] && OWNER_CWD=$(cd "$OWNER_CWD" && pwd -P)
+      if [ "$OWNER_CWD" = "$(pwd -P)" ]; then
         echo "ALREADY_RUNNING"
         echo "BACKEND_PORT=$BACKEND_PORT"
         exit 0

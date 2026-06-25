@@ -213,13 +213,18 @@ echo "═══ Phase 5: 强制重启清掉归属旧进程（v12 遮挡下）═
 # ══════════════════════════════════════════════════════
 
 if [ "$HAS_PY" = "1" ] && [ "$HAS_LSOF" = "1" ]; then
-  echo '{"frontend":5192}' > .minus/dev-ports.json
-  if OUT=$(MINUS_DEV_RESTART=1 run_lib start-dev full 2>&1); then RC=0; else RC=$?; fi
-  if ! kill -0 "$SRV_OWNED" 2>/dev/null && [ ! -f .minus/dev-ports.json ] \
-     && ! echo "$OUT" | grep -q "SyntaxError"; then
-    pass "强制重启：杀归属旧进程 + 删端口记录 + 无 SyntaxError"
+  # Phase 4 可能 skip（python3 冷启动慢），此时 SRV_OWNED 端口未必就绪，需确认
+  if kill -0 "$SRV_OWNED" 2>/dev/null && wait_port_up 5192; then
+    echo '{"frontend":5192}' > .minus/dev-ports.json
+    if OUT=$(MINUS_DEV_RESTART=1 run_lib start-dev full 2>&1); then RC=0; else RC=$?; fi
+    if ! kill -0 "$SRV_OWNED" 2>/dev/null && [ ! -f .minus/dev-ports.json ] \
+       && ! echo "$OUT" | grep -q "SyntaxError"; then
+      pass "强制重启：杀归属旧进程 + 删端口记录 + 无 SyntaxError"
+    else
+      fail "强制重启清理链" "rc=$RC old_alive=$(kill -0 "$SRV_OWNED" 2>/dev/null && echo y || echo n) ports=$([ -f .minus/dev-ports.json ] && echo y || echo n) out=$OUT"
+    fi
   else
-    fail "强制重启清理链" "rc=$RC old_alive=$(kill -0 "$SRV_OWNED" 2>/dev/null && echo y || echo n) ports=$([ -f .minus/dev-ports.json ] && echo y || echo n) out=$OUT"
+    skip "强制重启清理链" "SRV_OWNED 进程未就绪"
   fi
 else
   skip "强制重启清理链" "缺 python3 或 lsof"
