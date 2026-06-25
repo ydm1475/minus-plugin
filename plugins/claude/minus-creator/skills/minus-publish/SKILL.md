@@ -23,7 +23,7 @@ effort: high
 
 ### Step 1：发布前校验
 
-读取 .minus/skill.json 获取 skillId，然后：
+读取 .minus/skill.json 获取 skillId 和 version（后续步骤直接复用，不再重复读取），然后：
 - 检查所有步骤的代码文件是否存在
 - 检查 package.json 依赖是否完整
 - 运行 `pnpm install` 确保依赖已安装
@@ -35,7 +35,7 @@ effort: high
 
 ### Step 2：版本确认
 
-从 .minus/skill.json 读取 skillId 和 version，使用 `skill_version_get` 查询后端状态，告知 Creator 当前版本信息。
+使用 `skill_version_get` 查询后端版本状态，告知 Creator 当前版本信息。
 
 注意：如果版本状态是 pending（审核中）或 approved（已通过待发布），告知 Creator 当前状态并结束流程，不需要再次提交。
 
@@ -48,18 +48,14 @@ effort: high
 3. 提交成功 → 告知 Creator：
    - 状态已变为"待审核"
    - 版本号
+   - 提供审核页面地址供 Creator 查看审核状态
+   - 告知 Creator 也可以随时在对话中问审核进度
    - 审核通过后可到平台点击发布上线
 4. 提交失败 → 展示错误原因，引导修复后重试
 
-## 发布成功后
+## 查询审核进度
 
-告知 Creator：
-- Skill 已提交成功，状态为"待审核"
-- 版本号
-- 提供审核页面地址供 Creator 查看审核状态
-- 告知 Creator 也可以随时在对话中问审核进度
-
-### 审核结果
+Creator 询问审核进度时，调 `skill_version_get` 查询最新状态：
 
 - **通过** → 页面出现「预览」和「发布」两个按钮。Creator 可先预览测试，确认无误后点击发布上线
 - **未通过** → 列出失败原因和整改意见，无任何按钮。Creator 需修改后重新执行 `/minus publish`
