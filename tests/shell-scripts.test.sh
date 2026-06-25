@@ -646,6 +646,171 @@ echo "═══ progress-check.sh ═══"
   fi
 )
 
+# Test: update-progress insert-step 在中间插入步骤
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  bash "$UP" insert-step 2 "新步骤" >/dev/null 2>&1
+  if [ "$(pj '.steps["2"].name')" = "新步骤" ] && [ "$(pj '.steps["2"].status')" = "pending" ] \
+     && [ "$(pj '.steps["3"].name')" = "B" ] && [ "$(pj '.steps["4"].name')" = "C" ]; then
+    pass "update-progress: insert-step shifts steps"
+  else
+    fail "update-progress: insert-step shifts steps" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: update-progress insert-step 重编号 step_N_name 文件
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  DEV_DIR=".minus/dev-progress"; mkdir -p "$DEV_DIR"
+  printf '%s' "A" > "${DEV_DIR}/step_1_name"
+  printf '%s' "B" > "${DEV_DIR}/step_2_name"
+  printf '%s' "C" > "${DEV_DIR}/step_3_name"
+  bash "$UP" insert-step 2 "新步骤" >/dev/null 2>&1
+  if [ "$(cat "${DEV_DIR}/step_2_name" 2>/dev/null)" = "新步骤" ] \
+     && [ "$(cat "${DEV_DIR}/step_3_name" 2>/dev/null)" = "B" ] \
+     && [ "$(cat "${DEV_DIR}/step_4_name" 2>/dev/null)" = "C" ]; then
+    pass "update-progress: insert-step renumbers step_N_name files"
+  else
+    fail "update-progress: insert-step renumbers step_N_name files" "got: $(ls "${DEV_DIR}/" 2>/dev/null)"
+  fi
+)
+
+# Test: update-progress delete-step 重编号 step_N_name 文件
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  DEV_DIR=".minus/dev-progress"; mkdir -p "$DEV_DIR"
+  printf '%s' "A" > "${DEV_DIR}/step_1_name"
+  printf '%s' "B" > "${DEV_DIR}/step_2_name"
+  printf '%s' "C" > "${DEV_DIR}/step_3_name"
+  bash "$UP" delete-step 2 >/dev/null 2>&1
+  if [ "$(cat "${DEV_DIR}/step_1_name" 2>/dev/null)" = "A" ] \
+     && [ "$(cat "${DEV_DIR}/step_2_name" 2>/dev/null)" = "C" ] \
+     && [ ! -f "${DEV_DIR}/step_3_name" ]; then
+    pass "update-progress: delete-step renumbers step_N_name files"
+  else
+    fail "update-progress: delete-step renumbers step_N_name files" "got: $(ls "${DEV_DIR}/" 2>/dev/null)"
+  fi
+)
+
+# Test: update-progress delete-step 删除步骤并前移
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  bash "$UP" delete-step 2 >/dev/null 2>&1
+  if [ "$(pj '.steps["2"].name')" = "C" ] && [ "$(pj '.steps["3"]')" = "undefined" ]; then
+    pass "update-progress: delete-step shifts steps"
+  else
+    fail "update-progress: delete-step shifts steps" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: update-progress delete-step 删除当前步骤后继任步骤变为 in_progress
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 3
+  bash "$UP" design-done "A" "B" "C" >/dev/null 2>&1
+  bash "$UP" step-done 1 >/dev/null 2>&1
+  bash "$UP" delete-step 2 >/dev/null 2>&1
+  if [ "$(pj '.steps["2"].status')" = "in_progress" ]; then
+    pass "update-progress: delete-step promotes successor to in_progress"
+  else
+    fail "update-progress: delete-step promotes successor to in_progress" "got: $(cat .minus/progress.json)"
+  fi
+)
+
+# Test: update-progress delete-step 只剩1步时拒绝
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  bash "$UP" design-done "A" >/dev/null 2>&1
+  OUTPUT=$(bash "$UP" delete-step 1 2>&1 || true)
+  if assert_contains "$OUTPUT" "不能删除"; then
+    pass "update-progress: delete-step rejects last step"
+  else
+    fail "update-progress: delete-step rejects last step" "got: $OUTPUT"
+  fi
+)
+
+# Test: restructure-pipeline.cjs delete 不吞末尾代码
+(
+  TMP=$(make_tmp); cd "$TMP"
+  RESTRUCTURE="$REPO_DIR/plugins/claude/minus-creator/skills/minus-structure/scripts/restructure-pipeline.cjs"
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        return None
+
+    async def step_2(self, ctx):
+        return None
+
+if __name__ == '__main__':
+    SkillPipeline().run()
+PYEOF
+  node "$RESTRUCTURE" delete 2 2
+  if grep -q '__main__' pipeline.py && ! grep -q 'step_2' pipeline.py; then
+    pass "restructure-pipeline: delete last step preserves trailing code"
+  else
+    fail "restructure-pipeline: delete last step preserves trailing code" "got: $(cat pipeline.py)"
+  fi
+)
+
+# Test: restructure-pipeline.cjs insert 转义特殊字符
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        return None
+PYEOF
+  RESTRUCTURE="$REPO_DIR/plugins/claude/minus-creator/skills/minus-structure/scripts/restructure-pipeline.cjs"
+  node "$RESTRUCTURE" insert 1 1 '分析"热门"数据'
+  if python3 -c "compile(open('pipeline.py').read(),'pipeline.py','exec')" 2>/dev/null; then
+    pass "restructure-pipeline: insert escapes quotes in stepName"
+  else
+    fail "restructure-pipeline: insert escapes quotes in stepName" "got: $(cat pipeline.py)"
+  fi
+)
+
+# Test: generate-steps --insert-at 插入步骤并同步 progress
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  echo "class SkillPipeline(Pipeline):" > pipeline.py
+  bash "$(via_lib generate-steps)" "步骤A" "步骤B" >/dev/null 2>&1 || true
+  bash "$(via_lib generate-steps)" --insert-at 2 "插入步骤" >/dev/null 2>&1 || true
+  if [ "$(pj '.steps["2"].name')" = "插入步骤" ] && [ "$(pj '.steps["3"].name')" = "步骤B" ] \
+     && grep -q 'async def step_2' pipeline.py && grep -q 'async def step_3' pipeline.py; then
+    pass "generate-steps: --insert-at inserts and renumbers"
+  else
+    fail "generate-steps: --insert-at inserts and renumbers" "got: $(cat .minus/progress.json) / $(cat pipeline.py)"
+  fi
+)
+
+# Test: generate-steps --delete 删除步骤并同步 progress
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  echo "class SkillPipeline(Pipeline):" > pipeline.py
+  bash "$(via_lib generate-steps)" "步骤A" "步骤B" "步骤C" >/dev/null 2>&1 || true
+  bash "$(via_lib generate-steps)" --delete 2 >/dev/null 2>&1 || true
+  if [ "$(pj '.steps["2"].name')" = "步骤C" ] && ! grep -q 'step_3' pipeline.py; then
+    pass "generate-steps: --delete removes and renumbers"
+  else
+    fail "generate-steps: --delete removes and renumbers" "got: $(cat .minus/progress.json) / $(cat pipeline.py)"
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ project-detector.sh ═══"
@@ -1148,6 +1313,37 @@ TSXEOF
     pass "generate-steps: main.tsx works with extra brackets in function body"
   else
     fail "generate-steps: main.tsx works with extra brackets in function body" "expected 2 renders, got $RENDER_COUNT"
+  fi
+)
+
+# ══════════════════════════════════════════════════════
+echo ""
+echo "═══ restructure.cjs ═══"
+# ══════════════════════════════════════════════════════
+
+RS="$STRUCT_LIB/restructure.cjs"
+
+# Test: restructure.cjs 无参报用法
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo '{"skillId":"sk_t"}' > .minus/skill.json
+  OUTPUT=$(node "$RS" 2>&1 || true)
+  if assert_contains "$OUTPUT" "用法"; then
+    pass "restructure: shows usage without args"
+  else
+    fail "restructure: shows usage without args" "got: $OUTPUT"
+  fi
+)
+
+# Test: restructure.cjs 未知操作报错
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo '{"skillId":"sk_t"}' > .minus/skill.json
+  OUTPUT=$(node "$RS" unknown 2>&1 || true)
+  if assert_contains "$OUTPUT" "未知操作"; then
+    pass "restructure: unknown op errors"
+  else
+    fail "restructure: unknown op errors" "got: $OUTPUT"
   fi
 )
 
