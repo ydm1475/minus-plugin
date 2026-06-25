@@ -257,28 +257,28 @@ echo "── SDK 文档可达性验证 ──"
 
 # find 不存在的路径在 set -euo pipefail 下整条管道 rc=1 → 套件无声死亡（CI 单仓
 # checkout 没有兄弟仓库 minus-platform）。|| true 兜住，仓库缺失走 skip。
-SDK_WIDGETS_DOC=$(find ~/minus-platform-develop/minus-platform/runtime/platform-widgets -name "docs.md" 2>/dev/null | head -1 || true)
+SDK_WIDGETS_DIR=$(find ~/minus-platform-develop/minus-platform/runtime/platform-widgets -name "docs.md" -exec dirname {} \; 2>/dev/null | head -1 || true)
 if [ ! -d ~/minus-platform-develop/minus-platform ]; then
   skip "SDK 文档可达性验证" "兄弟仓库 minus-platform 不存在（CI 单仓 checkout）"
-elif [ -n "$SDK_WIDGETS_DOC" ]; then
+elif [ -n "$SDK_WIDGETS_DIR" ]; then
   pass "SDK platform-widgets docs.md 存在"
 
-  if grep -q "CompletionPanel" "$SDK_WIDGETS_DOC"; then
+  if grep -rq "CompletionPanel" "$SDK_WIDGETS_DIR"/docs*.md; then
     pass "SDK 文档包含 CompletionPanel"
   else
-    fail "SDK 文档应包含 CompletionPanel" "路径: $SDK_WIDGETS_DOC"
+    fail "SDK 文档应包含 CompletionPanel" "路径: $SDK_WIDGETS_DIR"
   fi
 
-  if grep -q "TableWidget" "$SDK_WIDGETS_DOC"; then
+  if grep -rq "TableWidget" "$SDK_WIDGETS_DIR"/docs*.md; then
     pass "SDK 文档包含 TableWidget"
   else
-    fail "SDK 文档应包含 TableWidget" "路径: $SDK_WIDGETS_DOC"
+    fail "SDK 文档应包含 TableWidget" "路径: $SDK_WIDGETS_DIR"
   fi
 
-  if grep -q "SelectableTableWidget" "$SDK_WIDGETS_DOC" && grep -q "DisplayWidget" "$SDK_WIDGETS_DOC"; then
+  if grep -rq "SelectableTableWidget" "$SDK_WIDGETS_DIR"/docs*.md && grep -rq "DisplayWidget" "$SDK_WIDGETS_DIR"/docs*.md; then
     pass "SDK 文档同时包含 SelectableTableWidget 和 DisplayWidget（分界线可推断）"
   else
-    fail "SDK 文档应同时包含 SelectableTableWidget 和 DisplayWidget" "路径: $SDK_WIDGETS_DOC"
+    fail "SDK 文档应同时包含 SelectableTableWidget 和 DisplayWidget" "路径: $SDK_WIDGETS_DIR"
   fi
 else
   fail "SDK platform-widgets docs.md 不存在" "期望在 runtime/platform-widgets/*/docs.md"

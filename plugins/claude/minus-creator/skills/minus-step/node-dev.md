@@ -331,28 +331,6 @@ Creator 可测试后（任一步骤 step-done 之后），修改 pipeline.py 会
 - 输出 `RUNNING` → 先问 Creator：「你当前正在跑的流程会被这次修改打断，现在改还是等你跑完？」，Creator 同意后再动
 - 输出 `IDLE` → 直接修改
 
-## 代码生成规则
-
-生成的每个节点代码必须包含三层：
-
-```javascript
-async function executeStep(input, context) {
-  // 第一层：数据获取（确定性，直接 HTTP API 调用）
-  const data = await fetch("https://api.example.com/...", { ... });
-
-  // 第二层：数据处理（确定性代码 或 LLM 调用）
-  const processed = ...; // 排序/过滤/格式化用代码；分析摘要用 LLM
-
-  // 第三层：输出渲染（确定性，minus.output.* 工具）
-  return {
-    display: [...],      // 展示给用户
-    passToNext: { ... }  // 传给下一步
-  };
-}
-```
-
-原则：能用确定性代码解决的不用 LLM。
-
 ## 交互规则
 
 - 四个维度按顺序收集意图，全部确认后才写代码

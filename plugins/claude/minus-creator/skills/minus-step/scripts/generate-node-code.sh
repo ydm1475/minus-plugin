@@ -182,19 +182,3 @@ else
     echo "⛔ 未找到 SDK 源码（.venv/minus_ai_sdk/），请先 uv pip install -e . 安装 SDK"
   fi
 fi
-
-# ── 最后一步：提示调用 generate-result-design.sh ──
-
-if [ "$IS_LAST" = "YES" ]; then
-  cat << RESULT_DESIGN
-
-═══════════════════════════════════════════════════════
-  ⛔ 这是最后一步。代码生成完毕后，必须进入「结果呈现设计」。
-  不要直接告诉 Creator "开发完成"，还有最后一个环节。
-
-  代码写完后立即执行：
-  bash "$SCRIPT_DIR/../../minus-structure/scripts/generate-result-design.sh"
-═══════════════════════════════════════════════════════
-
-RESULT_DESIGN
-fi
