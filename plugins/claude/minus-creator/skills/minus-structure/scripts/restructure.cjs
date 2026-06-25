@@ -220,6 +220,103 @@ function extractPipelineMethod(code, pos) {
   return code.slice(methodStart, methodEnd);
 }
 
+// ── main.tsx 工具函数 ──
+
+function escJsx(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/[{}]/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; });
+}
+
+function findBuildStepArrayStart(code) {
+  var fnStart = code.indexOf('function buildSteps');
+  if (fnStart === -1) return -1;
+  var returnIdx = code.indexOf('return [', fnStart);
+  if (returnIdx === -1) return -1;
+  return code.indexOf('[', returnIdx);
+}
+
+function findNthBuildStep(code, arrStart, n) {
+  var depth = 1, itemCount = 0, itemStart = -1, itemEnd = -1;
+  var inString = false, strChar = '';
+  for (var i = arrStart + 1; i < code.length; i++) {
+    var ch = code[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === strChar) inString = false;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { inString = true; strChar = ch; continue; }
+    if (ch === '{' && depth === 1) {
+      itemCount++;
+      if (itemCount === n) itemStart = i;
+    }
+    if (ch === '[' || ch === '{' || ch === '(') depth++;
+    if (ch === ']' || ch === '}' || ch === ')') {
+      depth--;
+      if (itemCount === n && depth === 1) { itemEnd = i + 1; break; }
+    }
+  }
+  return { itemStart: itemStart, itemEnd: itemEnd };
+}
+
+function buildStepEntry(name) {
+  return '    {\n' +
+    '      render: ({ data }) => (\n' +
+    "        <div style={{ marginTop: 24, padding: '32px 24px', borderRadius: 12, background: 'var(--minus-step-bg, #f9fafb)', border: '1px solid var(--minus-step-border, #e5e7eb)', textAlign: 'center', fontSize: 18, fontWeight: 600 }}>\n" +
+    "          {(data.text as string) ?? '" + escJsx(name) + "'}\n" +
+    '        </div>\n' +
+    '      ),\n' +
+    '    },\n';
+}
+
+function insertBuildStep(code, pos, name) {
+  var arrStart = findBuildStepArrayStart(code);
+  if (arrStart === -1) return code;
+  var newEntry = buildStepEntry(name);
+  var found = findNthBuildStep(code, arrStart, pos);
+  if (found.itemStart !== -1) {
+    var lineStart = code.lastIndexOf('\n', found.itemStart);
+    code = code.slice(0, lineStart + 1) + newEntry + code.slice(lineStart + 1);
+  } else {
+    var d = 0, closeIdx = -1;
+    for (var i = arrStart; i < code.length; i++) {
+      if (code[i] === '[') d++;
+      else if (code[i] === ']') { d--; if (d === 0) { closeIdx = i; break; } }
+    }
+    if (closeIdx !== -1) {
+      code = code.slice(0, closeIdx) + newEntry + code.slice(closeIdx);
+    }
+  }
+  return code;
+}
+
+function deleteBuildStep(code, pos) {
+  var arrStart = findBuildStepArrayStart(code);
+  if (arrStart === -1) return code;
+  var found = findNthBuildStep(code, arrStart, pos);
+  if (found.itemStart === -1 || found.itemEnd === -1) return code;
+  var lineStart = code.lastIndexOf('\n', found.itemStart);
+  var afterEnd = found.itemEnd;
+  if (afterEnd < code.length && code[afterEnd] === ',') afterEnd++;
+  while (afterEnd < code.length && (code[afterEnd] === ' ' || code[afterEnd] === '\n')) afterEnd++;
+  if (afterEnd < code.length && (code[afterEnd] === ']' || code[afterEnd] === '}')) {
+    code = code.slice(0, lineStart + 1) + code.slice(afterEnd);
+  } else {
+    code = code.slice(0, lineStart) + '\n' + code.slice(afterEnd);
+  }
+  return code;
+}
+
+function extractBuildStep(code, pos) {
+  var arrStart = findBuildStepArrayStart(code);
+  if (arrStart === -1) return null;
+  var found = findNthBuildStep(code, arrStart, pos);
+  if (found.itemStart === -1 || found.itemEnd === -1) return null;
+  var lineStart = code.lastIndexOf('\n', found.itemStart);
+  var afterEnd = found.itemEnd;
+  if (afterEnd < code.length && code[afterEnd] === ',') afterEnd++;
+  return code.slice(lineStart, afterEnd);
+}
+
 // ── 操作注册表 ──
 
 const ops = {};
@@ -277,4 +374,7 @@ module.exports = {
   _deletePipelineMethod: deletePipelineMethod,
   _extractPipelineMethod: extractPipelineMethod,
   _insertPipelineSkeleton: insertPipelineSkeleton,
+  _insertBuildStep: insertBuildStep,
+  _deleteBuildStep: deleteBuildStep,
+  _extractBuildStep: extractBuildStep,
 };

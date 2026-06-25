@@ -1438,6 +1438,70 @@ PYEOF
   fi
 )
 
+# Test: restructure.cjs insertBuildStep 在中间位置插入
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    {
+      render: ({ data }) => (<div>A</div>),
+    },
+    {
+      render: ({ data }) => (<div>B</div>),
+    },
+  ];
+}
+TSXEOF
+  node -e "
+    const m = require('$RS');
+    let code = require('fs').readFileSync('main.tsx','utf8');
+    code = m._insertBuildStep(code, 2, '插入项');
+    const count = (code.match(/render:/g) || []).length;
+    if (count !== 3) { console.error('期望 3 个 render，得到 ' + count); process.exit(1); }
+    console.log('ok');
+  "
+  if [ $? -eq 0 ]; then
+    pass "restructure: insertBuildStep inserts at position 2"
+  else
+    fail "restructure: insertBuildStep inserts at position 2" ""
+  fi
+)
+
+# Test: restructure.cjs deleteBuildStep 删除并保持结构
+(
+  TMP=$(make_tmp); cd "$TMP"
+  cat > main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    {
+      render: ({ data }) => (<div>A</div>),
+    },
+    {
+      render: ({ data }) => (<div>B</div>),
+    },
+    {
+      render: ({ data }) => (<div>C</div>),
+    },
+  ];
+}
+TSXEOF
+  node -e "
+    const m = require('$RS');
+    let code = require('fs').readFileSync('main.tsx','utf8');
+    code = m._deleteBuildStep(code, 2);
+    const count = (code.match(/render:/g) || []).length;
+    if (count !== 2) { console.error('期望 2 个 render，得到 ' + count); process.exit(1); }
+    if (/B/.test(code)) { console.error('B 未被删除'); process.exit(1); }
+    console.log('ok');
+  "
+  if [ $? -eq 0 ]; then
+    pass "restructure: deleteBuildStep removes item 2"
+  else
+    fail "restructure: deleteBuildStep removes item 2" ""
+  fi
+)
+
 # ══════════════════════════════════════════════════════
 echo ""
 echo "═══ generate-result-design.sh ═══"
