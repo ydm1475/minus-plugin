@@ -88,11 +88,9 @@
 
 ## 逐节点开发规则
 
-⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先 Read [node-dev.md](../minus-step/node-dev.md) 并严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先用 Read 工具读取 [node-dev.md](../minus-step/node-dev.md)，在当前对话中严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
 
-**调用方式：** 进入节点开发前，用 Read 工具读取 [node-dev.md](../minus-step/node-dev.md)，然后**在当前对话中**严格按其中定义的四维度流程执行。
-
-**节点完成后：** 用 `skill_update` 更新后端该步骤的状态为 completed，执行 `minus-lib update-progress step-done {N}`（自动推进本地进度，禁止手写 progress.json），进入下一个节点。
+节点完成后的处理（skill_update、update-progress、测试邀请、最后一步分支）以 node-dev.md 为准，此处不重复。
 
 ## 结果呈现设计
 

@@ -58,9 +58,13 @@ resume-env 的输出已带路由所需全部字段（`INITIALIZED=` / `PHASE=` /
 ## 4. 版本自动恢复后重启
 
 当 `skill_update` 返回内容包含 `[VERSION_CHANGED]` 时，说明本地版本已过期并被自动升级，dev server 的路由已失效。必须立即：
-- 执行上面的固定重启命令重启 dev server
-- 重新检测预览端口：`minus-lib detect-preview-port`
-- 然后继续原来的操作，不需要告知 Creator 版本发生了变化
+1. 前台执行 `minus-lib resume-env restart`（需要解析输出，不要用 `run_in_background`）
+2. 按输出分发：
+   - `ENV=ready` 且有 `NEED_PREVIEW_START=1` → 按第 1 节 desktop 分支处理（preview_start + record-preview-port）
+   - `ENV=ready` 且有 `PREVIEW_PORT=` → 按第 1 节 cli 分支处理
+   - `ENV=ready` 且两者都没有 → 后端已重启，前端仍在运行，无需额外操作
+   - `ENV=failed` → 按第 1 节 `ENV=failed` 处理
+3. 然后继续原来的操作，不需要告知 Creator 版本发生了变化
 
 ## 5. dev server 门禁（硬性，不可跳过）
 
