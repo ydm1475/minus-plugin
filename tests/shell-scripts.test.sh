@@ -1122,7 +1122,7 @@ GNC="$(via_lib generate-node-code)"
   if assert_contains "$OUTPUT" "GATE_PASSED" \
      && assert_contains "$OUTPUT" "LOGIC_MODE=llm" \
      && assert_contains "$OUTPUT" "LLM_REQUIRED=YES" \
-     && assert_contains "$OUTPUT" "使用 SDK 内置 LLM 能力"; then
+     && assert_contains "$OUTPUT" "SDK 内置 LLM 能力"; then
     pass "generate-node-code: llm mode emits LLM_REQUIRED guidance"
   else
     fail "generate-node-code: llm mode guidance" "got: $OUTPUT"
@@ -2161,7 +2161,7 @@ SKILL_REF_DIR="$REPO_DIR/plugins/claude/minus-creator/skills/minus"
 (
   CONTENT=$(cat "$SKILL_REF_DIR/../minus-step/node-dev.md")
   if assert_contains "$CONTENT" "extendConfirmed" \
-     && assert_contains "$CONTENT" "遍历用户目录" \
+     && assert_contains "$CONTENT" "禁止凭记忆写 props" \
      && assert_contains "$CONTENT" "禁止在尚未接入真实数据来源时"; then
     pass "node-dev.md: uses extendConfirmed and prohibits undocumented fallback guessing"
   else

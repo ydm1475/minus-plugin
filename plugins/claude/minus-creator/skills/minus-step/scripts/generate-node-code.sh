@@ -85,6 +85,11 @@ else
   echo "LLM_REQUIRED=NO"
 fi
 
+# ── 前端文档查阅提醒 ──
+echo ""
+echo "📖 写前端代码前，重新查阅项目 CLAUDE.md「开发手册（索引）」和「前端 SDK 参考」章节，根据本步需求 curl 对应子文档。"
+echo "   上一步读过的文档不一定覆盖本步需求——每步的展示形式、组件、时序可能不同。"
+
 # ── 输出前端代码模板 ──
 
 if [ "$CONFIRM_MODE" = "interactive" ]; then

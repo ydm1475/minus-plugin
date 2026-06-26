@@ -184,7 +184,7 @@ minus-lib generate-node-code {step_number} {logic_mode} {confirm_mode}
 当 Creator 确认需要摘要时：
 
 - 摘要必须来自后端 payload，不能只在前端临时拼接（这样摘要会随步骤结果持久化，用户回放时不会丢失）。
-- 摘要的时序写法见前端 SDK 手册（frontend-guide.md）中摘要相关的子文档，按文档选择对应时序。
+- 摘要的时序写法见项目 CLAUDE.md「开发手册（索引）」中的前端文档索引。
 - ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
 - ⛔ 禁止修改 Python SDK。
 
@@ -241,7 +241,7 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 1. **组件选型**：读上面文档路径中的组件索引（已读过则跳过），对照维度 ③ 确认的展示需求选出合适的现成组件。**只有确认没有合适组件时才手写 JSX。**
 2. **确认 props**：选定组件后，从文档中确认 props、回调签名等。组件选择、prop 名称、回调签名都以文档为准——凭记忆写大概率对不上当前版本。
-3. **摘要时序**（仅当前步骤使用 LLM 摘要时）：读 frontend-guide.md 中摘要相关的子文档（已读过则跳过），按文档选择对应时序写法。
+3. **前端文档**：查阅项目 CLAUDE.md「开发手册（索引）」和「前端 SDK 参考」，对照本步需求 curl 对应子文档后再写前端代码。
 
 #### ⛔ 步骤摘要由框架自动展示，禁止在 render 里重复渲染
 
