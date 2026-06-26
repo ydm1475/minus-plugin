@@ -41,7 +41,10 @@
 
 0. 先确认当前步骤的**输入数据是什么**。
    - **第 1 步**：读 `frontend/src/main.tsx` 和 `frontend/src/locales/zh-CN.json`，找到 Home 组件的输入表单（placeholder、字段名、onStart 传参），以用户实际输入的类型（关键词？ASIN？类目 ID？）作为后续搜索接口的依据。
-   - **第 2 步及之后**：先读 `pipeline.py`，找到前序步骤的 `step_N` 方法，确认它的 `StepOutcome.data` 里传了哪些字段给当前步骤。上一步已经传过来的数据直接用，不需要重新调 API 获取。只有上一步没提供、当前步骤确实需要额外获取的数据，才进入下面的接口发现流程。
+   - **第 2 步及之后**：先读 `pipeline.py`，找到前序步骤的 `step_N` 方法，确认它的 `StepOutcome.data` 里传了哪些字段给当前步骤。然后根据当前步骤的目的判断这些数据是否足够：
+     - **判断够用** → 告知 Creator 并等确认。话术：「上一步已经传过来了 **[字段1]**、**[字段2]**、**[字段3]**……我觉得够这一步用了，你觉得还需要补充别的数据吗？」Creator 确认够了 → 进入维度 ②；Creator 说需要补充 → 执行下面的接口发现流程。
+     - **判断不够** → 告知 Creator 已有数据和缺口，然后直接执行下面的接口发现流程。话术：「上一步传过来了 **[字段1]**、**[字段2]**，但这一步还需要 [缺少的数据描述]，我来找合适的接口。」
+
 1. 调用 `ToolSearch("mcp__")` 发现当前会话中可用的 MCP 工具（这些工具来自插件 `.mcp.json` 中配置的 MCP 服务，会话启动时已自动注册）。排除 `mcp__plugin_minus-creator_minus-platform__` 开头的（那是平台管理工具），剩下的就是数据服务商的工具。工具列表和参数 schema 只能通过 ToolSearch 获取（`.mcp.json` 里只有启动配置，没有这些信息）。
 2. 用该服务的搜索工具搜索与当前步骤相关的数据 API
 3. 如果搜索返回多个候选接口，用详情查询工具逐个查看参数要求，**选参数最简单、最匹配当前场景的接口**（只看第一个结果就决定经常选错）
@@ -181,7 +184,7 @@ minus-lib generate-node-code {step_number} {logic_mode} {confirm_mode}
 当 Creator 确认需要摘要时：
 
 - 摘要必须来自后端 payload，不能只在前端临时拼接（这样摘要会随步骤结果持久化，用户回放时不会丢失）。
-- 摘要的时序写法（什么时候用 `STEP_PARTIAL_DETAIL`、什么时候直接随终态下发）见前端 SDK 手册（frontend-guide.md）「步骤摘要（LLM summary）的三种时序」章节，按 `CONFIRM_MODE` 和摘要分析对象选择对应时序。
+- 摘要的时序写法见前端 SDK 手册（frontend-guide.md）中摘要相关的子文档，按文档选择对应时序。
 - ⛔ 禁止为此拆出隐藏步骤——Creator 定义几步就是几步，pipeline 步骤数必须与业务步骤数一致。
 - ⛔ 禁止修改 Python SDK。
 
@@ -226,29 +229,19 @@ mcp get_endpoint_details("competePatternFlexibleGroupByWeekly")
 
 ### 前端代码（frontend/src/main.tsx）
 
-写前端代码前，必须完成两步：
+⛔ **写前端代码前，确认当前步骤涉及的每份文档都已在上文实际读取过。** "上一步已读过"只对同一份文档成立；当前步骤用到了新能力（如 LLM 摘要时序、新组件），对应的子文档在上文没出现过就必须读，不能凭记忆跳过。
 
-1. **组件选型**（⛔ 每个步骤都要做，不能用"上一步已查过"跳过——每步展示需求不同）：重新读项目 CLAUDE.md「前端 SDK 参考」中的组件索引，对照维度 ③ 确认的展示需求选出合适的现成组件。**只有确认没有合适组件时才手写 JSX。**
+#### 前端文档的查阅路径
+
+前端文档的地址和用法见项目 CLAUDE.md 的「前端 SDK 参考」章节。注意：部分文档地址是**索引**而非文档本身，必须按索引读取对应的子文档，只读索引不读子文档 = 没读文档。
+
+文档不可达时，明确告诉 Creator 并停止写前端代码。⛔ 禁止凭记忆写 props 或假设框架行为。
+
+#### 写前端代码前，必须完成：
+
+1. **组件选型**：读上面文档路径中的组件索引（已读过则跳过），对照维度 ③ 确认的展示需求选出合适的现成组件。**只有确认没有合适组件时才手写 JSX。**
 2. **确认 props**：选定组件后，从文档中确认 props、回调签名等。组件选择、prop 名称、回调签名都以文档为准——凭记忆写大概率对不上当前版本。
-
-项目 `CLAUDE.md` 中的前端 SDK 文档使用远程 `${platformUrl}/runtime/...` 稳定地址。文档不可达时，明确告诉 Creator 并停止写前端代码——文档是唯一可靠来源，遍历用户目录、找本地 runtime 包或解析 minified CDN JS 得到的"API"不可信。
-
-#### ⛔ 使用 `@minus/*` 能力前必须查 `${platformUrl}/runtime/` 文档确认 props
-
-`${platformUrl}/runtime/` 是 `@minus/*` 的权威文档和运行时来源：
-
-- `${platformUrl}/runtime/frontend-guide/doc.md` — 前端 SDK 手册的**路由索引**（不是文档本身）。读完后按索引表的「你在做什么」列，对照当前步骤要做的事，读取命中的每个子文档。只读 doc.md 不读子文档 = 没读文档。
-- `${platformUrl}/runtime/platform-widgets/docs.md` — platform-widgets 组件文档（Chart、SelectableTable 等完整 props）
-
-手册子文档中已有该组件的完整 props 示例和行为说明时，直接使用。手册未覆盖的组件，查 `${platformUrl}/runtime/` 下对应包的文档。文档仍不够时，再去读 platform 仓库源码确认：
-
-```bash
-# 源码位置（在 platform 仓库，不在项目 .venv 里）
-# widget-framework: packages/widget-framework/src/    （FlowApp、Timeline、defineWidgetStep 等框架行为）
-# platform-widgets: packages/platform-widgets/src/    （Chart、EChart、SelectableTable、CompletionPanel 等组件）
-```
-
-⛔ 禁止凭记忆写 props 或假设框架行为。遇到展示效果不符预期时，**先查 `${platformUrl}/runtime/` 下的文档，文档不够再读源码的 props interface 和 JSDoc**，检查是否有现成 prop 或框架内置行为能解决，再考虑手写。高层组件有现成 prop 能解决的问题（如 Chart 的 `colorByData`），降级到底层组件手写 option 是反模式。
+3. **摘要时序**（仅当前步骤使用 LLM 摘要时）：读 frontend-guide.md 中摘要相关的子文档（已读过则跳过），按文档选择对应时序写法。
 
 #### ⛔ 步骤摘要由框架自动展示，禁止在 render 里重复渲染
 
