@@ -165,6 +165,12 @@ function escPy(s) {
   return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
+function pipelineSkeleton(pos, name) {
+  return '\n    async def step_' + pos + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
+    '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
+    '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+}
+
 function renumberPipeline(code, from, to) {
   var f = String(from), t = String(to);
   code = code.replace(new RegExp('(async def step_)' + f + '(?=\\()', 'g'), '$1' + t);
@@ -177,10 +183,7 @@ function insertPipelineSkeleton(code, pos, total, name) {
   for (var i = total; i >= pos; i--) {
     code = renumberPipeline(code, i, i + 1);
   }
-  var skeleton =
-    '\n    async def step_' + pos + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
-    '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
-    '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+  var skeleton = pipelineSkeleton(pos, name);
   var marker = 'async def step_' + (pos + 1) + '(';
   var idx = code.indexOf(marker);
   if (idx !== -1) {
@@ -411,7 +414,6 @@ ops.append = {
   run: function(sources) {
     var names = Array.prototype.slice.call(arguments, 1);
     if (names.length === 0) { console.error('用法: restructure.cjs append <步骤名称> ...'); process.exit(1); }
-    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE + '，结构变更需要 main.tsx 存在'); process.exit(1); }
 
     var pipeline = sources.pipeline;
     var frontend = sources.frontend;
@@ -425,13 +427,13 @@ ops.append = {
       stepNames[snKeys3[si3]] = sources.stepNames[snKeys3[si3]];
     }
 
+    if (frontend === null) { console.error('⚠ 未找到 ' + FRONTEND_FILE + '，仅更新 pipeline.py'); }
+
     for (var i = 0; i < names.length; i++) {
       var name = names[i];
       var stepNum = total + i + 1;
-      pipeline += '\n    async def step_' + stepNum + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
-        '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
-        '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
-      frontend = insertBuildStep(frontend, stepNum, name);
+      pipeline += pipelineSkeleton(stepNum, name);
+      if (frontend !== null) frontend = insertBuildStep(frontend, stepNum, name);
       p.steps[String(stepNum)] = { name: name, status: 'pending' };
       stepNames[stepNum] = name;
     }
@@ -442,14 +444,12 @@ ops.append = {
 };
 
 ops.swap = {
-  reads: ['pipeline', 'frontend', 'progress', 'stepNames'],
+  reads: ['pipeline', 'frontend', 'progress', 'stepNames', 'totalSteps'],
   writes: ['pipeline', 'frontend', 'progress', 'stepNames'],
-  validate: false,
+  validate: true,
   run: function(sources, aStr, bStr) {
     var a = Number(aStr), b = Number(bStr);
     if (!a || !b || a === b) { console.error('用法: restructure.cjs swap <A> <B>'); process.exit(1); }
-    if (sources.frontend === null) { console.error('错误：未找到 ' + FRONTEND_FILE); process.exit(1); }
-
     var pipeline = sources.pipeline;
     var frontend = sources.frontend;
     var p = sources.progress;
@@ -457,19 +457,70 @@ ops.swap = {
     var bodyA = extractPipelineMethod(pipeline, a);
     var bodyB = extractPipelineMethod(pipeline, b);
     if (bodyA && bodyB) {
-      var bodyOnlyA = bodyA.slice(bodyA.indexOf('\n', 1));
-      var bodyOnlyB = bodyB.slice(bodyB.indexOf('\n', 1));
-      pipeline = pipeline.replace(bodyA, bodyA.slice(0, bodyA.indexOf('\n', 1)) + bodyOnlyB);
-      pipeline = pipeline.replace(bodyB, bodyB.slice(0, bodyB.indexOf('\n', 1)) + bodyOnlyA);
+      var defNlA = bodyA.indexOf('\n', 1);
+      var defNlB = bodyB.indexOf('\n', 1);
+      var defLineA = bodyA.slice(0, defNlA);
+      var defLineB = bodyB.slice(0, defNlB);
+      var bodyOnlyA = bodyA.slice(defNlA);
+      var bodyOnlyB = bodyB.slice(defNlB);
+      var markerA = 'async def step_' + a + '(';
+      var markerB = 'async def step_' + b + '(';
+      var mA = pipeline.indexOf(markerA);
+      var mB = pipeline.indexOf(markerB);
+      if (mA !== -1 && mB !== -1) {
+        var posA = pipeline.lastIndexOf('\n', mA);
+        var posB = pipeline.lastIndexOf('\n', mB);
+        // 确保先替换靠后的位置，避免偏移
+        var lo, hi, loBody, hiBody;
+        if (posA < posB) {
+          lo = posA; hi = posB; loBody = bodyA; hiBody = bodyB;
+        } else {
+          lo = posB; hi = posA; loBody = bodyB; hiBody = bodyA;
+        }
+        // 交换：保留各自的 def 行（含步骤号），交换方法体
+        var loDefLine = loBody.slice(0, loBody.indexOf('\n', 1));
+        var hiDefLine = hiBody.slice(0, hiBody.indexOf('\n', 1));
+        var loBodyOnly = loBody.slice(loBody.indexOf('\n', 1));
+        var hiBodyOnly = hiBody.slice(hiBody.indexOf('\n', 1));
+        pipeline = pipeline.slice(0, hi) + hiDefLine + loBodyOnly + pipeline.slice(hi + hiBody.length);
+        pipeline = pipeline.slice(0, lo) + loDefLine + hiBodyOnly + pipeline.slice(lo + loBody.length);
+      }
     }
 
-    var entryA = extractBuildStep(frontend, a);
-    var entryB = extractBuildStep(frontend, b);
-    if (entryA && entryB) {
-      var placeholder = '\n    /* __SWAP_PLACEHOLDER__ */';
-      frontend = frontend.replace(entryA, placeholder);
-      frontend = frontend.replace(entryB, entryA);
-      frontend = frontend.replace(placeholder, entryB);
+    if (frontend !== null) {
+      var arrStart = findBuildStepArrayStart(frontend);
+      if (arrStart !== -1) {
+        var foundA = findNthBuildStep(frontend, arrStart, a);
+        var foundB = findNthBuildStep(frontend, arrStart, b);
+        if (foundA.itemStart !== -1 && foundB.itemStart !== -1) {
+          var lineStartA = frontend.lastIndexOf('\n', foundA.itemStart);
+          var contentEndA = foundA.itemEnd;
+          var lineStartB = frontend.lastIndexOf('\n', foundB.itemStart);
+          var contentEndB = foundB.itemEnd;
+          // 提取不含逗号的纯内容
+          var itemA = frontend.slice(lineStartA, contentEndA);
+          var itemB = frontend.slice(lineStartB, contentEndB);
+          // 确保先替换靠后的位置
+          var earlyStart, earlyEnd, lateStart, lateEnd, earlyItem, lateItem;
+          if (lineStartA < lineStartB) {
+            earlyStart = lineStartA; earlyEnd = contentEndA; earlyItem = itemA;
+            lateStart = lineStartB; lateEnd = contentEndB; lateItem = itemB;
+          } else {
+            earlyStart = lineStartB; earlyEnd = contentEndB; earlyItem = itemB;
+            lateStart = lineStartA; lateEnd = contentEndA; lateItem = itemA;
+          }
+          // 跳过原位置的逗号（如果有）
+          var afterLate = lateEnd;
+          if (afterLate < frontend.length && frontend[afterLate] === ',') afterLate++;
+          var afterEarly = earlyEnd;
+          if (afterEarly < frontend.length && frontend[afterEarly] === ',') afterEarly++;
+          // 替换时保留原位置的逗号状态
+          var lateHadComma = afterLate > lateEnd;
+          var earlyHadComma = afterEarly > earlyEnd;
+          frontend = frontend.slice(0, lateStart) + earlyItem + (lateHadComma ? ',' : '') + frontend.slice(afterLate);
+          frontend = frontend.slice(0, earlyStart) + lateItem + (earlyHadComma ? ',' : '') + frontend.slice(earlyStart + earlyItem.length + (earlyHadComma ? 1 : 0));
+        }
+      }
     }
 
     var tmp = p.steps[String(a)];
@@ -486,13 +537,13 @@ ops.swap = {
     stepNames[b] = tmpName;
 
     console.log('✓ 步骤 ' + a + ' 和步骤 ' + b + ' 已交换');
-    return { pipeline: pipeline, frontend: frontend, progress: p, stepNames: stepNames };
+    return { pipeline: pipeline, frontend: frontend, progress: p, stepNames: stepNames, totalSteps: sources.totalSteps };
   },
 };
 
 ops.generate = {
   reads: ['pipeline', 'frontend'],
-  writes: ['pipeline', 'frontend', 'progress', 'totalSteps'],
+  writes: ['pipeline', 'frontend', 'progress', 'totalSteps', 'stepNames'],
   validate: true,
   run: function(sources) {
     var names = Array.prototype.slice.call(arguments, 1);
@@ -505,9 +556,7 @@ ops.generate = {
       'class ' + className + '(Pipeline):\n';
     for (var i = 0; i < names.length; i++) {
       var name = names[i];
-      pipeline += '\n    async def step_' + (i + 1) + '(self, ctx: PipelineContext) -> StepOutcome:\n' +
-        '        # TODO: 实现「' + escPy(name) + '」的逻辑\n' +
-        '        return StepOutcome.complete(payload={"text": "' + escPy(name) + '完成"})\n';
+      pipeline += pipelineSkeleton(i + 1, name);
     }
 
     var frontend = sources.frontend;
@@ -524,13 +573,15 @@ ops.generate = {
     }
 
     var steps = {};
+    var stepNames = {};
     for (var k = 0; k < names.length; k++) {
       steps[String(k + 1)] = { name: names[k], status: k === 0 ? 'in_progress' : 'pending' };
+      stepNames[k + 1] = names[k];
     }
     var progress = { currentStep: 1, steps: steps, phase: 'developing' };
 
     console.log('✓ 已生成 ' + names.length + ' 个步骤');
-    return { pipeline: pipeline, frontend: frontend, progress: progress, totalSteps: names.length };
+    return { pipeline: pipeline, frontend: frontend, progress: progress, totalSteps: names.length, stepNames: stepNames };
   },
 };
 

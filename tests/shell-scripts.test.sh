@@ -1410,7 +1410,6 @@ echo ""
 echo "═══ restructure.cjs ═══"
 # ══════════════════════════════════════════════════════
 
-RS="$STRUCT_LIB/restructure.cjs"
 
 # Test: restructure.cjs 无参报用法
 (
@@ -1754,7 +1753,7 @@ JEOF
 function buildSteps(t) {
   return [
     { render: ({ data }) => (<div>甲</div>), },
-    { render: ({ data }) => (<div>乙</div>), },
+    { render: ({ data }) => (<div>乙</div>) }
   ];
 }
 TSXEOF
@@ -1764,13 +1763,61 @@ TSXEOF
   PROG_2=$(pj '.steps["2"].name')
   NAME_1=$(cat .minus/dev-progress/step_1_name)
   NAME_2=$(cat .minus/dev-progress/step_2_name)
+  STEP2_BODY=$(node -e "var m=require('$RS');var c=require('fs').readFileSync('pipeline.py','utf8');console.log(m._extractPipelineMethod(c,2))")
+  TSX_CONTENT=$(cat frontend/src/main.tsx)
   if echo "$STEP1_BODY" | grep -q "step2_code" \
+     && echo "$STEP2_BODY" | grep -q "step1_code" \
      && [ "$PROG_1" = "乙" ] && [ "$PROG_2" = "甲" ] \
-     && [ "$NAME_1" = "乙" ] && [ "$NAME_2" = "甲" ]; then
+     && [ "$NAME_1" = "乙" ] && [ "$NAME_2" = "甲" ] \
+     && echo "$TSX_CONTENT" | head -3 | grep -q "乙" \
+     && node -e "var c=require('fs').readFileSync('frontend/src/main.tsx','utf8'); if(/\}\s*\{/.test(c)){process.exit(1)}"; then
     pass "restructure: swap exchanges all data sources"
   else
     fail "restructure: swap exchanges all data sources" \
-      "prog1=$PROG_1 prog2=$PROG_2 name1=$NAME_1 name2=$NAME_2"
+      "prog1=$PROG_1 prog2=$PROG_2 name1=$NAME_1 name2=$NAME_2 tsx=$(echo "$TSX_CONTENT" | head -4)"
+  fi
+)
+
+# Test: generate-steps --swap CLI 参数解析
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus/dev-progress frontend/src
+  echo '{"skillId":"sk_t"}' > .minus/skill.json
+  cat > pipeline.py <<'PYEOF'
+class SkillPipeline(Pipeline):
+
+    async def step_1(self, ctx):
+        x = "alpha"
+        return x
+
+    async def step_2(self, ctx):
+        y = "beta"
+        return y
+PYEOF
+  echo '2' > .minus/total-steps
+  cat > .minus/progress.json <<'JEOF'
+{"currentStep":1,"steps":{"1":{"name":"A","status":"in_progress"},"2":{"name":"B","status":"pending"}},"phase":"developing"}
+JEOF
+  printf 'A' > .minus/dev-progress/step_1_name
+  printf 'B' > .minus/dev-progress/step_2_name
+  cat > frontend/src/main.tsx <<'TSXEOF'
+function buildSteps(t) {
+  return [
+    { render: ({ data }) => (<div>A</div>), },
+    { render: ({ data }) => (<div>B</div>) }
+  ];
+}
+TSXEOF
+  GS="$(via_lib generate-steps)"
+  bash "$GS" --swap 1 2
+  PROG_1=$(pj '.steps["1"].name')
+  NAME_1=$(cat .minus/dev-progress/step_1_name)
+  STEP1_BODY=$(node -e "var m=require('$RS');var c=require('fs').readFileSync('pipeline.py','utf8');console.log(m._extractPipelineMethod(c,1))")
+  if echo "$STEP1_BODY" | grep -q "beta" \
+     && [ "$PROG_1" = "B" ] && [ "$NAME_1" = "B" ]; then
+    pass "generate-steps: --swap CLI path works"
+  else
+    fail "generate-steps: --swap CLI path works" "prog1=$PROG_1 name1=$NAME_1"
   fi
 )
 
