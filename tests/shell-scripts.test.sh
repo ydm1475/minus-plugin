@@ -856,7 +856,7 @@ PYEOF
   "
   if ! command -v python3 >/dev/null 2>&1; then
     skip "restructure: insertPipelineSkeleton escapes quotes in stepName" "缺 python3"
-  elif python3 -c "compile(open('pipeline.py').read(),'pipeline.py','exec')" 2>/dev/null; then
+  elif python3 -c "compile(open('pipeline.py',encoding='utf-8').read(),'pipeline.py','exec')" 2>/dev/null; then
     pass "restructure: insertPipelineSkeleton escapes quotes in stepName"
   else
     fail "restructure: insertPipelineSkeleton escapes quotes in stepName" "got: $(cat pipeline.py)"
