@@ -8,7 +8,7 @@
 
 | 状态 | 条件 | Read |
 |------|------|------|
-| A — 开发中 | `PHASE=developing` 且 `STEPS_DONE` < `STEPS_TOTAL` | [node-dev.md](../minus-step/node-dev.md)，继续 `CURRENT_STEP` |
+| A — 开发中 | `PHASE=developing` 且 `STEPS_DONE` < `STEPS_TOTAL` | 用 Skill tool 调用 `minus-step`，继续 `CURRENT_STEP` |
 | B — 待测试 | `PHASE=testing`，无 `TEST_CONFIRMED`，无 `RESULT_DESIGN` | （提示跑端到端测试） |
 | B2 — 待结果设计 | `PHASE=testing`，`TEST_CONFIRMED=1`，无 `RESULT_DESIGN` | [result-design.md](../minus-structure/result-design.md) |
 | B3 — 结果设计中 | `PHASE=testing`，`RESULT_DESIGN=designing` | [result-design.md](../minus-structure/result-design.md)（从断点恢复） |
@@ -40,7 +40,7 @@
 下一个待开发的步骤是「{下一步骤}」。
 要继续吗？
 ```
-→ Read [node-dev.md](../minus-step/node-dev.md)，继续对应步骤
+→ 用 Skill tool 调用 `minus-step`，继续对应步骤
 
 状态 B — 待测试（所有步骤开发完成但未测试）：
 ```
@@ -88,7 +88,7 @@
 
 ## 逐节点开发规则
 
-⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须先用 Read 工具读取 [node-dev.md](../minus-step/node-dev.md)，在当前对话中严格按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
+⛔ **硬性规则：任何涉及 pipeline 节点的新增、修改、开发（包括 Creator 说"加一个步骤"、"改一下步骤 X"、"开发步骤 X"等），都必须用 Skill tool 调用 `minus-step`，通过其门禁和步骤状态判断后按四维度流程执行。禁止直接编辑 pipeline.py 或 main.tsx 的步骤代码。**
 
 节点完成后的处理（skill_update、update-progress、测试邀请、最后一步分支）以 node-dev.md 为准，此处不重复。
 

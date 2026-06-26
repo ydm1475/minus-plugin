@@ -180,6 +180,4 @@ minus-lib update-progress rename-step 3 "新名称"
 
 ## 初次设计完成后
 
-步骤骨架生成后，**立即** Read [node-dev.md](../minus-step/node-dev.md)，从步骤 1 开始逐节点开发。
-
-⛔ **硬性规则：禁止不加载 node-dev.md 就直接编辑 pipeline.py 或 main.tsx 的步骤代码。** node-dev.md 包含数据接口发现（通过 MCP 查找 API）、处理逻辑选型、输出设计等关键流程，跳过它会导致 Agent 自己猜接口而非用正确的数据源。
+步骤骨架生成后，用 Skill tool 调用 `minus-step` 开发步骤 1（与结构变更流程统一入口，确保门禁和步骤状态判断不被跳过）。

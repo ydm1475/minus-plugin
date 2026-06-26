@@ -5303,10 +5303,14 @@ echo "═══ resume-env.sh ═══"
 
 RE="$(via_lib resume-env)"
 
+# gate stub：resume-env 内部调 gate.sh 检查登录+项目，测试环境无真实凭证，用 stub 放行
+GATE_STUB="$(make_tmp)/gate-stub.sh"
+printf '#!/bin/sh\necho "GATE=ok"\n' > "$GATE_STUB"; chmod +x "$GATE_STUB"
+
 # Test: 依赖缺失 → NEED_BOOTSTRAP=1 即停（bootstrap 决策留给 agent）
 (
   TMP=$(make_tmp); cd "$TMP"
-  OUTPUT=$(bash "$RE" cli 2>&1); RC=$?
+  OUTPUT=$(MINUS_GATE_SH="$GATE_STUB" bash "$RE" cli 2>&1); RC=$?
   if echo "$OUTPUT" | grep >/dev/null "NEED_BOOTSTRAP=1" && echo "$OUTPUT" | grep >/dev/null "INITIALIZED=0" \
      && ! echo "$OUTPUT" | grep >/dev/null "ENV=" && [ "$RC" = "0" ]; then
     pass "resume-env: 依赖缺失 → NEED_BOOTSTRAP=1 即停"
@@ -5318,7 +5322,7 @@ RE="$(via_lib resume-env)"
 # Test: 缺参数 → 退出码 2
 (
   TMP=$(make_tmp); cd "$TMP"; mkdir -p node_modules .venv
-  if OUTPUT=$(bash "$RE" bogus 2>&1); then RC=0; else RC=$?; fi
+  if OUTPUT=$(MINUS_GATE_SH="$GATE_STUB" bash "$RE" bogus 2>&1); then RC=0; else RC=$?; fi
   if [ "$RC" = "2" ]; then
     pass "resume-env: 非法分支退出码 2"
   else
@@ -5338,7 +5342,7 @@ RE="$(via_lib resume-env)"
   touch .minus/initialized
   echo 1 > .minus/total-steps
   printf '{"currentStep":1,"steps":{"1":{"name":"步骤1","status":"pending"}},"phase":"developing"}' > .minus/progress.json
-  OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); RC=$?
+  OUTPUT=$(MINUS_GATE_SH="$GATE_STUB" VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); RC=$?
   if echo "$OUTPUT" | grep >/dev/null "ENV=ready" && echo "$OUTPUT" | grep >/dev/null "NEED_PREVIEW_START=1" \
      && echo "$OUTPUT" | grep >/dev/null "BACKEND_PORT=4001" && echo "$OUTPUT" | grep >/dev/null "PHASE=developing" \
      && echo "$OUTPUT" | grep >/dev/null "CURRENT_STEP=1" && echo "$OUTPUT" | grep >/dev/null "STEPS_TOTAL=1" \
@@ -5358,7 +5362,7 @@ RE="$(via_lib resume-env)"
   write_stub "$SB" lsof 'exit 1'
   write_stub "$SB" pnpm 'echo "BACKEND_BOOT_ERROR"; exit 1'
   write_stub "$SB" sleep 'exit 0'  # 跳过 30 次真实等待
-  if OUTPUT=$(VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); then RC=0; else RC=$?; fi
+  if OUTPUT=$(MINUS_GATE_SH="$GATE_STUB" VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" desktop 2>&1); then RC=0; else RC=$?; fi
   if echo "$OUTPUT" | grep >/dev/null "ENV=failed" && echo "$OUTPUT" | grep >/dev/null "FAIL_REASON=BACKEND_START_TIMEOUT" \
      && [ "$RC" = "1" ]; then
     pass "resume-env: desktop 后端超时 → ENV=failed + FAIL_REASON"
@@ -5375,7 +5379,7 @@ RE="$(via_lib resume-env)"
   write_stub "$SB" curl 'exit 7'
   write_stub "$SB" lsof 'exit 1'
   write_stub "$SB" pnpm 'exit 1'
-  if OUTPUT=$(DETECT_PORT_MAX_WAIT=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" cli 2>&1); then RC=0; else RC=$?; fi
+  if OUTPUT=$(MINUS_GATE_SH="$GATE_STUB" DETECT_PORT_MAX_WAIT=1 VOLTA_HOME="$TMP/novolta" PATH="$SB:$PATH" bash "$RE" cli 2>&1); then RC=0; else RC=$?; fi
   if echo "$OUTPUT" | grep >/dev/null "ENV=failed" && echo "$OUTPUT" | grep >/dev/null "FAIL_REASON=PREVIEW_DETECT_FAILED" \
      && [ "$RC" = "1" ]; then
     pass "resume-env: cli 检测失败 → ENV=failed + FAIL_REASON"

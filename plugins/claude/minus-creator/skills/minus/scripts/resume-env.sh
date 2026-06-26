@@ -32,6 +32,20 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="${MINUS_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
+# ── 0. 前置门禁（登录 + 项目，单源复用 gate.sh）─────────────
+if [ "$BRANCH" != "restart" ]; then
+  GATE_SH="${MINUS_GATE_SH:-$PLUGIN_ROOT/scripts/gate.sh}"
+  GATE_OUT="$(sh "$GATE_SH" --checks login,project)" || {
+    echo "ENV=failed"
+    echo "FAIL_REASON=GATE_SCRIPT_ERROR"
+    exit 1
+  }
+  if printf '%s\n' "$GATE_OUT" | grep -q 'GATE=fail'; then
+    printf '%s\n' "$GATE_OUT"
+    exit 0
+  fi
+fi
+
 # ── 1. 本地状态 ──────────────────────────────────────────
 STATE="$(sh "$SCRIPT_DIR/check-project-state.sh")"
 printf '%s\n' "$STATE" | grep '^INITIALIZED='
