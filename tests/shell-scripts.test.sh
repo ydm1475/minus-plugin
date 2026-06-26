@@ -14,6 +14,10 @@ SKILL_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus/scripts"
 STEP_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-step/scripts"
 STRUCT_LIB="$REPO_DIR/plugins/claude/minus-creator/skills/minus-structure/scripts"
 RS="$STRUCT_LIB/restructure.cjs"
+# Windows MSYS: /d/a/... → D:/a/...，Node.js require() 不认 MSYS 路径
+if [[ "$RS" =~ ^/([a-zA-Z])/ ]]; then
+  RS="${BASH_REMATCH[1]}:${RS:2}"
+fi
 
 # 套件自身的 node 解析：本机 PATH 首位可能是老 node（实测 /usr/local/bin/node v12，
 # 跑 ?? 语法直接崩）。这里只服务测试框架自己的 node 调用（pj 等 helper、内联断言）；
