@@ -61,7 +61,7 @@ MCP Server 和 create-skill 共享同一个凭证文件 `~/.minus/credentials.js
 
 **scaffold 成功后：**
 原样输出："项目创建成功！现在自动生成描述和适用场景。"
-然后根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
+然后根据项目名称自动生成一句简短的 Skill 描述和 2 条适用场景。同时调用 `skill_tag_list` 查询可用标签，如果标签字典不为空，根据项目名称自动匹配合适的标签；没有明确匹配的标签时 tags 传空数组，不要硬凑。调用 `skill_update` 一次性写入 description、useCases 和 tags 字段。不需要问 Creator，直接生成写入。Creator 后续可以随时修改。
 
 上面的执行块每次都会自动把 create-skill 对齐到 `@beta`（含首次安装和后续升级），无需让
 Creator 手动装。仅当输出 `CREATE_SKILL_INSTALL_FAILED`（安装失败）时，才提示 Creator 手动
