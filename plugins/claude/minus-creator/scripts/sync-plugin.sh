@@ -60,6 +60,22 @@ INSTALL_PATHS="$(node -e "
   console.log(paths.join('\n'));
 ")"
 
+# 桌面客户端上传 zip 安装的 marketplace 插件不走注册表，
+# 落在 ~/.claude/<marketplace-name>/<plugin-name>/，需额外扫描
+for mp_dir in "$CLAUDE_DIR"/*/; do
+  [ -d "$mp_dir" ] || continue
+  cand="$mp_dir$PLUGIN_NAME"
+  [ -d "$cand/.claude-plugin" ] || continue
+  # 排除已在注册表中的路径（避免重复同步）
+  case "$INSTALL_PATHS" in
+    *"$cand"*) continue ;;
+  esac
+  # 排除源码目录自身
+  [ "$(cd "$cand" && pwd)" = "$(cd "$PLUGIN_SRC" && pwd)" ] && continue
+  INSTALL_PATHS="${INSTALL_PATHS:+$INSTALL_PATHS
+}$cand"
+done
+
 if [ -z "$INSTALL_PATHS" ]; then
   echo "⚠ 注册表中没有 $PLUGIN_NAME 的安装记录，无处可同步。"
   echo "  先安装插件（桌面端上传 zip 或 claude plugin install）后再运行本脚本。"
