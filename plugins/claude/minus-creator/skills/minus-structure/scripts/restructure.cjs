@@ -110,27 +110,10 @@ function countBuildStepItems(code) {
   if (!code) return null;
   var fnStart = code.indexOf('function buildSteps');
   if (fnStart === -1) return null;
-  var returnIdx = code.indexOf('return [', fnStart);
-  if (returnIdx === -1) return null;
-  var arrStart = code.indexOf('[', returnIdx);
-  var depth = 1, count = 0;
-  var inString = false, strChar = '';
-  for (var i = arrStart + 1; i < code.length; i++) {
-    var ch = code[i];
-    if (inString) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === strChar) inString = false;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') { inString = true; strChar = ch; continue; }
-    if (ch === '{' && depth === 1) count++;
-    if (ch === '[' || ch === '{' || ch === '(') depth++;
-    if (ch === ']' || ch === '}' || ch === ')') {
-      depth--;
-      if (depth === 0) break;
-    }
-  }
-  return count;
+  var fnBody = code.slice(fnStart);
+  var closeIdx = fnBody.indexOf('\n}');
+  if (closeIdx !== -1) fnBody = fnBody.slice(0, closeIdx);
+  return (fnBody.match(/\brender\s*:/g) || []).length;
 }
 
 function validateConsistency(result) {
@@ -229,40 +212,29 @@ function escJsx(s) {
   return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/[{}]/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; });
 }
 
-function findBuildStepArrayStart(code) {
-  var fnStart = code.indexOf('function buildSteps');
-  if (fnStart === -1) return -1;
-  var returnIdx = code.indexOf('return [', fnStart);
-  if (returnIdx === -1) return -1;
-  return code.indexOf('[', returnIdx);
-}
-
-function findNthBuildStep(code, arrStart, n) {
-  var depth = 1, itemCount = 0, itemStart = -1, itemEnd = -1;
-  var inString = false, strChar = '';
-  for (var i = arrStart + 1; i < code.length; i++) {
-    var ch = code[i];
-    if (inString) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === strChar) inString = false;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') { inString = true; strChar = ch; continue; }
-    if (ch === '{' && depth === 1) {
-      itemCount++;
-      if (itemCount === n) itemStart = i;
-    }
-    if (ch === '[' || ch === '{' || ch === '(') depth++;
-    if (ch === ']' || ch === '}' || ch === ')') {
-      depth--;
-      if (itemCount === n && depth === 1) { itemEnd = i + 1; break; }
-    }
+function findStepMarkerRange(code, n) {
+  var marker = '// __STEP_' + n + '__';
+  var mIdx = code.indexOf(marker);
+  if (mIdx === -1) return null;
+  var lineStart = code.lastIndexOf('\n', mIdx);
+  var start = lineStart === -1 ? 0 : lineStart + 1;
+  var nextMarker = code.indexOf('// __STEP_', mIdx + marker.length);
+  var end;
+  if (nextMarker !== -1) {
+    var nl = code.lastIndexOf('\n', nextMarker);
+    end = nl === -1 ? nextMarker : nl + 1;
+  } else {
+    var closeBracket = code.indexOf('];', mIdx);
+    if (closeBracket === -1) return null;
+    var nl2 = code.lastIndexOf('\n', closeBracket);
+    end = nl2 === -1 ? closeBracket : nl2 + 1;
   }
-  return { itemStart: itemStart, itemEnd: itemEnd };
+  return { start: start, end: end };
 }
 
-function buildStepEntry(name) {
-  return '    {\n' +
+function buildStepEntry(name, stepNum) {
+  return '    // __STEP_' + stepNum + '__\n' +
+    '    {\n' +
     '      render: ({ data }) => (\n' +
     "        <div style={{ marginTop: 24, padding: '32px 24px', borderRadius: 12, background: 'var(--minus-step-bg, #f9fafb)', border: '1px solid var(--minus-step-border, #e5e7eb)', textAlign: 'center', fontSize: 18, fontWeight: 600 }}>\n" +
     "          {(data.text as string) ?? '" + escJsx(name) + "'}\n" +
@@ -271,53 +243,76 @@ function buildStepEntry(name) {
     '    },\n';
 }
 
+function renumberStepMarkers(code, from, delta) {
+  if (delta > 0) {
+    for (var i = 99; i >= from; i--) {
+      code = code.replace('// __STEP_' + i + '__', '// __STEP_' + (i + delta) + '__');
+    }
+  } else {
+    for (var j = from; j <= 99; j++) {
+      var old = '// __STEP_' + j + '__';
+      if (code.indexOf(old) === -1) break;
+      code = code.replace(old, '// __STEP_' + (j + delta) + '__');
+    }
+  }
+  return code;
+}
+
+function ensureStepMarkers(code) {
+  if (/\/\/ __STEP_\d+__/.test(code)) return code;
+  var fnStart = code.indexOf('function buildSteps');
+  if (fnStart === -1) return code;
+  var returnIdx = code.indexOf('return [', fnStart);
+  if (returnIdx === -1) return code;
+  var lines = code.split('\n');
+  var returnLine = code.slice(0, returnIdx).split('\n').length - 1;
+  var stepNum = 0;
+  for (var i = returnLine + 1; i < lines.length; i++) {
+    var line = lines[i];
+    if (/\brender\s*:/.test(line)) {
+      stepNum++;
+      var objLine = i;
+      if (i > 0 && /^\s+\{$/.test(lines[i - 1])) objLine = i - 1;
+      lines.splice(objLine, 0, '    // __STEP_' + stepNum + '__');
+      i++;
+    }
+    if (/^\s*\];/.test(line)) break;
+  }
+  return lines.join('\n');
+}
+
 function insertBuildStep(code, pos, name) {
-  var arrStart = findBuildStepArrayStart(code);
-  if (arrStart === -1) return code;
-  var newEntry = buildStepEntry(name);
-  var found = findNthBuildStep(code, arrStart, pos);
-  if (found.itemStart !== -1) {
-    var lineStart = code.lastIndexOf('\n', found.itemStart);
+  code = ensureStepMarkers(code);
+  code = renumberStepMarkers(code, pos, 1);
+  var newEntry = buildStepEntry(name, pos);
+  var nextMarker = code.indexOf('// __STEP_' + (pos + 1) + '__');
+  if (nextMarker !== -1) {
+    var lineStart = code.lastIndexOf('\n', nextMarker);
     code = code.slice(0, lineStart + 1) + newEntry + code.slice(lineStart + 1);
   } else {
-    var d = 0, closeIdx = -1;
-    for (var i = arrStart; i < code.length; i++) {
-      if (code[i] === '[') d++;
-      else if (code[i] === ']') { d--; if (d === 0) { closeIdx = i; break; } }
-    }
-    if (closeIdx !== -1) {
-      code = code.slice(0, closeIdx) + newEntry + code.slice(closeIdx);
+    var closeBracket = code.indexOf('];', code.indexOf('function buildSteps'));
+    if (closeBracket !== -1) {
+      var insertPoint = code.lastIndexOf('\n', closeBracket);
+      code = code.slice(0, insertPoint + 1) + newEntry + code.slice(insertPoint + 1);
     }
   }
   return code;
 }
 
 function deleteBuildStep(code, pos) {
-  var arrStart = findBuildStepArrayStart(code);
-  if (arrStart === -1) return code;
-  var found = findNthBuildStep(code, arrStart, pos);
-  if (found.itemStart === -1 || found.itemEnd === -1) return code;
-  var lineStart = code.lastIndexOf('\n', found.itemStart);
-  var afterEnd = found.itemEnd;
-  if (afterEnd < code.length && code[afterEnd] === ',') afterEnd++;
-  while (afterEnd < code.length && (code[afterEnd] === ' ' || code[afterEnd] === '\n')) afterEnd++;
-  if (afterEnd < code.length && (code[afterEnd] === ']' || code[afterEnd] === '}')) {
-    code = code.slice(0, lineStart + 1) + code.slice(afterEnd);
-  } else {
-    code = code.slice(0, lineStart) + '\n' + code.slice(afterEnd);
-  }
+  code = ensureStepMarkers(code);
+  var range = findStepMarkerRange(code, pos);
+  if (!range) return code;
+  code = code.slice(0, range.start) + code.slice(range.end);
+  code = renumberStepMarkers(code, pos + 1, -1);
   return code;
 }
 
 function extractBuildStep(code, pos) {
-  var arrStart = findBuildStepArrayStart(code);
-  if (arrStart === -1) return null;
-  var found = findNthBuildStep(code, arrStart, pos);
-  if (found.itemStart === -1 || found.itemEnd === -1) return null;
-  var lineStart = code.lastIndexOf('\n', found.itemStart);
-  var afterEnd = found.itemEnd;
-  if (afterEnd < code.length && code[afterEnd] === ',') afterEnd++;
-  return code.slice(lineStart, afterEnd);
+  code = ensureStepMarkers(code);
+  var range = findStepMarkerRange(code, pos);
+  if (!range) return null;
+  return code.slice(range.start, range.end);
 }
 
 // ── 操作注册表 ──
@@ -488,38 +483,24 @@ ops.swap = {
     }
 
     if (frontend !== null) {
-      var arrStart = findBuildStepArrayStart(frontend);
-      if (arrStart !== -1) {
-        var foundA = findNthBuildStep(frontend, arrStart, a);
-        var foundB = findNthBuildStep(frontend, arrStart, b);
-        if (foundA.itemStart !== -1 && foundB.itemStart !== -1) {
-          var lineStartA = frontend.lastIndexOf('\n', foundA.itemStart);
-          var contentEndA = foundA.itemEnd;
-          var lineStartB = frontend.lastIndexOf('\n', foundB.itemStart);
-          var contentEndB = foundB.itemEnd;
-          // 提取不含逗号的纯内容
-          var itemA = frontend.slice(lineStartA, contentEndA);
-          var itemB = frontend.slice(lineStartB, contentEndB);
-          // 确保先替换靠后的位置
-          var earlyStart, earlyEnd, lateStart, lateEnd, earlyItem, lateItem;
-          if (lineStartA < lineStartB) {
-            earlyStart = lineStartA; earlyEnd = contentEndA; earlyItem = itemA;
-            lateStart = lineStartB; lateEnd = contentEndB; lateItem = itemB;
-          } else {
-            earlyStart = lineStartB; earlyEnd = contentEndB; earlyItem = itemB;
-            lateStart = lineStartA; lateEnd = contentEndA; lateItem = itemA;
-          }
-          // 跳过原位置的逗号（如果有）
-          var afterLate = lateEnd;
-          if (afterLate < frontend.length && frontend[afterLate] === ',') afterLate++;
-          var afterEarly = earlyEnd;
-          if (afterEarly < frontend.length && frontend[afterEarly] === ',') afterEarly++;
-          // 替换时保留原位置的逗号状态
-          var lateHadComma = afterLate > lateEnd;
-          var earlyHadComma = afterEarly > earlyEnd;
-          frontend = frontend.slice(0, lateStart) + earlyItem + (lateHadComma ? ',' : '') + frontend.slice(afterLate);
-          frontend = frontend.slice(0, earlyStart) + lateItem + (earlyHadComma ? ',' : '') + frontend.slice(earlyStart + earlyItem.length + (earlyHadComma ? 1 : 0));
+      frontend = ensureStepMarkers(frontend);
+      var rangeA = findStepMarkerRange(frontend, a);
+      var rangeB = findStepMarkerRange(frontend, b);
+      if (rangeA && rangeB) {
+        var contentA = frontend.slice(rangeA.start, rangeA.end);
+        var contentB = frontend.slice(rangeB.start, rangeB.end);
+        // 交换内容但保留标记编号（标记标位置不标内容）
+        var toA = contentB.replace('// __STEP_' + b + '__', '// __STEP_' + a + '__');
+        var toB = contentA.replace('// __STEP_' + a + '__', '// __STEP_' + b + '__');
+        // 先替换靠后的位置
+        var early, late, earlyNew, lateNew;
+        if (rangeA.start < rangeB.start) {
+          early = rangeA; late = rangeB; earlyNew = toA; lateNew = toB;
+        } else {
+          early = rangeB; late = rangeA; earlyNew = toB; lateNew = toA;
         }
+        frontend = frontend.slice(0, late.start) + lateNew + frontend.slice(late.end);
+        frontend = frontend.slice(0, early.start) + earlyNew + frontend.slice(early.end);
       }
     }
 
@@ -563,7 +544,7 @@ ops.generate = {
     if (frontend !== null) {
       var stepsCode = '';
       for (var j = 0; j < names.length; j++) {
-        stepsCode += buildStepEntry(names[j]);
+        stepsCode += buildStepEntry(names[j], j + 1);
       }
       var pattern = /(function buildSteps\([^)]*\)[^{]*\{[\s\S]*?return\s*\[)([\s\S]*?)(\];\s*\n\})/m;
       var match = frontend.match(pattern);
@@ -641,4 +622,7 @@ module.exports = {
   _insertBuildStep: insertBuildStep,
   _deleteBuildStep: deleteBuildStep,
   _extractBuildStep: extractBuildStep,
+  _ensureStepMarkers: ensureStepMarkers,
+  _findStepMarkerRange: findStepMarkerRange,
+  _renumberStepMarkers: renumberStepMarkers,
 };

@@ -1775,7 +1775,7 @@ TSXEOF
      && echo "$STEP2_BODY" | grep -q "step1_code" \
      && [ "$PROG_1" = "乙" ] && [ "$PROG_2" = "甲" ] \
      && [ "$NAME_1" = "乙" ] && [ "$NAME_2" = "甲" ] \
-     && echo "$TSX_CONTENT" | head -3 | grep -q "乙" \
+     && echo "$TSX_CONTENT" | head -5 | grep -q "乙" \
      && node -e "var c=require('fs').readFileSync('frontend/src/main.tsx','utf8'); if(/\}\s*\{/.test(c)){process.exit(1)}"; then
     pass "restructure: swap exchanges all data sources"
   else
