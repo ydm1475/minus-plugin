@@ -85,18 +85,12 @@ else
   echo "LLM_REQUIRED=NO"
 fi
 
-# ── 前端文档查阅提醒 ──
-echo ""
-echo "📖 写前端代码前，重新查阅项目 CLAUDE.md「开发手册（索引）」和「前端 SDK 参考」章节，根据本步需求 curl 对应子文档。"
-echo "   上一步读过的文档不一定覆盖本步需求——每步的展示形式、组件、时序可能不同。"
-
 # ── 输出前端代码模板 ──
 
 if [ "$CONFIRM_MODE" = "interactive" ]; then
   cat << 'TEMPLATE'
 FRONTEND_TEMPLATE=interactive
 后端使用 StepOutcome.input_required(payload={...})
-前端代码模式见前端 SDK 手册（frontend-guide.md）「通用确认机制：defineWidgetStep」章节。
 只渲染 Creator 在输出定义阶段明确确认的展示内容。
 TEMPLATE
 elif [ "$CONFIRM_MODE" = "auto" ]; then
@@ -104,7 +98,6 @@ elif [ "$CONFIRM_MODE" = "auto" ]; then
 FRONTEND_TEMPLATE=display
 纯展示步骤（auto-complete）使用普通 render 函数。
 后端使用 StepOutcome.complete(payload={...})
-前端代码模式见前端 SDK 手册（frontend-guide.md）。
 只渲染 Creator 在输出定义阶段明确确认的展示内容。
 Creator 未明确要求概览、摘要、统计卡片或顶部汇总时，禁止生成这类 UI。
 TEMPLATE
@@ -115,7 +108,6 @@ cat << 'WIDGET_TRAP'
 ⚠️ 高频陷阱——步骤摘要会出现两份：
   后端 payload 带 summary 字段时，框架自动在步骤卡片上展示该摘要。
   ⛔ 禁止在 StepConfig.render 里再手动渲染步骤摘要，否则同一段摘要出现两份。
-  详见前端 SDK 手册（frontend-guide.md）的「用户确认后的步骤摘要」章节。
 WIDGET_TRAP
 
 # ── 数据契约：各步骤的 payload 字段 ──
