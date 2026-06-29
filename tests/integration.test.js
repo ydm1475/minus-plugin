@@ -677,7 +677,7 @@ describe("Flow 3b: skill_update — 两步法写入 input/steps", () => {
     });
     assert.ok(getText(r).includes("已更新"), `Expected success, got: ${getText(r)}`);
     const skill = mockApi.state.skills.find((s) => s.id === skillId);
-    assert.deepEqual(skill.tags, ["amazon", "keyword"]);
+    assert.deepEqual(skill.tags, [{ code: "amazon" }, { code: "keyword" }]);
   });
 });
 

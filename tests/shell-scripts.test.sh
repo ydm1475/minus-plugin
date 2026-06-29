@@ -1129,18 +1129,18 @@ GNC="$(via_lib generate-node-code)"
   fi
 )
 
-# Test: interactive template points to frontend-guide.md
+# Test: interactive template warns about duplicate summary
 (
   TMP=$(make_tmp); cd "$TMP"
   mkdir -p .minus; echo 2 > .minus/total-steps
   printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' '    async def step_2(self, ctx):' '        return None' > pipeline.py
   OUTPUT=$(bash "$GNC" 1 deterministic interactive 2>&1)
   if assert_contains "$OUTPUT" "GATE_PASSED" \
-     && assert_contains "$OUTPUT" "frontend-guide.md" \
-     && assert_contains "$OUTPUT" "用户确认后的步骤摘要"; then
-    pass "generate-node-code: interactive template points summary finalize to platform docs"
+     && assert_contains "$OUTPUT" "步骤摘要" \
+     && assert_contains "$OUTPUT" "禁止在 StepConfig.render 里再手动渲染步骤摘要"; then
+    pass "generate-node-code: interactive template warns about duplicate summary"
   else
-    fail "generate-node-code: summary finalize docs pointer" "got: $OUTPUT"
+    fail "generate-node-code: summary duplicate warning" "got: $OUTPUT"
   fi
 )
 
