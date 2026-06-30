@@ -26,6 +26,8 @@ tags:
     description: Session 消息读写
   - name: File
     description: 文件上传（Skill 产出）
+  - name: LLM
+    description: LLM 调用（简单 one-shot chat，图文输入、纯文本输出）
   - name: Errors
     description: |
       ## 错误响应格式
@@ -86,7 +88,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_6
+                required: &ref_14
                   - id
                   - userId
                   - skillId
@@ -94,7 +96,7 @@ paths:
                   - entryParams
                   - pipelineStatus
                   - createdAt
-                properties: &ref_7
+                properties: &ref_15
                   id:
                     type: string
                     description: session ID
@@ -212,22 +214,22 @@ paths:
             application/json:
               schema:
                 type: object
-                required: &ref_8
+                required: &ref_16
                   - messages
-                properties: &ref_9
+                properties: &ref_17
                   messages:
                     type: array
                     description: 持久化消息数组，按 sequence 升序；瞬时消息不入库不出现在 history
                     items:
                       type: object
-                      required: &ref_10
+                      required: &ref_18
                         - id
                         - sequence
                         - messageType
                         - role
                         - payload
                         - createdAt
-                      properties: &ref_11
+                      properties: &ref_19
                         id:
                           type: string
                           description: message ID
@@ -300,10 +302,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: &ref_12
+              required: &ref_20
                 - messageType
                 - role
-              properties: &ref_13
+              properties: &ref_21
                 messageType:
                   type: string
                   enum:
@@ -351,11 +353,11 @@ paths:
                     - title: SkillEntered
                       type: object
                       description: skill_entered — 进入或切换 skill
-                      required: &ref_14
+                      required: &ref_22
                         - skillId
                         - skillVersionId
                         - entryParams
-                      properties: &ref_15
+                      properties: &ref_23
                         skillId:
                           type: string
                           description: 进入的 skill ID
@@ -379,10 +381,10 @@ paths:
                     - title: StepInputSubmitted
                       type: object
                       description: step_input_submitted — 用户提交确认面板
-                      required: &ref_16
+                      required: &ref_24
                         - stepNumber
                         - refMessageId
-                      properties: &ref_17
+                      properties: &ref_25
                         stepNumber:
                           type: integer
                           description: 对应的 pipeline 步骤序号
@@ -396,7 +398,7 @@ paths:
                     - title: UserText
                       type: object
                       description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段
-                      properties: &ref_18
+                      properties: &ref_26
                         data:
                           type: object
                           additionalProperties: true
@@ -404,7 +406,7 @@ paths:
                     - title: AssistantText
                       type: object
                       description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段
-                      properties: &ref_19
+                      properties: &ref_27
                         data:
                           type: object
                           additionalProperties: true
@@ -412,9 +414,9 @@ paths:
                     - title: PipelineStart
                       type: object
                       description: pipeline_start — pipeline 开始
-                      required: &ref_20
+                      required: &ref_28
                         - totalSteps
-                      properties: &ref_21
+                      properties: &ref_29
                         totalSteps:
                           type: integer
                           description: 总步骤数
@@ -425,9 +427,9 @@ paths:
                     - title: StepStart
                       type: object
                       description: step_start — 步骤开始
-                      required: &ref_22
+                      required: &ref_30
                         - stepNumber
-                      properties: &ref_23
+                      properties: &ref_31
                         stepNumber:
                           type: integer
                           description: 当前步骤序号
@@ -438,9 +440,9 @@ paths:
                     - title: StepComplete
                       type: object
                       description: step_complete — 步骤完成
-                      required: &ref_24
+                      required: &ref_32
                         - stepNumber
-                      properties: &ref_25
+                      properties: &ref_33
                         stepNumber:
                           type: integer
                           description: 完成的步骤序号
@@ -451,9 +453,9 @@ paths:
                     - title: StepInputRequired
                       type: object
                       description: step_input_required — 等待用户输入确认面板
-                      required: &ref_26
+                      required: &ref_34
                         - stepNumber
-                      properties: &ref_27
+                      properties: &ref_35
                         stepNumber:
                           type: integer
                           description: 需要用户确认的步骤序号
@@ -464,10 +466,10 @@ paths:
                     - title: PipelineComplete
                       type: object
                       description: pipeline_complete — 全部步骤完成
-                      required: &ref_34
+                      required: &ref_42
                         - totalSteps
                         - durationSeconds
-                      properties: &ref_35
+                      properties: &ref_43
                         totalSteps:
                           type: integer
                           description: 总步骤数
@@ -481,10 +483,10 @@ paths:
                     - title: PipelineError
                       type: object
                       description: pipeline_error — pipeline 执行出错，平台将 pipeline_status 更新为 error
-                      required: &ref_32
+                      required: &ref_40
                         - code
                         - message
-                      properties: &ref_33
+                      properties: &ref_41
                         code:
                           type: string
                           description: 错误码，全大写下划线格式，结构同 Web API 错误响应
@@ -500,9 +502,9 @@ paths:
                     - title: StepProgress
                       type: object
                       description: step_progress — 步骤内实时进度，瞬时消息，平台不持久化
-                      required: &ref_28
+                      required: &ref_36
                         - stepNumber
-                      properties: &ref_29
+                      properties: &ref_37
                         stepNumber:
                           type: integer
                           description: 当前步骤序号
@@ -513,9 +515,9 @@ paths:
                     - title: StepPartialDetail
                       type: object
                       description: step_partial_detail — 步骤内部分结果实时流入，瞬时消息，平台不持久化
-                      required: &ref_30
+                      required: &ref_38
                         - stepNumber
-                      properties: &ref_31
+                      properties: &ref_39
                         stepNumber:
                           type: integer
                           description: 当前步骤序号
@@ -564,7 +566,7 @@ paths:
           content: *ref_4
         '409':
           description: 状态消息已存在，违反 `(session_id, message_type, payload.stepNumber)` 唯一约束
-          content: &ref_36
+          content: &ref_44
             application/json:
               schema:
                 allOf:
@@ -637,6 +639,161 @@ paths:
         '403':
           description: Skill 无权调用该接口（scope 不足）
           content: *ref_3
+  /skill-api/llm/chat:
+    post:
+      tags:
+        - LLM
+      summary: LLM 对话（非流式）
+      description: |
+        `POST /skill-api/llm/chat`
+
+        简单 one-shot LLM 调用：图文输入、纯文本输出，非流式、无上下文管理。适用于 pipeline 步骤中的
+        分类 / 评分 / 摘要 / 图片理解等。平台同步落 `llm_usage_records`（计费 + 审计），响应 `id` 即该记录 id。
+
+        图片以平台文件 `fileId` 引用（`ctx.upload_file` 或 session 上传返回的 id），平台进程内解析为图片源，
+        不内联 base64。1.0 不支持 tools / function-calling。
+      operationId: llmChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: &ref_10
+                - messages
+              properties: &ref_11
+                model:
+                  type: string
+                  description: 模型 id 或平台别名；为空时用平台默认模型兜底
+                  example: claude-sonnet-4-6
+                messages:
+                  type: array
+                  description: 消息列表（业务上至少 1 条 user/assistant；system 可选）
+                  items:
+                    type: object
+                    required: &ref_8
+                      - role
+                      - content
+                    properties: &ref_9
+                      role:
+                        type: string
+                        enum:
+                          - system
+                          - user
+                          - assistant
+                        description: 消息角色。system 由平台抽出走顶层 system 参数
+                      content:
+                        type: array
+                        description: 内容块数组（图文混排）。SDK 对纯文本提供 string 简写，发送前归一为单个 text 块
+                        items:
+                          type: object
+                          required: &ref_6
+                            - type
+                          description: |
+                            消息内容块。`type=text` 时用 `text`；`type=image` 时用 `fileId`（引用平台文件，平台进程内解析为图片源，不内联 base64）。
+                          properties: &ref_7
+                            type:
+                              type: string
+                              enum:
+                                - text
+                                - image
+                              description: 内容块类型
+                            text:
+                              type: string
+                              description: type=text 时的文本内容
+                            fileId:
+                              type: string
+                              description: type=image 时引用的平台文件 id（files.id）
+                              example: file_5k8Zt7QhZ3kR9mVx2yNpEw
+                maxTokens:
+                  type: integer
+                  description: 最大输出 token 数
+                  default: 2048
+                  example: 1024
+                temperature:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  default: 0.7
+      responses:
+        '200':
+          description: LLM 响应
+          content:
+            application/json:
+              schema:
+                type: object
+                required: &ref_12
+                  - id
+                  - model
+                properties: &ref_13
+                  id:
+                    type: string
+                    description: '= llm_usage_records.id（lu_ 前缀），可按此回溯审计记录'
+                    example: lu_5k8Zt7QhZ3kR9mVx2yNpEw
+                  model:
+                    type: string
+                    description: 实际调用的真实模型 id
+                    example: claude-sonnet-4-6
+                  content:
+                    type: string
+                    description: 模型文本响应
+                  inputTokens:
+                    type: integer
+                    description: 未命中缓存的常规输入 token
+                    example: 32
+                  outputTokens:
+                    type: integer
+                    example: 128
+                  cacheCreationInputTokens:
+                    type: integer
+                    description: 写入 prompt cache 的 token（无缓存为 0）
+                    example: 0
+                  cacheReadInputTokens:
+                    type: integer
+                    description: 命中 prompt cache 读取的 token（无命中为 0）
+                    example: 0
+                  finishReason:
+                    type: string
+                    enum:
+                      - stop
+                      - length
+                      - tool_use
+                      - content_filter
+                      - error
+                    description: 平台规范化结束原因
+                    example: stop
+        '400':
+          description: 请求参数错误（如文件大小超限、格式不支持）
+          content: *ref_5
+        '401':
+          description: API Key 无效或 MINUS_AI_SID session 过期 / 失效
+          content: *ref_2
+        '403':
+          description: Skill 无权调用该接口（scope 不足）
+          content: *ref_3
+        '429':
+          description: 套餐额度耗尽（月度/总量限制），`code` 为 `QUOTA_EXCEEDED`
+          content: &ref_45
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: QUOTA_EXCEEDED
+                message: Plan quota exceeded
+        '500':
+          description: 服务器内部错误
+          content: &ref_46
+            application/json:
+              schema:
+                type: object
+                required: *ref_0
+                properties: *ref_1
+              example:
+                code: INTERNAL_ERROR
+                message: Internal server error
 components:
   securitySchemes:
     minusAiSid:
@@ -650,92 +807,110 @@ components:
       name: X-Skill-Api-Key
       description: Skill 身份凭证，由平台颁发，验证 skill 身份和权限 scope。
   schemas:
-    SkillSession:
+    LlmContentBlock:
       type: object
       required: *ref_6
+      description: |
+        消息内容块。`type=text` 时用 `text`；`type=image` 时用 `fileId`（引用平台文件，平台进程内解析为图片源，不内联 base64）。
       properties: *ref_7
-    SkillSessionMessagesResponse:
+    LlmMessage:
       type: object
       required: *ref_8
       properties: *ref_9
-    SkillSessionMessage:
+    LlmChatRequest:
       type: object
       required: *ref_10
       properties: *ref_11
-    ReportMessageRequest:
+    LlmChatResponse:
       type: object
       required: *ref_12
       properties: *ref_13
+    SkillSession:
+      type: object
+      required: *ref_14
+      properties: *ref_15
+    SkillSessionMessagesResponse:
+      type: object
+      required: *ref_16
+      properties: *ref_17
+    SkillSessionMessage:
+      type: object
+      required: *ref_18
+      properties: *ref_19
+    ReportMessageRequest:
+      type: object
+      required: *ref_20
+      properties: *ref_21
     PayloadSkillEntered:
       title: SkillEntered
       type: object
       description: skill_entered — 进入或切换 skill
-      required: *ref_14
-      properties: *ref_15
+      required: *ref_22
+      properties: *ref_23
     PayloadStepInputSubmitted:
       title: StepInputSubmitted
       type: object
       description: step_input_submitted — 用户提交确认面板
-      required: *ref_16
-      properties: *ref_17
+      required: *ref_24
+      properties: *ref_25
     PayloadUserText:
       title: UserText
       type: object
       description: user_text — 用户对话文本（v1.0 不生效）。文本内容存表级 content 字段
-      properties: *ref_18
+      properties: *ref_26
     PayloadAssistantText:
       title: AssistantText
       type: object
       description: assistant_text — AI 文字回复（v1.0 不生效）。文本内容存表级 content 字段
-      properties: *ref_19
+      properties: *ref_27
     PayloadPipelineStart:
       title: PipelineStart
       type: object
       description: pipeline_start — pipeline 开始
-      required: *ref_20
-      properties: *ref_21
+      required: *ref_28
+      properties: *ref_29
     PayloadStepStart:
       title: StepStart
       type: object
       description: step_start — 步骤开始
-      required: *ref_22
-      properties: *ref_23
+      required: *ref_30
+      properties: *ref_31
     PayloadStepComplete:
       title: StepComplete
       type: object
       description: step_complete — 步骤完成
-      required: *ref_24
-      properties: *ref_25
+      required: *ref_32
+      properties: *ref_33
     PayloadStepInputRequired:
       title: StepInputRequired
       type: object
       description: step_input_required — 等待用户输入确认面板
-      required: *ref_26
-      properties: *ref_27
+      required: *ref_34
+      properties: *ref_35
     PayloadStepProgress:
       title: StepProgress
       type: object
       description: step_progress — 步骤内实时进度，瞬时消息，平台不持久化
-      required: *ref_28
-      properties: *ref_29
+      required: *ref_36
+      properties: *ref_37
     PayloadStepPartialDetail:
       title: StepPartialDetail
       type: object
       description: step_partial_detail — 步骤内部分结果实时流入，瞬时消息，平台不持久化
-      required: *ref_30
-      properties: *ref_31
+      required: *ref_38
+      properties: *ref_39
     PayloadPipelineError:
       title: PipelineError
       type: object
       description: pipeline_error — pipeline 执行出错，平台将 pipeline_status 更新为 error
-      required: *ref_32
-      properties: *ref_33
+      required: *ref_40
+      properties: *ref_41
     PayloadPipelineComplete:
       title: PipelineComplete
       type: object
       description: pipeline_complete — 全部步骤完成
-      required: *ref_34
-      properties: *ref_35
+      required: *ref_42
+      properties: *ref_43
     ErrorResponse:
       type: object
       required: *ref_0
@@ -755,18 +930,10 @@ components:
       content: *ref_4
     StateAlreadyExists:
       description: 状态消息已存在，违反 `(session_id, message_type, payload.stepNumber)` 唯一约束
-      content: *ref_36
+      content: *ref_44
     QuotaExceeded:
       description: 套餐额度耗尽（月度/总量限制），`code` 为 `QUOTA_EXCEEDED`
-      content:
-        application/json:
-          schema:
-            type: object
-            required: *ref_0
-            properties: *ref_1
-          example:
-            code: QUOTA_EXCEEDED
-            message: Plan quota exceeded
+      content: *ref_45
     RateLimited:
       description: 请求频率过快（短时间请求过多），`code` 为 `RATE_LIMITED`
       content:
@@ -780,12 +947,4 @@ components:
             message: Too many requests, please retry later
     InternalError:
       description: 服务器内部错误
-      content:
-        application/json:
-          schema:
-            type: object
-            required: *ref_0
-            properties: *ref_1
-          example:
-            code: INTERNAL_ERROR
-            message: Internal server error
+      content: *ref_46
