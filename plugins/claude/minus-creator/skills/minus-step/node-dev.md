@@ -268,7 +268,7 @@ minus-lib check-python-deps
 - 如果报缺失依赖 → Agent 自己修复：把依赖写进 `pyproject.toml` 再执行 `uv pip install -e .`（只装进 `.venv` 不更新 pyproject，换环境就丢），然后重新检查；通过前不要让 Creator 测试（依赖修复是 Agent 的事，不交给 Creator 手动处理）
 - 验证依赖用项目 venv 的 python（Unix：`.venv/bin/python`；Windows：`.venv/Scripts/python.exe`）——系统 `python3` 看不到 venv 里的包，结果不可信
 
-2. 用 `skill_update` 更新后端步骤状态为 completed（传入 .minus/skill.json 中的 skillId 和 version）
+2. 用 `skill_update` 更新后端步骤：将该步骤标记为 completed，并根据维度 ④ 确认的交互模式设置 `inputRequired`（interactive → true，auto → false）。传入 .minus/skill.json 中的 skillId 和 version
 3. 执行 `minus-lib update-progress step-done {step_number}`（自动标记本步骤完成、推进 currentStep；最后一步会自动进入待测试阶段）。⛔ 禁止手写 `.minus/progress.json`。
 4. 脚本会输出测试邀请话术（单源在脚本里）：原样转达「」内的行（每行独立），然后**停止，等 Creator 回复**。
    - ⛔ 禁止把 step-done 与其他流程命令（如 generate-result-design）串在一条命令里执行

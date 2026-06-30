@@ -505,7 +505,7 @@ server.tool(
   `编辑草稿版本（PATCH /api/skills/{skillId}/versions/{version}）。
 仅 status=draft 的版本可编辑，否则返回 409。
 可更新字段：displayName(string)、description(string)、iconFileId(string)、steps(array)、useCases(array)、tags(array)。
-steps 格式：[{ stepNumber: 1, stepName: "步骤名" }, ...]，stepNumber 从 1 严格递增。
+steps 格式：[{ stepNumber: 1, stepName: "步骤名", inputRequired: false }, ...]，stepNumber 从 1 严格递增，inputRequired(boolean) 表示该步骤是否需要用户确认输入（默认 false）。
 部分更新：字段缺失则不修改，传值则覆盖。
 skillId 和 version 从 .minus/skill.json 读取。
 API 文档见 .claude/api/openapi-bundled.yaml`,

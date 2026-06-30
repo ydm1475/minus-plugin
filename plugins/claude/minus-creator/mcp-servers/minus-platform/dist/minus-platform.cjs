@@ -38910,7 +38910,7 @@ server.tool(
   `\u7F16\u8F91\u8349\u7A3F\u7248\u672C\uFF08PATCH /api/skills/{skillId}/versions/{version}\uFF09\u3002
 \u4EC5 status=draft \u7684\u7248\u672C\u53EF\u7F16\u8F91\uFF0C\u5426\u5219\u8FD4\u56DE 409\u3002
 \u53EF\u66F4\u65B0\u5B57\u6BB5\uFF1AdisplayName(string)\u3001description(string)\u3001iconFileId(string)\u3001steps(array)\u3001useCases(array)\u3001tags(array)\u3002
-steps \u683C\u5F0F\uFF1A[{ stepNumber: 1, stepName: "\u6B65\u9AA4\u540D" }, ...]\uFF0CstepNumber \u4ECE 1 \u4E25\u683C\u9012\u589E\u3002
+steps \u683C\u5F0F\uFF1A[{ stepNumber: 1, stepName: "\u6B65\u9AA4\u540D", inputRequired: false }, ...]\uFF0CstepNumber \u4ECE 1 \u4E25\u683C\u9012\u589E\uFF0CinputRequired(boolean) \u8868\u793A\u8BE5\u6B65\u9AA4\u662F\u5426\u9700\u8981\u7528\u6237\u786E\u8BA4\u8F93\u5165\uFF08\u9ED8\u8BA4 false\uFF09\u3002
 \u90E8\u5206\u66F4\u65B0\uFF1A\u5B57\u6BB5\u7F3A\u5931\u5219\u4E0D\u4FEE\u6539\uFF0C\u4F20\u503C\u5219\u8986\u76D6\u3002
 skillId \u548C version \u4ECE .minus/skill.json \u8BFB\u53D6\u3002
 API \u6587\u6863\u89C1 .claude/api/openapi-bundled.yaml`,

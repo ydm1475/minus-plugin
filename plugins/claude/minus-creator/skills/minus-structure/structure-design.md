@@ -118,7 +118,7 @@ Creator: 差不多就这样
 Plugin: ✓ 步骤结构确认。
 ```
 
-确认后用 `skill_update` 将步骤结构写入后端（**字段必须是 stepNumber + stepName，不要用其他字段名**）：
+确认后用 `skill_update` 将步骤结构写入后端（**字段必须是 stepNumber + stepName + inputRequired，不要用其他字段名**）：
 
 ```json
 {
@@ -126,13 +126,15 @@ Plugin: ✓ 步骤结构确认。
   "version": "从 .minus/skill.json 读取",
   "updates": {
     "steps": [
-      { "stepNumber": 1, "stepName": "关键词数据采集" },
-      { "stepNumber": 2, "stepName": "竞争度分析" },
-      { "stepNumber": 3, "stepName": "长尾词推荐" }
+      { "stepNumber": 1, "stepName": "关键词数据采集", "inputRequired": false },
+      { "stepNumber": 2, "stepName": "竞争度分析", "inputRequired": false },
+      { "stepNumber": 3, "stepName": "长尾词推荐", "inputRequired": false }
     ]
   }
 }
 ```
+
+`inputRequired` 对应步骤开发维度 ④ 的确认模式：confirm_mode = interactive 时为 true（用户需要暂停确认再继续），confirm_mode = auto 时为 false（自动往下走）。**结构设计阶段先全部填 false**，等每个步骤进入维度 ④ 开发时再按 Creator 确认的交互方式更新。
 
 **后端是步骤定义的唯一数据源。** 所有平台 API 的字段格式参照 `.claude/api/openapi-bundled.yaml`。
 
@@ -167,7 +169,7 @@ minus-lib generate-steps --swap 3 4
 minus-lib update-progress rename-step 3 "新名称"
 ```
 
-结构变更完成后，必须用 `skill_update` 同步后端步骤定义（stepNumber + stepName），保持前后端和后端三方一致。
+结构变更完成后，必须用 `skill_update` 同步后端步骤定义（stepNumber + stepName + inputRequired），保持前后端和后端三方一致。
 
 ⛔ 禁止：对已有步骤的项目使用不带 `--append`/`--insert-at`/`--delete`/`--swap` 的 `generate-steps.sh`，这会覆盖所有已实现的代码。
 ⛔ 禁止：手动编辑 pipeline.py 的方法编号或 main.tsx 的 buildSteps 数组顺序来实现插入/删除——必须用脚本，否则容易漏改引用导致数据错位。
