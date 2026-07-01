@@ -32,6 +32,7 @@ effort: high
 **禁止**在不知道具体错误内容的情况下直接执行体检和自动修复——盲目重启会掩盖真实问题（如编译错误、配置错误），浪费时间且无法根治。
 
 仅当满足以下任一条件时可跳过追问、直接体检：
+
 - 用户已给出具体错误信息（截图、报错文字、明确现象如"白屏"、"页面打不开"）
 - 上下文中刚执行过的操作足以推断问题方向（如刚删了文件、改了依赖）
 
@@ -58,23 +59,24 @@ effort: high
 
 ## 4. 按结论路由
 
-| DIAGNOSE | 含义 | 行动 |
-|----------|------|------|
-| `NOT_LOGGED_IN` / `NO_PROJECT` / `ENV_NOT_READY` | 前置条件缺失 | 按透传的 HINT 行执行补救（指引单源于 gate.sh）。例外：`NO_PROJECT` 仅当确认用户在做 Minus 开发才补救，否则回到第 0 步的不适用处理 |
-| `DEV_SERVER_DOWN` | dev server 未运行 | 读 `.minus/dev.log` 最后 50 行查找崩溃原因；日志指向代码错误（编译失败、语法错误等）→ 转路径 A 先修代码；日志无明显代码错误 → 执行 `minus-lib resume-env restart` |
-| `BACKEND_DOWN` | 前端在跑、后端无响应 | 读 `.minus/backend-dev.log` 最后 50 行（如不存在则读 `.minus/dev.log`）查找后端崩溃原因；同上逻辑：先定因再决定修代码还是重启 |
-| `PYTHON_DEPS_MISSING` | pipeline 依赖缺失 | 自动修：把缺失包写进 pyproject.toml 并用项目 venv 安装（`uv pip install -e .`），不用系统 python |
-| `clean` | 环境全部正常 | 问题在业务代码层：读后端/前端日志定位到具体步骤，路由到 minus-step（指明步骤号）；若是结构层问题路由到 minus-structure |
+| DIAGNOSE                                         | 含义                 | 行动                                                                                                                                                              |
+| ------------------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOT_LOGGED_IN` / `NO_PROJECT` / `ENV_NOT_READY` | 前置条件缺失         | 按透传的 HINT 行执行补救（指引单源于 gate.sh）。例外：`NO_PROJECT` 仅当确认用户在做 Minus 开发才补救，否则回到第 0 步的不适用处理                                 |
+| `DEV_SERVER_DOWN`                                | dev server 未运行    | 读 `.minus/dev.log` 最后 50 行查找崩溃原因；日志指向代码错误（编译失败、语法错误等）→ 转路径 A 先修代码；日志无明显代码错误 → 执行 `minus-lib resume-env restart` |
+| `BACKEND_DOWN`                                   | 前端在跑、后端无响应 | 读 `.minus/backend-dev.log` 最后 50 行（如不存在则读 `.minus/dev.log`）查找后端崩溃原因；同上逻辑：先定因再决定修代码还是重启                                     |
+| `PYTHON_DEPS_MISSING`                            | pipeline 依赖缺失    | 自动修：把缺失包写进 pyproject.toml 并用项目 venv 安装（`uv pip install -e .`），不用系统 python                                                                  |
+| `clean`                                          | 环境全部正常         | 问题在业务代码层：读后端/前端日志定位到具体步骤，路由到 minus-step（指明步骤号）；若是结构层问题路由到 minus-structure                                            |
 
 补救完成后重跑 `minus-lib diagnose` 确认 `DIAGNOSE=clean`，再回到用户原本想做的事。
 
 ## 4.5 日志行号不匹配 = 运行时代码过期
 
 dev.log 报错指向某文件第 N 行，但磁盘上该文件第 N 行内容不匹配（已修改或行数偏移）——说明运行中的进程加载的是旧代码，hot reload 未生效。此时：
+
 - **不能以"旧日志"为由忽略**——行号不匹配是 stale runtime 的确定性信号
 - 必须确认 reload 成功（日志中出现 "WatchFiles detected changes" + 新 server process started 且无报错），或执行 `minus-lib resume-env restart` 重启
 - 确认新代码已加载后再判断问题是否仍存在
 
 ## 5. 交互原则
 
-Creator 是非程序员：不展示命令、代码、报错原文；能自动修的直接说"我来修"，修完用业务语言汇报修了什么、现在能不能继续。
+能自动修的直接说"我来修"，修完用业务语言汇报修了什么、现在能不能继续。
