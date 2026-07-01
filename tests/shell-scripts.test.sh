@@ -493,7 +493,8 @@ implement_step() {
   mark_dims_done 1; implement_step 1
   OUTPUT=$(bash "$UP" step-done 1 2>&1)
   if assert_contains "$OUTPUT" "原样转达给 Creator" \
-     && assert_contains "$OUTPUT" "预览页面重新输入测试数据" \
+     && assert_contains "$OUTPUT" "测试前先刷新一下页面" \
+     && assert_contains "$OUTPUT" "重新输入测试数据开始一次新的流程" \
      && assert_contains "$OUTPUT" "继续开发步骤 2"; then
     pass "update-progress: step-done emits test invitation"
   else
