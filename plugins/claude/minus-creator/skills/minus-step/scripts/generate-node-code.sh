@@ -103,6 +103,31 @@ Creator 未明确要求概览、摘要、统计卡片或顶部汇总时，禁止
 TEMPLATE
 fi
 
+# ── 前端开发手册（按本步特征列出必读子文档，对齐后端 SDK_DOC_PATH 模式）──
+# 设计原因：劝告式提醒（"重新查阅 CLAUDE.md 索引"）已实测无效——判断留给 Agent 的每一步
+# 都是逃逸口。这里把"读哪份"的判断收回脚本，只给 Agent 留"执行 curl"一个动作。
+
+DOC_BASE=$(grep -oE "https?://[a-zA-Z0-9.:/_-]+/runtime/frontend-guide/doc\.md" CLAUDE.md 2>/dev/null | head -1 | sed 's|/doc\.md$||')
+echo ""
+if [ -n "$DOC_BASE" ]; then
+  FRONTEND_DOCS="$DOC_BASE/frontend/contract.md"
+  if [ "$LOGIC_MODE" = "llm" ]; then
+    FRONTEND_DOCS="$FRONTEND_DOCS $DOC_BASE/frontend/step-summary.md"
+  fi
+  DOC_COUNT=$(echo "$FRONTEND_DOCS" | wc -w | tr -d ' ')
+  echo "FRONTEND_DOC_URLS=$DOC_COUNT"
+  echo "⛔ 写前端代码前必须通读以下文档，禁止凭记忆写组件 props、确认机制或摘要时序。"
+  echo "   某份文档本会话已 curl 过且全文仍在上下文中（未被压缩成摘要）→ 可跳过该条；"
+  echo "   只记得结论、原文已不在 → 必须重新 curl。拿不准 → 重新 curl。"
+  for DOC_URL in $FRONTEND_DOCS; do
+    echo "  curl -sSL '$DOC_URL'"
+  done
+else
+  echo "FRONTEND_DOC_URLS=0"
+  echo "⚠️ 未能从项目 CLAUDE.md 解析平台文档地址。写前端代码前按 CLAUDE.md「开发手册（索引）」"
+  echo "   的 curl 命令取索引，再按本步需求取对应子文档；文档不可达时停止写前端代码并告知 Creator。"
+fi
+
 cat << 'WIDGET_TRAP'
 
 ⚠️ 高频陷阱——步骤摘要会出现两份：

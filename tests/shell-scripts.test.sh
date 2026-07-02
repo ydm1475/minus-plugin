@@ -1162,6 +1162,52 @@ GNC="$(via_lib generate-node-code)"
   fi
 )
 
+# Test: llm mode injects frontend doc curl commands (contract + step-summary)
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' > pipeline.py
+  printf '%s\n' "- \`curl -sSL 'http://47.107.144.22:18990/runtime/frontend-guide/doc.md'\`" > CLAUDE.md
+  OUTPUT=$(bash "$GNC" 1 llm auto 2>&1)
+  if assert_contains "$OUTPUT" "FRONTEND_DOC_URLS=2" \
+     && assert_contains "$OUTPUT" "curl -sSL 'http://47.107.144.22:18990/runtime/frontend-guide/frontend/contract.md'" \
+     && assert_contains "$OUTPUT" "curl -sSL 'http://47.107.144.22:18990/runtime/frontend-guide/frontend/step-summary.md'"; then
+    pass "generate-node-code: llm mode injects contract + step-summary doc urls"
+  else
+    fail "generate-node-code: llm mode doc urls" "got: $OUTPUT"
+  fi
+)
+
+# Test: deterministic mode injects contract.md only (no step-summary)
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' > pipeline.py
+  printf '%s\n' "- \`curl -sSL 'http://47.107.144.22:18990/runtime/frontend-guide/doc.md'\`" > CLAUDE.md
+  OUTPUT=$(bash "$GNC" 1 deterministic auto 2>&1)
+  if assert_contains "$OUTPUT" "FRONTEND_DOC_URLS=1" \
+     && assert_contains "$OUTPUT" "curl -sSL 'http://47.107.144.22:18990/runtime/frontend-guide/frontend/contract.md'" \
+     && ! printf '%s' "$OUTPUT" | grep -q "step-summary.md"; then
+    pass "generate-node-code: deterministic mode injects contract.md only"
+  else
+    fail "generate-node-code: deterministic mode doc urls" "got: $OUTPUT"
+  fi
+)
+
+# Test: missing CLAUDE.md degrades to FRONTEND_DOC_URLS=0 with fallback guidance
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus; echo 1 > .minus/total-steps
+  printf '%s\n' 'class Demo:' '    async def step_1(self, ctx):' '        return None' > pipeline.py
+  OUTPUT=$(bash "$GNC" 1 llm auto 2>&1)
+  if assert_contains "$OUTPUT" "FRONTEND_DOC_URLS=0" \
+     && assert_contains "$OUTPUT" "开发手册（索引）"; then
+    pass "generate-node-code: missing CLAUDE.md degrades to fallback guidance"
+  else
+    fail "generate-node-code: missing CLAUDE.md fallback" "got: $OUTPUT"
+  fi
+)
+
 # Test: interactive template warns about duplicate summary
 (
   TMP=$(make_tmp); cd "$TMP"
