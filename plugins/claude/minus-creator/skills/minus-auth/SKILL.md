@@ -17,7 +17,7 @@ effort: medium
 |------|------|
 | 登录 | 已登录 → 告知当前账号，询问是否切换；未登录 → Read [auth-flow.md](auth-flow.md) |
 | 退出登录 | 调用 `mcp__minus-platform__auth_logout`，告知结果 |
-| 切换账号 | 先 `auth_logout`，再 Read [auth-flow.md](auth-flow.md) 重新登录 |
+| 切换账号 | 原样输出"好的，退出当前账号 {当前昵称}，为你重新登录。"（{当前昵称} 取上面 auth_status 结果的 nickname 字段，缺失则改为"好的，退出当前账号，为你重新登录。"）→ 调用 `auth_logout` → Read [auth-flow.md](auth-flow.md) 重新登录 |
 | 查登录状态 | 直接输出 auth_status 结果（账号、登录态），不做多余动作 |
 | 注册账号 | 告知 Creator：注册请到 Minus 官网完成，这里只能登录已有账号 |
 

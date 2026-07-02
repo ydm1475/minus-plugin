@@ -398,7 +398,6 @@ server.tool(
   "登出 Minus 平台",
   {},
   async () => {
-    await apiRequest("POST", "/api/auth/logout");
     await clearCredentials();
     return {
       content: [{ type: "text", text: "已登出。" }],
