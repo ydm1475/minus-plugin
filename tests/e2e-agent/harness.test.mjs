@@ -15,7 +15,8 @@ import { buildJudgePrompt, parseVerdicts, formatTranscriptLines, verifyEvidence 
 import { renderHtml, parseTranscriptMd, applyOverrides } from "./report-html.mjs";
 import { recordOverride, isJudgedItem } from "./feedback.mjs";
 import { loadCases } from "./calibrate.mjs";
-import { createReviewServer } from "./review-server.mjs";
+import { createReviewServer, unresolvedItems } from "./review-server.mjs";
+import { ClaudeSession, parseLine, extractResult } from "./session.mjs";
 import { parseSseChunk, resolveEntryParams, buildConfirmData, detectConfirmedKeys } from "./run-skill.mjs";
 import { Report, stepImplemented, countPipelineSteps, resultComplete, assertResult } from "./assert.mjs";
 
@@ -369,7 +370,7 @@ test("renderHtml: 旧 report.json（无 round/verified 字段）可渲染", () =
 
 // ── feedback.mjs / calibrate.mjs ──
 
-function makeRunLogDir() {
+function makeRunLogDir(projectDir = null) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-fb-"));
   fs.writeFileSync(
     path.join(dir, "report.json"),
@@ -377,6 +378,7 @@ function makeRunLogDir() {
       scenario: "demo",
       round: 4,
       tokensTotal: 100,
+      ...(projectDir ? { projectDir } : {}),
       items: [
         { id: "H2", label: "硬断言项", pass: true, detail: "" },
         { id: "C4", label: "不抢答", pass: false, detail: "证据原文", round: 3, verified: "round" },
@@ -506,6 +508,138 @@ test("review-server: 网页提交裁定落盘，非法请求 400", async () => {
     fs.rmSync(logDir, { recursive: true });
     fs.rmSync(calDir, { recursive: true });
   }
+});
+
+test("unresolvedItems: 失败项与证据存疑项需裁定，裁定后视为已复核", () => {
+  const items = [
+    { id: "H1", pass: true },
+    { id: "C1", pass: false },                       // ✗ 未裁定 → 未复核
+    { id: "C2", pass: true, verified: "miss" },       // ⚠ 证据存疑未裁定 → 未复核
+    { id: "C3", pass: true, verified: "round" },      // ✓ 且核验通过 → 不需要
+  ];
+  assert.deepEqual(unresolvedItems(items, []), ["C1", "C2"]);
+  assert.deepEqual(unresolvedItems(items, [{ id: "C1", pass: true }]), ["C2"]);
+  assert.deepEqual(
+    unresolvedItems(items, [{ id: "C1", pass: false }, { id: "C2", pass: true }]),
+    [],
+    "确认 fail 也算复核完成"
+  );
+});
+
+test("review-server /api/cleanup: 未复核完拒绝，复核完删项目，日志保留", async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-proj-"));
+  fs.mkdirSync(path.join(projectDir, ".minus"), { recursive: true });
+  const logDir = makeRunLogDir(projectDir);
+  const calDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-cal4-"));
+  const server = createReviewServer(logDir, { calibrationDir: calDir });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // C4 是 fail 且未裁定 → 门禁拒绝
+    const denied = await fetch(base + "/api/cleanup", { method: "POST" });
+    assert.equal(denied.status, 409);
+    const d = await denied.json();
+    assert.deepEqual(d.unresolved, ["C4"]);
+    assert.ok(fs.existsSync(projectDir), "被拒绝时项目必须原封不动");
+    // 裁定 C4 后 → 清理放行
+    await fetch(base + "/api/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "C4", pass: false, reason: "确认是真违规" }),
+    });
+    const ok = await (await fetch(base + "/api/cleanup", { method: "POST" })).json();
+    assert.equal(ok.ok, true);
+    assert.ok(!fs.existsSync(projectDir), "项目已删除");
+    assert.ok(fs.existsSync(path.join(logDir, "report.json")), "日志与报告保留");
+    assert.ok(fs.existsSync(path.join(logDir, "overrides.json")), "裁定档案保留");
+  } finally {
+    server.close();
+    fs.rmSync(logDir, { recursive: true });
+    fs.rmSync(calDir, { recursive: true });
+    fs.rmSync(projectDir, { recursive: true, force: true });
+  }
+});
+
+test("review-server /api/cleanup: 非 e2e-agent-* 目录一律拒绝删除", async () => {
+  const realProject = fs.mkdtempSync(path.join(os.tmpdir(), "my-real-project-"));
+  const logDir = makeRunLogDir(realProject);
+  // 改造 report：无失败项，门禁可过，卡在目录名约束上
+  const report = JSON.parse(fs.readFileSync(path.join(logDir, "report.json"), "utf8"));
+  report.items = [{ id: "H1", label: "ok", pass: true }];
+  fs.writeFileSync(path.join(logDir, "report.json"), JSON.stringify(report));
+  const server = createReviewServer(logDir);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/api/cleanup`, { method: "POST" });
+    assert.equal(r.status, 400);
+    assert.ok((await r.json()).error.includes("拒绝清理"));
+    assert.ok(fs.existsSync(realProject), "真实目录不能被碰");
+  } finally {
+    server.close();
+    fs.rmSync(logDir, { recursive: true });
+    fs.rmSync(realProject, { recursive: true });
+  }
+});
+
+test("renderHtml: 有 projectDir 时渲染清理入口，无则不渲染", () => {
+  const withDir = renderHtml({ scenario: "demo", items: [], projectDir: "/tmp/e2e-agent-x" });
+  assert.ok(withDir.includes("复核完成，清理临时项目"));
+  assert.ok(withDir.includes("/api/cleanup"));
+  const without = renderHtml({ scenario: "demo", items: [] });
+  assert.ok(!without.includes('id="cleanup-btn"'));
+});
+
+// ── session.mjs（stream-json 单进程会话）──
+
+test("parseLine / extractResult: 事件解析与 result 提取", () => {
+  assert.equal(parseLine(""), null);
+  assert.equal(parseLine("非 JSON 行"), null);
+  assert.equal(extractResult(parseLine('{"type":"assistant"}')), null);
+  const r = extractResult(
+    parseLine('{"type":"result","subtype":"success","result":"好","session_id":"s1","usage":{"input_tokens":18,"output_tokens":378},"total_cost_usd":0.037}')
+  );
+  assert.equal(r.text, "好");
+  assert.equal(r.sessionId, "s1");
+  assert.deepEqual(r.usage, { input: 18, output: 378 });
+  assert.equal(r.costUsd, 0.037);
+});
+
+const STUB_CLAUDE = path.join(HERE, "stub-claude.mjs");
+
+function stubSession(extra = {}) {
+  return new ClaudeSession({
+    command: process.execPath,
+    prependArgs: [STUB_CLAUDE],
+    ...extra,
+  }).start();
+}
+
+test("ClaudeSession: 单进程多轮问答、usage 累计、正常收尾", async () => {
+  const events = [];
+  const s = stubSession({ onEvent: (e) => events.push(e.type) });
+  const r1 = await s.send("第一轮");
+  assert.equal(r1.text, "echo: 第一轮");
+  assert.equal(r1.sessionId, "stub-session-1");
+  const r2 = await s.send("第二轮");
+  assert.equal(r2.text, "echo: 第二轮");
+  assert.ok(events.includes("assistant") && events.includes("result"));
+  await s.close();
+  assert.equal(s.exited, true);
+  assert.equal(s.exitInfo.code, 0, "stdin end 后进程正常退出");
+});
+
+test("ClaudeSession: 进程中途死亡 → 在途轮次报错，后续 send 拒绝", async () => {
+  const s = stubSession();
+  await assert.rejects(() => s.send("CRASH"), /进程在等待应答时退出.*code=3/);
+  await assert.rejects(() => s.send("再来"), /进程已退出/);
+});
+
+test("ClaudeSession: 应答超时与串行约束", async () => {
+  const s = stubSession();
+  const slow = s.send("SLOW", { timeoutMs: 300 });
+  await assert.rejects(() => s.send("插队"), /串行发送/);
+  await assert.rejects(() => slow, /超时/);
+  await s.close();
 });
 
 test("parseTranscriptMd: 按 record() 的 md 格式回解析", () => {

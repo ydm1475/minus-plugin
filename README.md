@@ -79,7 +79,7 @@ E2E_DESKTOP=1 bash tests/e2e-agent/run.sh keyword-to-asin                       
                                                                                     # 真实 Desktop 冒烟见 References/Desktop Smoke Checklist.md
 node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token，已含在 run-all.sh）
 
-# ── E2E Agent 结果审查与人工复核（不消耗 token）──
+# ── E2E Agent 结果审查与人工复核（完整流程见 tests/e2e-agent/README.md）──
 node tests/e2e-agent/report-html.mjs <logDir>                # 给历史日志补生成 report.html 对话回放报告（新 run 自动生成）
 node tests/e2e-agent/review-server.mjs <logDir>              # 网页复核：在报告页里直接对判定选 pass/fail、填理由、提交落盘（推荐）
 node tests/e2e-agent/feedback.mjs <logDir> C4 pass "理由"    # 同一件事的命令行版：落盘人工裁定、更新回放报告、沉淀 judge 校准用例

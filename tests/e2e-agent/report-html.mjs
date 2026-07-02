@@ -41,7 +41,7 @@ export function applyOverrides(items, overrides = []) {
   });
 }
 
-export function renderHtml({ scenario, transcript = [], items = [], overrides = [], round = 0, tokensTotal = 0 }) {
+export function renderHtml({ scenario, transcript = [], items = [], overrides = [], round = 0, tokensTotal = 0, projectDir = null }) {
   items = applyOverrides(items, overrides);
   const msgs = transcript
     .map((t, i) => {
@@ -132,6 +132,12 @@ export function renderHtml({ scenario, transcript = [], items = [], overrides = 
   .review-body .submit:hover { background: #eef1f4; }
   .review-msg { font-size: 12px; color: #cf222e; }
   .review-msg.ok { color: #1a7f37; }
+  #cleanup { margin-top: 20px; padding: 12px; background: #fff; border: 1px dashed #d0d7de; border-radius: 8px; }
+  #cleanup button { border: 1px solid #cf222e; color: #cf222e; background: #fff; border-radius: 6px; padding: 5px 14px; cursor: pointer; font-weight: 600; }
+  #cleanup button.armed { background: #cf222e; color: #fff; }
+  #cleanup .hint { margin-top: 6px; font-size: 12px; color: #8b949e; word-break: break-all; }
+  #cleanup-msg { margin-left: 8px; font-size: 12px; color: #cf222e; }
+  #cleanup-msg.ok { color: #1a7f37; }
   h2 { font-size: 14px; color: #57606a; margin: 4px 0 8px; }
 </style>
 </head>
@@ -149,6 +155,11 @@ ${msgs || '<p style="color:#8b949e">（无对话记录）</p>'}
   <aside id="panel">
     <h2>断言与评判（点击轮次号跳转高亮）</h2>
 ${rows || '<p style="color:#8b949e">（无断言结果）</p>'}
+${projectDir ? `    <div id="cleanup">
+      <button id="cleanup-btn">复核完成，清理临时项目</button>
+      <span id="cleanup-msg"></span>
+      <div class="hint">将删除 ${esc(projectDir)} 并停掉其 dev server。前提：所有 ✗ 项与 ⚠ 证据存疑项都已人工裁定，否则会被拒绝。日志与报告（logs/ 目录）永久保留，不受影响。</div>
+    </div>` : ""}
   </aside>
 </main>
 <script>
@@ -185,8 +196,11 @@ document.querySelectorAll(".review-body .submit").forEach(function (btn) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: id, pass: sel.value === "pass", reason: reason }),
       });
-      var data = await r.json();
-      if (!data.ok) throw new Error(data.error || r.status);
+      var text = await r.text();
+      var data;
+      try { data = JSON.parse(text); }
+      catch (pe) { throw new Error("HTTP " + r.status + "，响应非 JSON: " + text.slice(0, 80)); }
+      if (!data.ok) throw new Error(data.error + "（HTTP " + r.status + "）");
       msg.className = "review-msg ok";
       msg.textContent = "已落盘，刷新中…";
       setTimeout(function () { location.reload(); }, 600);
@@ -196,6 +210,49 @@ document.querySelectorAll(".review-body .submit").forEach(function (btn) {
     }
   });
 });
+// 复核完成 → 清理临时项目（两次点击确认；服务端还有"全部复核完毕"门禁兜底）
+var cleanupBtn = document.getElementById("cleanup-btn");
+if (cleanupBtn) {
+  var cleanupMsg = document.getElementById("cleanup-msg");
+  var armed = false, armTimer = null;
+  cleanupBtn.addEventListener("click", async function () {
+    if (location.protocol === "file:") {
+      cleanupMsg.textContent = "此页面是直接打开的文件，请用 review-server 打开后再清理。";
+      return;
+    }
+    if (!armed) {
+      armed = true;
+      cleanupBtn.classList.add("armed");
+      cleanupBtn.textContent = "再点一次确认删除";
+      armTimer = setTimeout(function () {
+        armed = false;
+        cleanupBtn.classList.remove("armed");
+        cleanupBtn.textContent = "复核完成，清理临时项目";
+      }, 5000);
+      return;
+    }
+    clearTimeout(armTimer);
+    cleanupBtn.disabled = true;
+    cleanupMsg.className = "";
+    try {
+      var r = await fetch("/api/cleanup", { method: "POST" });
+      var text = await r.text();
+      var data;
+      try { data = JSON.parse(text); }
+      catch (pe) { throw new Error("HTTP " + r.status + "，响应非 JSON: " + text.slice(0, 80)); }
+      if (!data.ok) throw new Error(data.error + (data.unresolved ? "：" + data.unresolved.join("、") : ""));
+      cleanupMsg.className = "ok";
+      cleanupMsg.textContent = "已清理临时项目。日志与报告保留在 logs/ 下。";
+      cleanupBtn.textContent = "已清理";
+    } catch (e) {
+      cleanupBtn.disabled = false;
+      armed = false;
+      cleanupBtn.classList.remove("armed");
+      cleanupBtn.textContent = "复核完成，清理临时项目";
+      cleanupMsg.textContent = "未清理: " + e.message;
+    }
+  });
+}
 </script>
 </body>
 </html>
@@ -235,6 +292,8 @@ export function generateReport(logDir) {
       overrides,
       round: report.round || 0,
       tokensTotal: report.tokensTotal || 0,
+      // 项目现场还在才显示清理入口（旧格式 report.json 无此字段 → 不显示）
+      projectDir: report.projectDir && fs.existsSync(report.projectDir) ? report.projectDir : null,
     })
   );
   return out;

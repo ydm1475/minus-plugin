@@ -30,6 +30,7 @@ import {
 import { simulateUser } from "./simulate-user.mjs";
 import { judgeTranscript, formatTranscriptLines, verifyEvidence } from "./judge.mjs";
 import { renderHtml } from "./report-html.mjs";
+import { ClaudeSession } from "./session.mjs";
 import { runPipeline, stopDevServer } from "./run-skill.mjs";
 
 const PROJECT_DIR = required("E2E_PROJECT_DIR");
@@ -40,6 +41,14 @@ const SCENARIO_FILE = required("E2E_SCENARIO");
 const MAX_ROUNDS = parseInt(process.env.E2E_MAX_ROUNDS || "60", 10);
 const AGENT_MODEL = process.env.E2E_AGENT_MODEL || "sonnet";
 const ROUND_BUDGET_USD = process.env.E2E_ROUND_BUDGET_USD || "3";
+// 对话模式：
+//   stream（默认）— 单进程多轮（stream-json 双向流），与真实用户的连续 session 对齐：
+//                   hooks 只注入一次、MCP 不重启、无每轮冷启动
+//   resume        — 每轮 claude -p --resume 重启进程（旧行为，协议兜底开关）
+const TURN_MODE = process.env.E2E_TURN_MODE || "stream";
+// stream 模式预算对整进程生效：默认按 每轮预算 × 最大轮数 折算
+const SESSION_BUDGET_USD =
+  process.env.E2E_BUDGET_USD || String(parseFloat(ROUND_BUDGET_USD) * MAX_ROUNDS);
 const SKIP_RUN = process.env.E2E_SKIP_RUN === "1"; // 跳过真实运行（调试对话流程用）
 // Desktop 模式：注入 CLAUDE_CODE_ENTRYPOINT + mock Claude_Preview MCP，
 // 驱动 env-init 走分支 A（preview_start → record-preview-port → 门禁）。
@@ -85,7 +94,51 @@ function record(role, text) {
   fs.writeFileSync(path.join(LOG_DIR, "transcript.json"), JSON.stringify(transcript, null, 2));
 }
 
-function claudeSend(prompt) {
+const AGENT_ENV = DESKTOP
+  ? { ...process.env, CLAUDE_CODE_ENTRYPOINT: "claude-desktop" }
+  : process.env;
+
+// ── stream 模式：单进程会话 ──
+let session = null;
+let roundEvents = [];
+
+function ensureSession() {
+  if (session) return session;
+  const args = [
+    "--plugin-dir", PLUGIN_DIR,
+    "--model", AGENT_MODEL,
+    "--dangerously-skip-permissions",
+    "--max-budget-usd", SESSION_BUDGET_USD,
+  ];
+  if (DESKTOP) args.push("--mcp-config", MCP_CONFIG_FILE);
+  session = new ClaudeSession({
+    args,
+    cwd: PROJECT_DIR,
+    env: AGENT_ENV,
+    onEvent: (ev) => roundEvents.push(ev),
+    onStderr: (s) => fs.appendFileSync(path.join(LOG_DIR, "claude-stderr.log"), s),
+  }).start();
+  return session;
+}
+
+async function claudeSendStream(prompt) {
+  roundEvents = [];
+  try {
+    const result = await ensureSession().send(prompt);
+    round++;
+    fs.writeFileSync(path.join(LOG_DIR, `round-${round}.json`), JSON.stringify(roundEvents, null, 2));
+    if (result.sessionId) sessionId = result.sessionId;
+    tokensTotal += result.usage.input + result.usage.output;
+    return result.text;
+  } catch (err) {
+    round++;
+    fs.writeFileSync(path.join(LOG_DIR, `round-${round}.json`), JSON.stringify(roundEvents, null, 2));
+    throw new Error(`claude 调用失败（round ${round}）: ${err.message}`);
+  }
+}
+
+// ── resume 模式：每轮重启进程（旧行为，E2E_TURN_MODE=resume 启用）──
+function claudeSendResume(prompt) {
   const args = [
     "--print",
     "--plugin-dir", PLUGIN_DIR,
@@ -97,14 +150,11 @@ function claudeSend(prompt) {
   if (DESKTOP) args.push("--mcp-config", MCP_CONFIG_FILE);
   if (sessionId) args.push("--resume", sessionId);
   args.push(prompt);
-  const env = DESKTOP
-    ? { ...process.env, CLAUDE_CODE_ENTRYPOINT: "claude-desktop" }
-    : process.env;
   return new Promise((resolve, reject) => {
     execFile(
       "claude",
       args,
-      { cwd: PROJECT_DIR, timeout: 15 * 60_000, maxBuffer: 32 * 1024 * 1024, env },
+      { cwd: PROJECT_DIR, timeout: 15 * 60_000, maxBuffer: 32 * 1024 * 1024, env: AGENT_ENV },
       (err, stdout, stderr) => {
         round++;
         fs.writeFileSync(path.join(LOG_DIR, `round-${round}.json`), stdout || "");
@@ -124,6 +174,8 @@ function claudeSend(prompt) {
     );
   });
 }
+
+const claudeSend = TURN_MODE === "resume" ? claudeSendResume : claudeSendStream;
 
 // ── 阶段检测 ──
 
@@ -345,7 +397,11 @@ function finish(code) {
   console.log("═══════════════════════════════════════");
   fs.writeFileSync(
     path.join(LOG_DIR, "report.json"),
-    JSON.stringify({ scenario: scenario.name, items: report.items, round, tokensTotal }, null, 2)
+    JSON.stringify(
+      // projectDir 记进报告：复核服务的"复核完成→清理项目"按钮靠它定位现场
+      { scenario: scenario.name, projectDir: PROJECT_DIR, items: report.items, round, tokensTotal },
+      null, 2
+    )
   );
   try {
     const htmlFile = path.join(LOG_DIR, "report.html");
@@ -362,14 +418,16 @@ function finish(code) {
   }
   stopDevServer(devServerHandle);
   stopMockPreview();
-  process.exit(code ?? (fail > 0 ? 1 : 0));
+  // stream 模式的 claude 子进程必须收尾，否则 process.exit 后成孤儿继续占资源
+  const sessionClosed = session ? session.close() : Promise.resolve();
+  sessionClosed.finally(() => process.exit(code ?? (fail > 0 ? 1 : 0)));
 }
 
 // 完成信号：所有阶段断言已触发，且 Agent 不再有待答问题
 async function main() {
   console.log(`剧本: ${scenario.name}（${scenario.steps} 步）`);
   console.log(`项目: ${PROJECT_DIR}`);
-  console.log(`Agent 模型: ${AGENT_MODEL}  最大轮数: ${MAX_ROUNDS}`);
+  console.log(`Agent 模型: ${AGENT_MODEL}  最大轮数: ${MAX_ROUNDS}  对话模式: ${TURN_MODE === "resume" ? "resume（每轮重启进程）" : "stream（单进程连续会话）"}`);
 
   let agentText = await claudeSend(scenario.brief.trim());
   record("agent", agentText);

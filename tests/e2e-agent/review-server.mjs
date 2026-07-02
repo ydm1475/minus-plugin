@@ -16,6 +16,50 @@ import { fileURLToPath } from "node:url";
 import { recordOverride } from "./feedback.mjs";
 import { generateReport } from "./report-html.mjs";
 
+// 清理门禁：证据链必须活到复核完成。
+// "未复核" = 判定失败（✗）或证据核验未命中（⚠）、且没有任何人工裁定的项。
+// 有裁定即视为已复核——无论裁定结论是推翻还是确认。
+export function unresolvedItems(items = [], overrides = []) {
+  const ruled = new Set(overrides.map((o) => o.id));
+  const ids = [];
+  for (const it of items) {
+    if ((it.pass === false || it.verified === "miss") && !ruled.has(it.id)) ids.push(it.id);
+  }
+  return [...new Set(ids)];
+}
+
+async function cleanupProject(projectDir) {
+  // 只删 E2E 临时项目（目录名硬约束），杜绝误删任何真实项目
+  if (!/^e2e-agent-/.test(path.basename(projectDir))) {
+    throw new Error(`拒绝清理：${projectDir} 不是 e2e-agent-* 临时项目`);
+  }
+  if (!fs.existsSync(projectDir)) return "（项目目录已不存在）";
+  // 先杀干净再删：dev server（concurrently+vite+uvicorn）不死就 rm 会残留空壳目录
+  const pidFile = path.join(projectDir, ".minus", "dev.pid");
+  try {
+    const pid = parseInt(fs.readFileSync(pidFile, "utf8").replace(/\D/g, ""), 10);
+    if (pid) {
+      try { process.kill(-pid); } catch { try { process.kill(pid); } catch {} }
+    }
+  } catch {}
+  await new Promise((resolve) => {
+    execFile("pkill", ["-f", projectDir], () => resolve());
+  });
+  // 等进程真正退出（最多 ~5s）
+  for (let i = 0; i < 10; i++) {
+    const alive = await new Promise((resolve) => {
+      execFile("pgrep", ["-f", projectDir], (err) => resolve(!err));
+    });
+    if (!alive) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  fs.rmSync(projectDir, { recursive: true, force: true });
+  if (fs.existsSync(projectDir)) {
+    throw new Error(`清理未完成，残留: ${projectDir}（可能仍有进程占用）`);
+  }
+  return "已删除";
+}
+
 export function createReviewServer(logDir, { calibrationDir } = {}) {
   return http.createServer((req, res) => {
     if (req.method === "GET" && (req.url === "/" || req.url === "/report.html")) {
@@ -31,9 +75,11 @@ export function createReviewServer(logDir, { calibrationDir } = {}) {
       return;
     }
     if (req.method === "POST" && req.url === "/api/override") {
-      let body = "";
-      req.on("data", (d) => (body += d));
+      // 按 Buffer 收集再整体解码：字符串拼接会在分片边界切坏多字节 UTF-8（中文理由必踩）
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
       req.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8");
         try {
           const { id, pass, reason } = JSON.parse(body || "{}");
           if (!id || typeof pass !== "boolean" || !String(reason || "").trim()) {
@@ -50,10 +96,42 @@ export function createReviewServer(logDir, { calibrationDir } = {}) {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true, overturned: override.overturned }));
         } catch (err) {
+          // 400 也必须留痕，否则"提交失败"在服务端无迹可查
+          console.log(`✗ POST /api/override 400: ${err.message}（body ${body.length}B: ${body.slice(0, 120)}）`);
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: err.message }));
         }
       });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/cleanup") {
+      (async () => {
+        try {
+          const report = JSON.parse(fs.readFileSync(path.join(logDir, "report.json"), "utf8"));
+          const overridesFile = path.join(logDir, "overrides.json");
+          const overrides = fs.existsSync(overridesFile)
+            ? JSON.parse(fs.readFileSync(overridesFile, "utf8"))
+            : [];
+          const unresolved = unresolvedItems(report.items, overrides);
+          if (unresolved.length) {
+            console.log(`✗ 清理被门禁拒绝：${unresolved.length} 项未复核（${unresolved.join("、")}）`);
+            res.writeHead(409, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: `还有 ${unresolved.length} 项未复核`, unresolved }));
+            return;
+          }
+          if (!report.projectDir) {
+            throw new Error("该 run 未记录项目目录（旧格式报告），请手动清理");
+          }
+          const result = await cleanupProject(report.projectDir);
+          console.log(`✓ 复核完成，临时项目${result}: ${report.projectDir}`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, result }));
+        } catch (err) {
+          console.log(`✗ 清理失败: ${err.message}`);
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: err.message }));
+        }
+      })();
       return;
     }
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
