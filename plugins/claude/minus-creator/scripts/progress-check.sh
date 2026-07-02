@@ -13,12 +13,22 @@ set -uo pipefail
 TRACKER_DIR=".minus/dev-progress"
 PROGRESS_FILE=".minus/progress.json"
 
-# 总步骤数
-if [ -f ".minus/total-steps" ]; then
-  TOTAL=$(cat .minus/total-steps)
-else
-  TOTAL=$(grep -c 'async def step_[0-9]' pipeline.py 2>/dev/null || echo 0)
+# 结构设计未完成（design-done 尚未原子写入 total-steps）时不做自愈判断，
+# 避免把 create-skill 生成的初始占位 step（无 TODO 标记）误判为"已开发完成"
+[ -f ".minus/total-steps" ] || exit 0
+
+# 双重防护：phase 仍处于 designing 时同样跳过
+if [ -f "$PROGRESS_FILE" ]; then
+  PHASE=$(node -e '
+    try {
+      const p = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      process.stdout.write(p.phase || "");
+    } catch (e) {}
+  ' "$PROGRESS_FILE" 2>/dev/null)
+  [ "$PHASE" != "designing" ] || exit 0
 fi
+
+TOTAL=$(cat .minus/total-steps)
 [ "$TOTAL" -ge 1 ] 2>/dev/null || exit 0
 
 # 收集每步硬产物完成证据：step_N 无骨架占位

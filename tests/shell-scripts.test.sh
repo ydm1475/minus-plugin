@@ -622,6 +622,38 @@ echo "═══ progress-check.sh ═══"
   fi
 )
 
+# Test: 结构设计前（无 total-steps）不做自愈判断，即使 pipeline.py 里已有无 TODO 标记的占位 step
+(
+  TMP=$(make_tmp); cd "$TMP"
+  mkdir -p .minus
+  echo '{"skillId":"sk_test","version":"v1"}' > .minus/skill.json
+  {
+    echo "class SkillPipeline(Pipeline):"
+    echo ""
+    echo "    async def step_1(self, ctx):"
+    echo "        return StepOutcome.complete(payload={\"text\": json.dumps(ctx.input, ensure_ascii=False, indent=2)})"
+  } > pipeline.py
+  OUTPUT=$(bash "$PC" 2>&1); CODE=$?
+  if [ "$CODE" -eq 0 ] && [ -z "$OUTPUT" ] && [ ! -f .minus/progress.json ]; then
+    pass "progress-check: skips before design-done (no total-steps)"
+  else
+    fail "progress-check: skips before design-done (no total-steps)" "code=$CODE got: $OUTPUT"
+  fi
+)
+
+# Test: total-steps 已存在但 phase 仍为 designing 时也不做自愈判断
+(
+  TMP=$(make_tmp); cd "$TMP"
+  setup_project 1
+  bash "$UP" init-design >/dev/null 2>&1
+  OUTPUT=$(bash "$PC" 2>&1); CODE=$?
+  if [ "$CODE" -eq 0 ] && [ -z "$OUTPUT" ] && [ "$(pj .phase)" = "designing" ]; then
+    pass "progress-check: skips while phase=designing"
+  else
+    fail "progress-check: skips while phase=designing" "code=$CODE got: $OUTPUT / $(cat .minus/progress.json 2>&1)"
+  fi
+)
+
 # Test: generate-steps 全量模式自动写入 progress.json
 (
   TMP=$(make_tmp); cd "$TMP"
