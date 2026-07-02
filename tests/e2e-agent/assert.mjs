@@ -9,10 +9,13 @@ export class Report {
   constructor() {
     this.items = [];
   }
-  add(id, label, pass, detail = "") {
-    this.items.push({ id, label, pass, detail });
+  add(id, label, pass, detail = "", extra = null) {
+    this.items.push({ id, label, pass, detail, ...(extra || {}) });
     const mark = pass ? "✓" : "✗";
     console.log(`  ${mark} [${id}] ${label}${pass || !detail ? "" : ` — ${detail}`}`);
+    if (extra?.verified === "miss") {
+      console.log(`      ⚠ 评判引用的证据未命中对话原文，需人工复核`);
+    }
     return pass;
   }
   get failed() {

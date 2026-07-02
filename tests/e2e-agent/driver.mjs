@@ -28,7 +28,8 @@ import {
   stepImplemented,
 } from "./assert.mjs";
 import { simulateUser } from "./simulate-user.mjs";
-import { judgeTranscript } from "./judge.mjs";
+import { judgeTranscript, formatTranscriptLines, verifyEvidence } from "./judge.mjs";
+import { renderHtml } from "./report-html.mjs";
 import { runPipeline, stopDevServer } from "./run-skill.mjs";
 
 const PROJECT_DIR = required("E2E_PROJECT_DIR");
@@ -80,6 +81,8 @@ function record(role, text) {
     .map((t) => `## ${t.role === "agent" ? "Agent" : "模拟用户"}\n\n${t.text}\n`)
     .join("\n---\n\n");
   fs.writeFileSync(path.join(LOG_DIR, "transcript.md"), md);
+  // 结构化对话：report-html 回放与证据核验的数据源（md 是给人 grep 的，json 是给机器的）
+  fs.writeFileSync(path.join(LOG_DIR, "transcript.json"), JSON.stringify(transcript, null, 2));
 }
 
 function claudeSend(prompt) {
@@ -319,13 +322,13 @@ async function finalVerification() {
 async function behaviorJudge() {
   if (!scenario.transcript_rules.length) return;
   console.log("\n═══ 行为规则评判 ═══");
-  const text = transcript
-    .map((t) => `【${t.role === "agent" ? "Agent" : "用户"}】${t.text}`)
-    .join("\n\n");
+  // 评判与核验必须用同一份带轮次号的文本，evidence 才能逐字对回原文
+  const lines = formatTranscriptLines(transcript);
   try {
-    const verdicts = await judgeTranscript(scenario.transcript_rules, text);
+    const verdicts = await judgeTranscript(scenario.transcript_rules, lines.join("\n\n"));
     for (const v of verdicts) {
-      report.add(v.id, v.rule, v.pass, v.evidence.slice(0, 200));
+      const verified = verifyEvidence(v, lines);
+      report.add(v.id, v.rule, v.pass, v.evidence, { round: v.round, verified });
     }
   } catch (err) {
     report.add("B?", "行为规则评判执行", false, err.message);
@@ -344,6 +347,19 @@ function finish(code) {
     path.join(LOG_DIR, "report.json"),
     JSON.stringify({ scenario: scenario.name, items: report.items, round, tokensTotal }, null, 2)
   );
+  try {
+    const htmlFile = path.join(LOG_DIR, "report.html");
+    fs.writeFileSync(
+      htmlFile,
+      renderHtml({ scenario: scenario.name, transcript, items: report.items, round, tokensTotal })
+    );
+    console.log(`  回放报告: ${htmlFile}`);
+    if (fail > 0) {
+      console.log(`  网页复核（对判定不认可时）: node tests/e2e-agent/review-server.mjs ${LOG_DIR}`);
+    }
+  } catch (err) {
+    console.error(`  ⚠ 回放报告生成失败: ${err.message}`);
+  }
   stopDevServer(devServerHandle);
   stopMockPreview();
   process.exit(code ?? (fail > 0 ? 1 : 0));

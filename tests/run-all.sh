@@ -98,6 +98,20 @@ else
   echo ""
 fi
 
+# ── E2E Agent Harness Tests（剧本框架自测，零 token）──
+echo "▶ E2E Agent Harness Tests"
+echo "────────────────────"
+# 管道尾是 grep/head，退出码取 PIPESTATUS[0]（node --test 本身）才不会掩盖失败
+"$TEST_NODE" --test "$SCRIPT_DIR/e2e-agent/harness.test.mjs" 2>&1 | grep -E "^(ok|not ok|#|$)" | head -40
+if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+  echo ""
+else
+  FAILED=1
+  echo ""
+  echo "  ⚠ Some e2e-agent harness tests failed"
+  echo ""
+fi
+
 # ── Summary ──
 echo "╔══════════════════════════════════════╗"
 if [ "$FAILED" -eq 0 ]; then

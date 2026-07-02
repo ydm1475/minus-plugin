@@ -77,12 +77,18 @@ E2E_KEEP=1 E2E_MAX_ROUNDS=80 E2E_AGENT_MODEL=opus bash tests/e2e-agent/run.sh ..
 E2E_DESKTOP=1 bash tests/e2e-agent/run.sh keyword-to-asin                           # Desktop 模式：mock Claude_Preview 验证分支 A
                                                                                     # （preview_start → record-preview-port → 门禁）行为链
                                                                                     # 真实 Desktop 冒烟见 References/Desktop Smoke Checklist.md
-node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token）
+node --test ~/minus-platform-develop/minus-plugin/tests/e2e-agent/harness.test.mjs  # harness 自身单测（不消耗 token，已含在 run-all.sh）
+
+# ── E2E Agent 结果审查与人工复核（不消耗 token）──
+node tests/e2e-agent/report-html.mjs <logDir>                # 给历史日志补生成 report.html 对话回放报告（新 run 自动生成）
+node tests/e2e-agent/review-server.mjs <logDir>              # 网页复核：在报告页里直接对判定选 pass/fail、填理由、提交落盘（推荐）
+node tests/e2e-agent/feedback.mjs <logDir> C4 pass "理由"    # 同一件事的命令行版：落盘人工裁定、更新回放报告、沉淀 judge 校准用例
+node tests/e2e-agent/calibrate.mjs                           # 用积累的人工裁定回归 judge（改评判 prompt/换模型前后各跑一遍，消耗 token）
 ```
 
 环境矩阵测试：在真实 Windows/macOS runner（`.github/workflows/env-matrix.yml`）上验证插件在各种 Node 环境（无 node / 老 node / Volta / nvm / PATH 错序 / 真实 Volta 自动安装 / `install.sh` 插件识别）下的安装与运行，零 API key。Node 状态用受控 PATH + 假 HOME 在 job 内构造（见 `tests/env-matrix/lib.sh` 头注释），本机跑 local scope 时破坏性场景自动 skip。
 
-E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度 ④ 等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
+E2E Agent 剧本测试：用 `claude -p` 真实驱动 Creator Agent 走完"结构设计 → 逐节点四维度 → 真实运行"全流程，haiku 扮演用户按剧本口径应答。断言分两层：硬断言（H 系列，状态机/产物机械检查 + 逐节点真实执行 + 终验完整跑通）写在剧本 `expect` 段；行为规则（B 系列，两步法顺序、不跳维、最后一步不问维度 ④ 等）写在剧本 `transcript_rules` 段，由评判模型看 transcript 逐条判定。每轮对话实时打印（`[Agent]`/`[模拟用户]`），完整 transcript 与报告落盘在 `tests/e2e-agent/logs/`，并自动生成 `report.html` 对话回放（左侧逐轮对话气泡，右侧断言结果，点评判项的轮次号跳转高亮它引用的原文）。评判引用的证据会逐字对回 transcript 做机器核验，未命中原文的判定标"⚠ 需人工复核"。对判定不认可时用 `feedback.mjs` 落盘人工裁定（推翻/确认 + 理由），裁定叠加进回放报告并沉淀为 `judge-calibration/` 校准用例，`calibrate.mjs` 用它们回归评判模型。新增测试场景 = 在 `tests/e2e-agent/scenarios/` 新增一个 YAML 剧本，不用写代码。
 
 ## 项目注册表
 

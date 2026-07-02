@@ -11,7 +11,11 @@ import childProcess from "node:child_process";
 
 import { parseYaml, loadScenario } from "./scenario.mjs";
 import { buildSimPrompt } from "./simulate-user.mjs";
-import { buildJudgePrompt, parseVerdicts } from "./judge.mjs";
+import { buildJudgePrompt, parseVerdicts, formatTranscriptLines, verifyEvidence } from "./judge.mjs";
+import { renderHtml, parseTranscriptMd, applyOverrides } from "./report-html.mjs";
+import { recordOverride, isJudgedItem } from "./feedback.mjs";
+import { loadCases } from "./calibrate.mjs";
+import { createReviewServer } from "./review-server.mjs";
 import { parseSseChunk, resolveEntryParams, buildConfirmData, detectConfirmedKeys } from "./run-skill.mjs";
 import { Report, stepImplemented, countPipelineSteps, resultComplete, assertResult } from "./assert.mjs";
 
@@ -131,6 +135,61 @@ test("buildJudgePrompt: 包含全部规则", () => {
   );
   assert.ok(p.includes("B1: 两步法顺序"));
   assert.ok(p.includes("【Agent】hi"));
+  assert.ok(p.includes("round"), "评判要求引用轮次号");
+  assert.ok(p.includes("逐字摘抄"), "评判要求逐字引用原文");
+});
+
+test("parseVerdicts: 保留轮次号，非整数轮次归一为 null", () => {
+  const rules = [{ id: "B1", rule: "规则一" }, { id: "B2", rule: "规则二" }];
+  const out = `[{"id":"B1","pass":true,"round":3,"evidence":"原文"},{"id":"B2","pass":false,"round":"第4轮","evidence":"x"}]`;
+  const verdicts = parseVerdicts(out, rules);
+  assert.equal(verdicts[0].round, 3);
+  assert.equal(verdicts[1].round, null);
+});
+
+test("formatTranscriptLines: 带轮次号与角色标签", () => {
+  const lines = formatTranscriptLines([
+    { role: "agent", text: "请问输入什么？" },
+    { role: "user", text: "一个关键词" },
+  ]);
+  assert.deepEqual(lines, [
+    "【第1轮 · Agent】请问输入什么？",
+    "【第2轮 · 用户】一个关键词",
+  ]);
+});
+
+test("verifyEvidence: 三态核验（命中所标轮次 / 命中其他轮次 / 未命中）", () => {
+  const lines = formatTranscriptLines([
+    { role: "agent", text: "步骤 1 开发完成了，请到预览页测试一下，确认后我们继续。" },
+    { role: "user", text: "我在预览里看过了，没问题，继续开发步骤 2" },
+  ]);
+  // 逐字命中所标轮次（允许空白/引号差异）
+  assert.equal(
+    verifyEvidence({ round: 1, evidence: "请到预览页测试一下，确认后我们继续" }, lines),
+    "round"
+  );
+  // 原文说过，但轮次标错
+  assert.equal(
+    verifyEvidence({ round: 1, evidence: "我在预览里看过了，没问题" }, lines),
+    "transcript"
+  );
+  // 编造的引用 → miss
+  assert.equal(
+    verifyEvidence({ round: 2, evidence: "Agent 直接跳过了测试邀请环节继续开发" }, lines),
+    "miss"
+  );
+  // 多片段用 … 分隔：全部命中才算
+  assert.equal(
+    verifyEvidence({ round: 1, evidence: "步骤 1 开发完成了…确认后我们继续" }, lines),
+    "round"
+  );
+  assert.equal(
+    verifyEvidence({ round: 1, evidence: "步骤 1 开发完成了…这句是编的引用内容" }, lines),
+    "miss"
+  );
+  // 空 evidence / 片段太短 → miss（不构成证据）
+  assert.equal(verifyEvidence({ round: 1, evidence: "" }, lines), "miss");
+  assert.equal(verifyEvidence({ round: 1, evidence: "继续" }, lines), "miss");
 });
 
 // ── run-skill.mjs ──
@@ -263,12 +322,198 @@ test("countPipelineSteps: total-steps 优先，否则数 pipeline.py", () => {
   fs.rmSync(dir, { recursive: true });
 });
 
-test("Report: 统计与失败收集", () => {
+test("Report: 统计与失败收集，extra 字段并入 item", () => {
   const r = new Report();
   r.add("H1", "ok 项", true);
   r.add("H2", "fail 项", false, "原因");
-  assert.deepEqual(r.summary(), { pass: 1, fail: 1, total: 2 });
+  r.add("C1", "评判项", true, "证据原文", { round: 5, verified: "round" });
+  assert.deepEqual(r.summary(), { pass: 2, fail: 1, total: 3 });
   assert.equal(r.failed[0].id, "H2");
+  assert.equal(r.items[2].round, 5);
+  assert.equal(r.items[2].verified, "round");
+});
+
+// ── report-html.mjs ──
+
+test("renderHtml: 对话锚点、跳转按钮、核验角标、HTML 转义", () => {
+  const html = renderHtml({
+    scenario: "demo",
+    transcript: [
+      { role: "agent", text: "第一句 <script>alert(1)</script>" },
+      { role: "user", text: "第二句" },
+    ],
+    items: [
+      { id: "H1", label: "硬断言", pass: true, detail: "" },
+      { id: "C1", label: "评判项", pass: false, detail: "证据", round: 2, verified: "miss" },
+    ],
+    round: 4,
+    tokensTotal: 12345,
+  });
+  assert.ok(html.includes('id="round-1"') && html.includes('id="round-2"'), "每轮对话有锚点");
+  assert.ok(html.includes('data-round="2"'), "评判项带跳转按钮");
+  assert.ok(html.includes("需人工复核"), "miss 核验角标");
+  assert.ok(!html.includes("<script>alert"), "对话内容已转义");
+  assert.ok(html.includes("&lt;script&gt;alert"), "转义后原文仍可见");
+  assert.ok(html.includes("1 passed") && html.includes("1 failed"));
+});
+
+test("renderHtml: 旧 report.json（无 round/verified 字段）可渲染", () => {
+  const html = renderHtml({
+    scenario: "legacy",
+    transcript: [],
+    items: [{ id: "B1", label: "旧格式项", pass: true, detail: "旧 evidence" }],
+  });
+  assert.ok(html.includes("旧格式项"));
+  assert.ok(!html.includes('data-round="'), "无轮次不渲染跳转按钮");
+});
+
+// ── feedback.mjs / calibrate.mjs ──
+
+function makeRunLogDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-fb-"));
+  fs.writeFileSync(
+    path.join(dir, "report.json"),
+    JSON.stringify({
+      scenario: "demo",
+      round: 4,
+      tokensTotal: 100,
+      items: [
+        { id: "H2", label: "硬断言项", pass: true, detail: "" },
+        { id: "C4", label: "不抢答", pass: false, detail: "证据原文", round: 3, verified: "round" },
+      ],
+    })
+  );
+  fs.writeFileSync(
+    path.join(dir, "transcript.json"),
+    JSON.stringify([
+      { role: "agent", text: "请确认结果摘要怎么写？" },
+      { role: "user", text: "大模型自动生成" },
+      { role: "agent", text: "好的，那下载内容呢？" },
+    ])
+  );
+  return dir;
+}
+
+test("recordOverride: 裁定落盘 + 评判类判定沉淀校准用例", () => {
+  const logDir = makeRunLogDir();
+  const calDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-cal-"));
+  const { override, caseFile } = recordOverride(logDir, "C4", true, "judge 漏看了第 2 轮的确认", calDir);
+  assert.equal(override.overturned, true, "人工 pass vs judge fail → 推翻");
+  assert.equal(override.judgePass, false);
+  const overrides = JSON.parse(fs.readFileSync(path.join(logDir, "overrides.json"), "utf8"));
+  assert.equal(overrides.length, 1);
+  assert.equal(overrides[0].id, "C4");
+  // 校准用例：对话 + 规则 + 人工标准答案齐全
+  assert.ok(caseFile && fs.existsSync(caseFile));
+  const c = JSON.parse(fs.readFileSync(caseFile, "utf8"));
+  assert.equal(c.rule.id, "C4");
+  assert.equal(c.human.pass, true);
+  assert.equal(c.transcript.length, 3);
+  // loadCases 能读回
+  const cases = loadCases(calDir);
+  assert.equal(cases.length, 1);
+  assert.equal(cases[0].scenario, "demo");
+  fs.rmSync(logDir, { recursive: true });
+  fs.rmSync(calDir, { recursive: true });
+});
+
+test("recordOverride: 硬断言不进校准集；未知 ID 报错并列出可用项", () => {
+  const logDir = makeRunLogDir();
+  const calDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-cal2-"));
+  const { override, caseFile } = recordOverride(logDir, "H2", false, "断言脚本误判", calDir);
+  assert.equal(override.overturned, true);
+  assert.equal(caseFile, null, "H 系列是脚本断言，不生成 judge 校准用例");
+  assert.throws(() => recordOverride(logDir, "X9", true, "x", calDir), /可用 ID: H2 C4/);
+  fs.rmSync(logDir, { recursive: true });
+  fs.rmSync(calDir, { recursive: true });
+});
+
+test("isJudgedItem: verified 字段或 B/C 前缀视为评判类", () => {
+  assert.equal(isJudgedItem({ id: "C4" }), true);
+  assert.equal(isJudgedItem({ id: "B1" }), true);
+  assert.equal(isJudgedItem({ id: "H2" }), false);
+  assert.equal(isJudgedItem({ id: "R1", verified: "round" }), true, "带核验字段的按评判类处理");
+});
+
+test("applyOverrides + renderHtml: 人工裁定叠加显示且计入汇总", () => {
+  const items = [
+    { id: "H1", label: "硬断言", pass: true },
+    { id: "C4", label: "不抢答", pass: false, detail: "证据", round: 3, verified: "round" },
+  ];
+  const overrides = [
+    { id: "C4", pass: true, reason: "judge 漏看确认", judgePass: false, overturned: true, at: "2026-07-02T00:00:00Z" },
+  ];
+  const merged = applyOverrides(items, overrides);
+  assert.equal(merged[1].effectivePass, true, "人工裁定覆盖 judge 结论");
+  assert.equal(merged[0].effectivePass, true, "无裁定的项保持原判");
+  const html = renderHtml({ scenario: "demo", transcript: [], items, overrides });
+  assert.ok(html.includes("人工复核推翻"), "叠加显示推翻标记");
+  assert.ok(html.includes("judge 漏看确认"), "显示裁定理由");
+  assert.ok(html.includes("2 passed") && html.includes("0 failed"), "汇总按人工裁定后结果统计");
+  assert.ok(html.includes("1 项人工复核"));
+});
+
+test("renderHtml: 评判类判定带网页复核表单，硬断言不带", () => {
+  const html = renderHtml({
+    scenario: "demo",
+    transcript: [],
+    items: [
+      { id: "H1", label: "硬断言", pass: true },
+      { id: "C4", label: "不抢答", pass: false, verified: "round" },
+    ],
+  });
+  assert.ok(html.includes('data-id="C4"'), "C 系列有复核表单");
+  assert.ok(!html.includes('data-id="H1"'), "H 系列无复核表单");
+  assert.ok(html.includes("复核此判定"));
+  assert.ok(html.includes("/api/override"), "提交走复核服务接口");
+});
+
+test("review-server: 网页提交裁定落盘，非法请求 400", async () => {
+  const logDir = makeRunLogDir();
+  const calDir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-agent-cal3-"));
+  const server = createReviewServer(logDir, { calibrationDir: calDir });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // GET / 返回渲染后的报告
+    const page = await fetch(base + "/");
+    assert.equal(page.status, 200);
+    assert.ok((await page.text()).includes("不抢答"));
+    // POST 裁定 → overrides.json 落盘
+    const r = await fetch(base + "/api/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "C4", pass: true, reason: "网页复核测试" }),
+    });
+    const data = await r.json();
+    assert.equal(data.ok, true);
+    assert.equal(data.overturned, true);
+    const overrides = JSON.parse(fs.readFileSync(path.join(logDir, "overrides.json"), "utf8"));
+    assert.equal(overrides[0].reason, "网页复核测试");
+    // 再 GET：叠加显示人工复核
+    assert.ok((await (await fetch(base + "/")).text()).includes("人工复核推翻"));
+    // 缺理由 → 400
+    const bad = await fetch(base + "/api/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "C4", pass: true, reason: " " }),
+    });
+    assert.equal(bad.status, 400);
+    // 校准用例落在指定目录而非仓库默认目录
+    assert.equal(loadCases(calDir).length, 1);
+  } finally {
+    server.close();
+    fs.rmSync(logDir, { recursive: true });
+    fs.rmSync(calDir, { recursive: true });
+  }
+});
+
+test("parseTranscriptMd: 按 record() 的 md 格式回解析", () => {
+  const md = "## Agent\n\n你好，我们开始。\n\n---\n\n## 模拟用户\n\n好的，继续\n";
+  assert.deepEqual(parseTranscriptMd(md), [
+    { role: "agent", text: "你好，我们开始。" },
+    { role: "user", text: "好的，继续" },
+  ]);
 });
 
 // ── mock Claude_Preview MCP server（Desktop 模式）──
