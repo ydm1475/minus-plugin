@@ -38822,7 +38822,6 @@ server.tool(
   "\u767B\u51FA Minus \u5E73\u53F0",
   {},
   async () => {
-    await apiRequest("POST", "/api/auth/logout");
     await clearCredentials();
     return {
       content: [{ type: "text", text: "\u5DF2\u767B\u51FA\u3002" }]
